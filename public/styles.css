@@ -1,0 +1,833 @@
+/*--------------------------------------------------
+  Font Definitions
+--------------------------------------------------*/
+
+@font-face {
+    font-family: 'Founders Grotesk';
+    src: url('fonts/TestFoundersGrotesk-Regular.otf') format('opentype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Founders Grotesk';
+    src: url('fonts/TestFoundersGrotesk-Medium.otf') format('opentype');
+    font-weight: 500;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Founders Grotesk';
+    src: url('fonts/TestFoundersGrotesk-Bold.otf') format('opentype');
+    font-weight: bold;
+    font-style: normal;
+}
+
+
+/*--------------------------------------------------
+  Modern Minimalist Design Variables
+--------------------------------------------------*/
+
+:root {
+    --bg-color: #fafafa;
+    --text-color: #333;
+    --accent-color: #FF4081;
+    --border-color: #e0e0e0;
+    --font-family: 'Founders Grotesk', sans-serif;
+    --transition-speed: 0.3s;
+    --shadow-light: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+     :root {
+        --bg-color: #121212;
+        --text-color: #e0e0e0;
+        --accent-color: #FF4081;
+        --border-color: #333333;
+        --shadow-light: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+}
+
+
+/*--------------------------------------------------
+  Global Styles
+--------------------------------------------------*/
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    width: 100%;
+    font-family: var(--font-family);
+    background: var(--bg-color);
+    color: var(--text-color);
+}
+
+
+/*--------------------------------------------------
+  Index Page (Slideshow)
+--------------------------------------------------*/
+
+#slideshow-container {
+    position: relative;
+    height: 100vh;
+    width: 100vw;
+}
+
+.image-container {
+    position: relative;
+    height: 100%;
+    width: 100%;
+}
+
+.slide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 1s ease-in-out;
+}
+
+.slide.active {
+    opacity: 1;
+}
+
+.title-container {
+    position: absolute;
+    bottom: 4em;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    z-index: 2;
+}
+
+.title-overlay {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    color: #fff;
+    font-size: 2em;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 1s ease-in-out;
+}
+
+.title-overlay.active {
+    opacity: 1;
+}
+
+.hover-area {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    width: 15vw;
+    cursor: pointer;
+}
+
+.hover-area.left {
+    left: 0;
+}
+
+.hover-area.right {
+    right: 0;
+}
+
+.nav-button {
+    opacity: 0;
+    transition: opacity var(--transition-speed);
+    font-size: 3em;
+    color: #fff;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.hover-area.left .nav-button {
+    left: 10px;
+}
+
+.hover-area.right .nav-button {
+    right: 10px;
+}
+
+.hover-area:hover .nav-button {
+    opacity: 1;
+}
+
+
+/*--------------------------------------------------
+  Manage Page Styles
+--------------------------------------------------*/
+
+
+/* Apply padding only on the manage page (add class "manage" to <body> in manage.html) */
+
+body.manage {
+    padding: 2em 6em;
+}
+
+
+/* Collapsible Settings Section */
+
+details {
+    background: var(--bg-color);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+summary {
+    font-size: 1.5rem;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 0.5rem;
+    margin-bottom: 1rem;
+    outline: none;
+}
+
+#settingsForm label[for="speed"] {
+    font-size: 0.9rem;
+    margin-right: 0.5rem;
+}
+
+#speed {
+    width: 60px;
+    /* Smaller input */
+    padding: 0.4rem;
+    font-size: 0.9rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}
+
+#order {
+    padding: 0.4rem;
+    font-size: 0.9rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-color);
+    color: var(--text-color);
+}
+
+input[type="text"],
+input[type="number"],
+select {
+    font-size: 1rem;
+    padding: 0.75rem;
+    border: 2px solid var(--border-color);
+    border-radius: 4px;
+    width: auto;
+    transition: border-color var(--transition-speed);
+    background: var(--bg-color);
+    color: var(--text-color);
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+#saveSettingsBtn {
+    background-color: var(--accent-color);
+    color: #fff;
+    border: none;
+    padding: 0.6rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+}
+
+#saveSettingsBtn:hover {
+    background-color: #e73370;
+}
+
+#saveMessage {
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out;
+    font-size: 1rem;
+    color: var(--accent-color);
+    margin-left: 1em;
+    display: inline-block;
+}
+
+#saveMessage.visible {
+    opacity: 1;
+}
+
+
+/* --- Settings Panel Collapsed Styling --- */
+
+
+/* When the details element is not open, keep it compact */
+
+#settings-details:not([open]) {
+    max-height: 40px;
+    /* Adjust collapsed height as needed */
+    overflow: hidden;
+    padding: 0px;
+    margin-bottom: 0px;
+}
+
+#settings-details summary {
+    display: none;
+}
+
+
+/* --- Save Button and Order Dropdown Styling --- */
+
+#saveSettingsBtn {
+    background-color: var(--accent-color);
+    color: #fff;
+    border: none;
+    padding: 0.6rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+}
+
+#saveSettingsBtn:hover {
+    background-color: #e73370;
+}
+
+#order {
+    padding: 0.4rem;
+    font-size: 0.9rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-color);
+    color: var(--text-color);
+}
+
+
+/* Style for fade-out animation for messages */
+
+.fade-out {
+    opacity: 0;
+    transition: opacity 0.5s ease-out;
+}
+
+
+/* ---- Upload Pictures Section Styling ---- */
+
+
+/* Style the drag & drop area as a full-width box */
+
+#dropArea.highlight {
+    background-color: rgba(255, 64, 129, 0.1);
+    /* subtle accent background */
+}
+
+
+/* --- Upload Section Styling --- */
+
+#uploadSection {
+    margin-top: 1rem;
+}
+
+#uploadSection h2 {
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+}
+
+#dropArea {
+    width: 100%;
+    border: 2px dashed var(--border-color);
+    border-radius: 6px;
+    padding: 2rem;
+    text-align: center;
+    background: var(--bg-color);
+    color: var(--text-color);
+    position: relative;
+}
+
+
+/* Ensure the "Select Files" button inside the drop area is centered */
+
+#dropArea button {
+    margin-top: 1rem;
+    background-color: var(--accent-color);
+    color: #fff;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+}
+
+#dropArea button:hover {
+    background-color: #e73370;
+}
+
+
+/* ---------------- Manage Header ---------------- */
+
+
+/* Example styling for your new header (adjust as needed) */
+
+#manageHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+#manageTitle {
+    font-size: 1.5rem;
+    margin: 0;
+}
+
+.settingsToggle {
+    background: transparent;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    transition: background-color 0.3s ease;
+}
+
+.settingsToggle:hover {
+    background-color: var(--accent-color);
+    color: #fff;
+}
+
+
+/*--------------------------------------------------
+  Table Styles (Pictures Management)
+--------------------------------------------------*/
+
+#imageTable {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#imageTable th,
+#imageTable td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+#imageTable th {
+    font-size: 0.9rem;
+    /* Smaller column headings */
+    padding: 0.75rem;
+}
+
+#imageTable th.sortable {
+    position: relative;
+}
+
+.thumbnail {
+    width: 80px;
+    height: auto;
+    object-fit: cover;
+    border-radius: 4px;
+    display: block;
+}
+
+
+/* Columns: select, thumbnail, date, actions auto-sized; name & tags fill remaining width */
+
+#imageTable th.col-select,
+#imageTable td.col-select,
+#imageTable th.col-thumb,
+#imageTable td.col-thumb,
+#imageTable th.col-date,
+#imageTable td.col-date,
+#imageTable th.col-actions,
+#imageTable td.col-actions {
+    white-space: nowrap;
+    width: 1%;
+}
+
+#imageTable th.col-name,
+#imageTable td.col-name,
+#imageTable th.col-tags,
+#imageTable td.col-tags {
+    width: auto;
+}
+
+
+/* Right-align actions column */
+
+#imageTable td.col-actions {
+    text-align: right;
+}
+
+
+/* For sortable headers, ensure arrow is absolutely positioned */
+
+.sort-arrow {
+    right: 8px;
+    font-size: 0.8rem;
+}
+
+
+/* Full width search bar */
+
+#search {
+    padding: 0.75rem;
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1rem;
+    background: var(--bg-color);
+    color: var(--text-color);
+    margin-bottom: 1rem;
+}
+
+
+/* ---------------- Delete Button Styling ---------------- */
+
+.deleteBtn,
+.playBtn {
+    background-color: transparent;
+    border: none;
+    font-size: 1.2rem;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.deleteBtn:hover,
+.playBtn:hover {
+    color: #e73370 !important;
+}
+
+
+/*--------------------------------------------------
+  Custom Checkbox Style
+--------------------------------------------------*/
+
+
+/* Row hover highlight and selected state */
+
+#imageTable tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+#imageTable tbody tr.selected {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+
+/* Custom Checkbox without checkmark (only color) */
+
+.custom-checkbox {
+    display: inline-block;
+    position: relative;
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+}
+
+.custom-checkbox input {
+    opacity: 0;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+}
+
+.checkmark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--bg-color);
+    transition: background-color 0.2s ease;
+}
+
+.custom-checkbox input:checked~.checkmark {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+
+/*--------------------------------------------------
+  Tag styles 
+--------------------------------------------------*/
+
+
+/* Top Controls Container styling */
+
+#topControls {
+    padding: 0.5rem 1rem;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1rem;
+}
+
+
+/* Right align bulkDeleteContainer by pushing it to the right */
+
+#slideFunctionsContainer {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+
+/* Style for the Bulk Delete button */
+
+#slideFunctionsContainer button {
+    color: #fff;
+    background-color: var(--accent-color);
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#slideFunctionsContainer button:hover {
+    background-color: #e73370;
+}
+
+
+/* Style for the Tag Manager toggle button */
+
+#tagManagerContainer button {
+    color: #fff;
+    border: none;
+    padding: 0.5rem;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#tagManagerSection {
+    flex-wrap: wrap;
+    align-content: space-between;
+    row-gap: 0.3em;
+}
+
+
+/* Tag manager*/
+
+#newTagName {
+    padding: 0.75rem;
+    width: 100%;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1rem;
+    background: var(--bg-color);
+    color: var(--text-color);
+    box-sizing: border-box;
+    margin-bottom: 0.5rem;
+}
+
+
+/* Style the color picker so it appears attached to the newTagName input */
+
+#newTagColor {
+    padding: 0rem;
+    background-color: #fff;
+    border-radius: 0px;
+    border-width: 0em;
+    font-size: 1rem;
+    margin-left: 0rem;
+    vertical-align: middle;
+    /* Optionally remove default appearance for a more custom look */
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+}
+
+
+/* Optional: Improve the appearance of the color picker */
+
+#newTagColor::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+#newTagColor::-webkit-color-swatch {
+    border: none;
+    border-radius: 4px;
+}
+
+
+/* New Tag Form Inline Layout */
+
+#newTagForm {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    /* No gap between elements */
+}
+
+#newTagForm input[type="text"],
+#newTagForm button {
+    margin: 0;
+    border: 1px solid var(--border-color);
+    padding: 0.6rem;
+    font-size: 1rem;
+    outline: none;
+    /* Remove extra space around the elements */
+    border-radius: 0;
+}
+
+
+/* Give the text input a left-rounded corner */
+
+#newTagName {
+    flex: 1;
+    border-radius: 4px 0 0 4px;
+}
+
+
+/* Style the color picker so it attaches to the text input */
+
+#newTagColor {
+    width: 3rem;
+    /* Fixed width */
+    border-left: none;
+    border-right: none;
+}
+
+
+/* Style the submit button similar to #saveSettingsBtn */
+
+#newTagForm button {
+    background-color: var(--accent-color);
+    color: #fff;
+    border-left: none;
+    border-radius: 0 4px 4px 0;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#newTagForm button:hover {
+    background-color: #e73370;
+}
+
+
+/* Tag Pill Container */
+
+.tag-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0px;
+    border-radius: 999px;
+    background-color: var(--pill-color, var(--accent-color));
+    color: inherit;
+    /* It will inherit the inline style we set */
+    font-size: 0.8rem;
+    margin-right: 4px;
+    min-height: 24px;
+    /* Adjust height as needed */
+}
+
+
+/* Tag Icon: same size as tag clear, e.g., 32px */
+
+.tagIcon {
+    width: 24px;
+    height: 24px;
+    margin-right: 4px;
+    background-color: none;
+    /* Optional: a placeholder color */
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.col-tags .tagIcon {
+    width: 1em;
+}
+
+
+/* Tag Contents (holds the tag name and clear button) */
+
+.tagContents {
+    display: inline-flex;
+    align-items: center;
+    opacity: 80%;
+}
+
+
+/* Tag Name styling */
+
+.tagName {
+    margin-right: 4px;
+}
+
+
+/* Tag Clear Container (for delete button) */
+
+.tagClear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    /* Same as tagIcon */
+    height: 24px;
+    /* Same as pill height */
+    flex-shrink: 0;
+}
+
+
+/* Tag Delete Button styling */
+
+.tagDeleteButton {
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    /* Same as tagClear container */
+    height: 24px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.tagDeleteButton:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+
+/* New rule for the tagSelectionWrapper to replace inline styles */
+
+#tagSelectionWrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    flex-direction: column;
+}
+
+
+/* Optionally, reuse an existing button class for playTagsBtn if available, 
+   or add specific styles as needed (here we add a simple class "play-button") */
+
+.play-button {
+    background-color: var(--accent-color);
+    color: #fff;
+    border: none;
+    padding: 0.5em 1em;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.play-button:hover {
+    background-color: #e73370;
+}

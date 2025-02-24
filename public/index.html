@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Photo Slideshow</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="manifest" href="manifest.json" />
+</head>
+
+<body>
+    <div id="slideshow-container">
+        <div class="image-container">
+            <img id="slide1" class="slide active" src="" alt="Slideshow Image" />
+            <img id="slide2" class="slide" src="" alt="Slideshow Image" />
+        </div>
+        <!-- Title overlay container with two overlaid elements -->
+        <div class="title-container">
+            <div id="title-overlay1" class="title-overlay active"></div>
+            <div id="title-overlay2" class="title-overlay"></div>
+        </div>
+        <!-- Left hover area -->
+        <div class="hover-area left" onclick="prevImage()">
+            <div class="nav-button">‹</div>
+        </div>
+        <!-- Right hover area -->
+        <div class="hover-area right" onclick="nextImage()">
+            <div class="nav-button">›</div>
+        </div>
+    </div>
+
+    <!-- External JavaScript files -->
+    <script src="main.js"></script>
+    <script src="sw-register.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Removed the duplicate global declaration of slideshowInterval.
+        // main.js will manage the slideshowInterval and pause state.
+        const socket = io();
+
+        socket.on('settingsUpdate', ({
+            speed,
+            order
+        }) => {
+            localStorage.setItem('transitionTime', speed);
+            localStorage.setItem('slideshowOrder', order);
+            location.reload(); // Reload to apply new settings
+        });
+
+        socket.on('playImage', ({
+            imageUrl,
+            title
+        }) => {
+            let slide1 = document.getElementById('slide1');
+            let titleOverlay = document.getElementById('title-overlay1');
+            let slide2 = document.getElementById('slide2');
+            let titleOverlay2 = document.getElementById('title-overlay2');
+            if (slide1 && slide2) {
+                slide2.src = imageUrl;
+                if (titleOverlay2) {
+                    titleOverlay2.innerText = title;
+                }
+                // Only clear the interval. Do NOT restart the slideshow.
+                clearInterval(window.slideshowInterval);
+                slide2.onload = () => {
+                    slide2.classList.add('active');
+                    slide1.classList.remove('active');
+                    if (titleOverlay && titleOverlay2) {
+                        titleOverlay2.classList.add('active');
+                        titleOverlay.classList.remove('active');
+                    }
+                    setTimeout(() => {
+                        let tempImg = slide1;
+                        slide1 = slide2;
+                        slide2 = tempImg;
+                        if (titleOverlay && titleOverlay2) {
+                            let tempTitle = titleOverlay;
+                            titleOverlay = titleOverlay2;
+                            titleOverlay2 = tempTitle;
+                        }
+                    }, 1000);
+                };
+            }
+        });
+
+        socket.on('playSelect', ({
+            images
+        }) => {
+            if (document.getElementById('slide1') && images && images.length > 0) {
+                clearInterval(window.slideshowInterval);
+                // If only one image is selected, load it and pause the slideshow
+                if (images.length === 1) {
+                    window.slideshowPaused = true;
+                    window.selectedSlideshowImages = images;
+                    currentIndex = 0; // Reset index
+                    const slide1 = document.getElementById('slide1');
+                    const titleOverlay = document.getElementById('title-overlay1');
+                    slide1.src = images[0].url;
+                    if (titleOverlay) {
+                        titleOverlay.innerText = images[0].title;
+                    }
+                    // Do not restart the slideshow interval
+                } else {
+                    window.slideshowPaused = false;
+                    window.selectedSlideshowImages = images;
+                    currentIndex = 0; // Reset index
+                    const slide1 = document.getElementById('slide1');
+                    const titleOverlay = document.getElementById('title-overlay1');
+                    slide1.src = images[0].url;
+                    if (titleOverlay) {
+                        titleOverlay.innerText = images[0].title;
+                    }
+                    startSlideshow();
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>
