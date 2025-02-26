@@ -44,6 +44,7 @@ function sanitizeFilename(name) {
     let normalized = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const replacements = {
         "'": "\u2019", // smart apostrophe
+        "’": "\u2019", // smart apostrophe
         "\"": "\u201D", // smart double quote
         "\\": "-", // backslash
         "/": "-", // forward slash
@@ -69,8 +70,6 @@ function sanitizeFilename(name) {
     for (const char of normalized) {
         result += (char in replacements) ? replacements[char] : char;
     }
-    // Replace any remaining non-alphanumeric character with an underscore.
-    result = result.replace(/[^a-zA-Z0-9]/g, '_');
     return result;
 }
 

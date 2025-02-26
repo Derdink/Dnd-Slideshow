@@ -298,20 +298,16 @@ if (document.getElementById('settingsForm')) {
     let currentSortKey = null;
     let currentSortDirection = 'asc';
 
-    // Function to sort images
+    // UPDATED sortImages: remove pagination dependencies; sort over entire array
     function sortImages(images) {
         if (!currentSortKey) return images;
         return images.sort((a, b) => {
-            let valA, valB;
-            if (currentSortKey === 'tags') {
-                valA = a.tags.join(', ');
-                valB = b.tags.join(', ');
-            } else {
-                valA = a[currentSortKey];
-                valB = b[currentSortKey];
-            }
+            const valA = currentSortKey === 'tags' ? a.tags.join(', ') : a[currentSortKey] || '';
+            const valB = currentSortKey === 'tags' ? b.tags.join(', ') : b[currentSortKey] || '';
             if (currentSortKey === 'dateAdded') {
-                return currentSortDirection === 'asc' ? valA - valB : valB - valA;
+                return currentSortDirection === 'asc' ?
+                    Number(valA) - Number(valB) :
+                    Number(valB) - Number(valA);
             } else {
                 const cmp = String(valA).localeCompare(String(valB));
                 return currentSortDirection === 'asc' ? cmp : -cmp;
@@ -355,23 +351,18 @@ if (document.getElementById('settingsForm')) {
     // FETCH AND DISPLAY IMAGES
     // ======================
 
-    // Function to fetch images from the server
+    // UPDATED fetchImages: remove pagination query parameters, fetch all images and then sort
     function fetchImages() {
         fetch('/api/images')
             .then(response => response.json())
-            .then(images => {
-                window.imagesData = images; // assign to global
-                // Apply search filter if any text exists
-                const searchVal = document.getElementById('search').value.toLowerCase();
-                if (searchVal) {
-                    images = images.filter(image => image.title.toLowerCase().includes(searchVal));
-                }
-                if (currentSortKey) {
-                    images = sortImages(images);
-                }
-                displayImages(images);
+            .then(data => {
+                // Assume data is a full array (no pagination)
+                window.imagesData = data;
+                // Apply sorting if needed
+                const sortedImages = sortImages(data);
+                displayImages(sortedImages);
             })
-            .catch(err => console.error(err));
+            .catch(err => console.error("Error fetching images:", err));
     }
 
     // Function to display images in the table
@@ -450,7 +441,7 @@ if (document.getElementById('settingsForm')) {
                     tagPill.classList.add('tag-pill');
                     const tagColor = tag.color ? tag.color : '#FF4081';
                     tagPill.style.setProperty('--pill-color', tagColor);
-                    const contrast = getContrastColor(tagColor);
+                    const contrast = getContentColorForBackground(tagColor);
                     tagPill.style.color = contrast;
 
                     // Create tagIcon with fixed width of 1em for image entries
@@ -751,7 +742,7 @@ if (document.getElementById('settingsForm')) {
             // Set custom property for background color
             const tagColor = tag.color ? tag.color : '#FF4081';
             pill.style.setProperty('--pill-color', tagColor);
-            const contrast = getContrastColor(tagColor);
+            const contrast = getContentColorForBackground(tagColor);
             pill.style.color = contrast;
 
             // Create tagIcon container and add a delete button inside it
@@ -829,7 +820,12 @@ if (document.getElementById('settingsForm')) {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ ids: ids, tag: tag.name })
                         })
-                        .then(() => fetchImages())
+                        .then(() => {
+                            fetchImages();
+                            // NEW: Clear selection after applying tag from a pill click
+                            selectedImageIds = new Set();
+                            updateHeaderSelect();
+                        })
                         .catch(err => console.error(err));
                 }
             });
@@ -838,26 +834,26 @@ if (document.getElementById('settingsForm')) {
         });
     }
 
-    /**
-     * Helper function: Given a hex color string, return a contrasting text color (#000 or #fff)
-     * @param {string} hexColor - Hex color string
-     * @returns {string} - Contrasting text color (#000 or #fff)
-     */
-    function getContrastColor(hexColor) {
-        // Remove '#' if present
-        hexColor = hexColor.replace(/^#/, '');
-        // Expand shorthand form (e.g. "03F") to full form ("0033FF")
-        if (hexColor.length === 3) {
-            hexColor = hexColor.split('').map(c => c + c).join('');
-        }
-        const r = parseInt(hexColor.substr(0, 2), 16);
-        const g = parseInt(hexColor.substr(2, 2), 16);
-        const b = parseInt(hexColor.substr(4, 2), 16);
-        // Calculate brightness using the standard formula
-        const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-        // If brightness is high, return black, else white
-        return brightness > 186 ? '#000' : '#fff';
+    // NEW: Define correct arrays with background colors and corresponding content (text) colors.
+    const backgroundColors = [
+        "#e0e0e0", "#dde1e6", "#e5e0df", "#ffd7d9", "#ffd6e8", "#e8daff",
+        "#d0e2ff", "#bae6ff", "#9ef0f0", "#a7f0ba", "#FFD8BD", "#ffeeb1", "#D5FFBD"
+    ];
+    const contentColors = [
+        "#161616", "#121619", "#171414", "#a2191f", "#9f1853", "#6929c4",
+        "#0043ce", "#00539a", "#005d5d", "#0e6027", "#d91313", "#f97d3f", "#265C34"
+    ];
+
+    // NEW: Helper to return the matching content color for a given background color.
+    function getContentColorForBackground(bgColor) {
+        const index = backgroundColors.findIndex(
+            col => col.toLowerCase() === bgColor.toLowerCase()
+        );
+        return index !== -1 ? contentColors[index] : "#ffffff";
     }
+
+    // NEW: Global variable to track the next tag color index for sequential assignment.
+    let nextTagColorIndex = 0;
 
     /**
      * New Tag Creation
@@ -866,7 +862,11 @@ if (document.getElementById('settingsForm')) {
         document.getElementById('newTagForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const tagName = document.getElementById('newTagName').value.trim();
-            const tagColor = document.getElementById('newTagColor').value;
+            // NEW: Retrieve and update nextTagColorIndex from localStorage for sequential ordering
+            let nextTagColorIndex = parseInt(localStorage.getItem('nextTagColorIndex')) || 0;
+            const tagColor = backgroundColors[nextTagColorIndex];
+            nextTagColorIndex = (nextTagColorIndex + 1) % backgroundColors.length;
+            localStorage.setItem('nextTagColorIndex', nextTagColorIndex);
             if (!tagName) return;
             fetch('/api/tags', {
                     method: 'POST',
@@ -889,8 +889,13 @@ if (document.getElementById('settingsForm')) {
                             .then(res => {
                                 // Removed alert(res.message);
                                 fetchImages();
+                                // NEW: Clear selection after applying tag
+                                selectedImageIds = new Set();
+                                updateHeaderSelect();
                             })
                             .catch(err => console.error(err));
+                    } else {
+                        fetchImages();
                     }
                     fetchTags().then(() => updateTagSelection());
                     document.getElementById('newTagForm').reset();
@@ -978,7 +983,8 @@ function updateTagSelection() {
                 pill.classList.add('tag-pill');
                 pill.style.setProperty('--pill-color', tag.color || '#FF4081');
                 pill.style.backgroundColor = tag.color || '#FF4081';
-                pill.style.color = getContrastColor(tag.color || '#FF4081');
+                // NEW: Use mapped content color
+                pill.style.color = getContentColorForBackground(tag.color || '#FF4081');
                 // Set default opacity for unselected tags
                 pill.style.opacity = "0.5";
 

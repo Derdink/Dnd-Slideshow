@@ -694,16 +694,6 @@ select:focus {
 }
 
 
-/* Style the color picker so it attaches to the text input */
-
-#newTagColor {
-    width: 3rem;
-    /* Fixed width */
-    border-left: none;
-    border-right: none;
-}
-
-
 /* Style the submit button similar to #saveSettingsBtn */
 
 #newTagForm button {
