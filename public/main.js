@@ -351,15 +351,19 @@ if (document.getElementById('settingsForm')) {
     // FETCH AND DISPLAY IMAGES
     // ======================
 
-    // UPDATED fetchImages: remove pagination query parameters, fetch all images and then sort
+    // UPDATED fetchImages: filter results based on search input
     function fetchImages() {
         fetch('/api/images')
             .then(response => response.json())
             .then(data => {
                 // Assume data is a full array (no pagination)
-                window.imagesData = data;
-                // Apply sorting if needed
-                const sortedImages = sortImages(data);
+                let images = data;
+                const searchVal = document.getElementById('search').value.trim().toLowerCase();
+                if (searchVal) {
+                    images = images.filter(img => img.title.toLowerCase().includes(searchVal));
+                }
+                window.imagesData = images;
+                const sortedImages = sortImages(images);
                 displayImages(sortedImages);
             })
             .catch(err => console.error("Error fetching images:", err));
