@@ -393,6 +393,7 @@ select:focus {
     font-size: 1.5rem;
     cursor: pointer;
     padding: 0.5rem;
+    color: var(--text-color);
     transition: background-color 0.3s ease;
 }
 
@@ -608,7 +609,7 @@ select:focus {
     color: #fff;
     border: none;
     padding: 0.5rem;
-    border-radius: 50%;
+    border-radius: 1%;
     font-size: 1.5rem;
     cursor: pointer;
     transition: background-color 0.3s ease;
@@ -820,4 +821,234 @@ select:focus {
 
 .play-button:hover {
     background-color: #e73370;
+}
+
+
+/* Pagination Controls Styling */
+
+#pagination {
+    margin: 1rem 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+#pagination button,
+#pagination select,
+#pagination span {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-color);
+    background: var(--bg-color);
+    color: var(--text-color);
+    border-radius: 4px;
+    transition: background-color var(--transition-speed);
+    cursor: pointer;
+}
+
+#pagination button:hover {
+    background-color: var(--accent-color);
+    color: #fff;
+}
+
+#pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+
+/* Custom overrides to use IBM Carbon design system appearance */
+
+body.manage {
+    padding: 2rem;
+    background-color: #f4f4f4;
+    color: #161616;
+    font-family: "IBM Plex Sans", sans-serif;
+}
+
+
+/* Header: use Carbon spacing, borders, and background */
+
+#manageHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    background-color: #ffffff;
+    padding: 1rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+}
+
+
+/* Carbon primary button style (applied to all buttons) */
+
+button {
+    background-color: #0f62fe;
+    color: #ffffff;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s ease;
+}
+
+button:hover {
+    background-color: #0353e9;
+}
+
+
+/* Forms and inputs */
+
+input[type="text"],
+input[type="number"],
+select {
+    padding: 0.75rem;
+    border: 1px solid #8d8d8d;
+    border-radius: 4px;
+    width: auto;
+}
+
+
+/* Table styling similar to Carbon tables */
+
+#imageTable {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: #ffffff;
+}
+
+#imageTable th,
+#imageTable td {
+    padding: 1rem;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+
+/* Search input */
+
+#search {
+    padding: 0.75rem;
+    border: 1px solid #8d8d8d;
+    border-radius: 4px;
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+
+/* Pagination controls */
+
+#pagination {
+    margin: 1rem 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+#pagination button,
+#pagination select,
+#pagination span {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #8d8d8d;
+    background: #ffffff;
+    color: #161616;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+
+/* Carbon Design System Overrides for Pagination Buttons */
+
+#pagination button {
+    background-color: #0f62fe;
+    color: #ffffff;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s ease;
+}
+
+#pagination button:hover {
+    background-color: #0353e9;
+}
+
+
+/* Improved Pagination Dropdown Styling with Carbon Design System */
+
+#pagination select {
+    background-color: #ffffff;
+    color: #161616;
+    border: 1px solid #0f62fe;
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    font-size: 1rem;
+    transition: border-color 0.3s ease;
+}
+
+#pagination select:focus {
+    outline: none;
+    border-color: #0353e9;
+}
+
+
+/* Keep existing IDs and classes unchanged for functionality */
+
+
+/* ---- Mobile Styles ---- */
+
+@media (max-width: 600px) {
+    /* Reduce body and manage page padding and font size */
+    body,
+    body.manage {
+        padding: 1rem;
+        font-size: 0.9rem;
+    }
+    /* Stack header elements and center text */
+    #manageHeader {
+        flex-direction: column;
+        align-items: center;
+        padding: 0.5rem;
+        text-align: center;
+    }
+    /* Reduce padding for tables */
+    #imageTable th,
+    #imageTable td {
+        padding: 0.5rem;
+    }
+    /* Shrink drop area padding */
+    #dropArea {
+        padding: 1rem;
+    }
+    /* Stack top controls vertically */
+    #topControls,
+    #slideFunctionsContainer {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+    /* Adjust buttons to fill width if needed */
+    button {
+        width: 100%;
+        max-width: none;
+    }
+    /* NEW: Collapse table for mobile: hide date, tags columns and the delete button */
+    #imageTable th.col-date,
+    #imageTable td.col-date,
+    #imageTable th.col-tags,
+    #imageTable td.col-tags {
+        display: none;
+    }
+    /* Hide delete button but allow the play button to remain */
+    #imageTable td.col-actions button.deleteBtn {
+        display: none;
+    }
 }

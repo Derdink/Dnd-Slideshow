@@ -351,20 +351,32 @@ if (document.getElementById('settingsForm')) {
     // FETCH AND DISPLAY IMAGES
     // ======================
 
-    // UPDATED fetchImages: filter results based on search input
+    // NEW: Global pagination variables for management page
+    let currentPage = 1;
+    let currentLimit = 100; // entries per page
+    let totalPages = 1;
+
+    // UPDATED fetchImages: apply pagination and then update pagination controls
     function fetchImages() {
         fetch('/api/images')
             .then(response => response.json())
             .then(data => {
-                // Assume data is a full array (no pagination)
-                let images = data;
-                const searchVal = document.getElementById('search').value.trim().toLowerCase();
-                if (searchVal) {
-                    images = images.filter(img => img.title.toLowerCase().includes(searchVal));
+                window.imagesData = data;
+                let sortedImages = sortImages(data);
+                // NEW: Filter images using the search query (by title)
+                const queryEl = document.getElementById('search');
+                const query = queryEl ? queryEl.value.trim().toLowerCase() : '';
+                if (query) {
+                    sortedImages = sortedImages.filter(image =>
+                        image.title.toLowerCase().includes(query)
+                    );
                 }
-                window.imagesData = images;
-                const sortedImages = sortImages(images);
-                displayImages(sortedImages);
+                // Global pagination update
+                totalPages = Math.ceil(sortedImages.length / currentLimit) || 1;
+                if (currentPage > totalPages) currentPage = totalPages;
+                const pageEntries = sortedImages.slice((currentPage - 1) * currentLimit, currentPage * currentLimit);
+                displayImages(pageEntries);
+                updatePagination(sortedImages.length);
             })
             .catch(err => console.error("Error fetching images:", err));
     }
@@ -575,6 +587,96 @@ if (document.getElementById('settingsForm')) {
         });
 
         updateHeaderSelect();
+    }
+
+    // NEW: Pagination controls function
+    function updatePagination(totalEntries) {
+        let container = document.getElementById('pagination');
+        if (!container) {
+            // Insert pagination container immediately after the image table
+            const table = document.getElementById('imageTable');
+            container = document.createElement('div');
+            container.id = 'pagination';
+            table.parentNode.insertBefore(container, table.nextSibling);
+        }
+        container.innerHTML = '';
+
+        // Create First button with Carbon SkipBackOutline icon
+        const firstBtn = document.createElement('button');
+        firstBtn.disabled = (currentPage === 1);
+        firstBtn.title = "First";
+        firstBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M27 28a.9975.9975 0 01-.501-.1348l-19-11a1 1 0 010-1.73l19-11A1 1 0 0128 5V27a1 1 0 01-1 1zM2 4H4V28H2z"></path><title>Skip back filled</title></svg>`;
+        firstBtn.addEventListener('click', () => {
+            currentPage = 1;
+            fetchImages();
+        });
+
+        // Create Prev button with Carbon ChevronLeft icon
+        const prevBtn = document.createElement('button');
+        prevBtn.disabled = (currentPage === 1);
+        prevBtn.title = "Previous";
+        prevBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M14 26L15.41 24.59 7.83 17 28 17 28 15 7.83 15 15.41 7.41 14 6 4 16 14 26z"></path><title>Arrow left</title></svg>`;
+        prevBtn.addEventListener('click', () => {
+            if (currentPage > 1) currentPage--;
+            fetchImages();
+        });
+
+        // Create page selection dropdown
+        const pageSelect = document.createElement('select');
+        for (let i = 1; i <= totalPages; i++) {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = i;
+            if (i === currentPage) opt.selected = true;
+            pageSelect.appendChild(opt);
+        }
+        pageSelect.addEventListener('change', (e) => {
+            currentPage = parseInt(e.target.value);
+            fetchImages();
+        });
+
+        // Create Next button with Carbon ChevronRight icon
+        const nextBtn = document.createElement('button');
+        nextBtn.disabled = (currentPage === totalPages);
+        nextBtn.title = "Next";
+        nextBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L16.57 7.393 24.15 15 4 15 4 17 24.15 17 16.57 24.573 18 26 28 16 18 6z"></path><title>Arrow right</title></svg>`;
+        nextBtn.addEventListener('click', () => {
+            if (currentPage < totalPages) currentPage++;
+            fetchImages();
+        });
+
+        // Create Last button with Carbon SkipForwardOutline icon
+        const lastBtn = document.createElement('button');
+        lastBtn.disabled = (currentPage === totalPages);
+        lastBtn.title = "Last";
+        lastBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M28 4H30V28H28zM5 28a1 1 0 01-1-1V5a1 1 0 011.501-.8652l19 11a1 1 0 010 1.73l-19 11A.9975.9975 0 015 28z"></path><title>Skip forward filled</title></svg>`;
+        lastBtn.addEventListener('click', () => {
+            currentPage = totalPages;
+            fetchImages();
+        });
+
+        // Create a limit selection dropdown for entries per page
+        const limitSelect = document.createElement('select');
+        [20, 50, 100, 200].forEach(limit => {
+            const opt = document.createElement('option');
+            opt.value = limit;
+            opt.textContent = limit;
+            if (limit === currentLimit) opt.selected = true;
+            limitSelect.appendChild(opt);
+        });
+        limitSelect.addEventListener('change', (e) => {
+            currentLimit = parseInt(e.target.value);
+            currentPage = 1;
+            fetchImages();
+        });
+
+        // Append controls in order (without the "Show per page" span)
+        container.appendChild(firstBtn);
+        container.appendChild(prevBtn);
+        container.appendChild(pageSelect);
+        container.appendChild(nextBtn);
+        container.appendChild(lastBtn);
+        container.appendChild(limitSelect);
     }
 
     // ======================
@@ -1084,5 +1186,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (rightArea && typeof window.nextImage === 'function') {
         rightArea.addEventListener('click', () => window.nextImage());
+    }
+});
+
+// NEW: Pause Button Handler added in the Management Page section (after playSelectBtn listener)
+document.addEventListener('DOMContentLoaded', () => {
+    const pauseBtn = document.getElementById('pauseBtn');
+    if (pauseBtn) {
+        pauseBtn.addEventListener('click', () => {
+            // If the slideshow container is missing, hide the pause button and exit.
+            if (!document.getElementById('slide1')) {
+                console.warn("Slideshow functionality not available on this page. Hiding pause button.");
+                pauseBtn.style.display = 'none';
+                return;
+            }
+            if (!window.slideshowPaused) {
+                clearInterval(window.slideshowInterval);
+                window.slideshowPaused = true;
+                // Switch to play icon when paused
+                pauseBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor"
+                    width="24" height="24" viewBox="0 0 32 32" aria-hidden="true">
+                  </svg>`;
+            } else {
+                window.slideshowPaused = false;
+                startSlideshow();
+                // Switch back to pause icon when resumed
+                pauseBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor"
+                    width="24" height="24" viewBox="0 0 32 32" aria-hidden="true">
+                        <path d="M10 6H14V26H10zM18 6H22V26H18z"></path>
+                  </svg>`;
+            }
+        });
     }
 });

@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 const sqlite3 = require('sqlite3').verbose();
+const sharp = require('sharp'); // NEW: image processing
 
 const app = express();
 const PORT = 3000;
@@ -81,6 +82,12 @@ if (!fs.existsSync(uploadFolder)) {
     fs.mkdirSync(uploadFolder, { recursive: true });
 }
 
+// Ensure thumbnails folder exists
+const thumbFolder = path.join(__dirname, 'public', 'thumbnails');
+if (!fs.existsSync(thumbFolder)) {
+    fs.mkdirSync(thumbFolder, { recursive: true });
+}
+
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadFolder);
@@ -114,6 +121,16 @@ app.post('/upload', upload.single('file'), (req, res) => {
     // Use a Unix timestamp for the dateAdded
     const dateAdded = Date.now();
 
+    // Helper: generate thumbnail
+    function generateThumbnail(callback) {
+        sharp(req.file.path)
+            .resize({ width: 200 })
+            .toFile(path.join(thumbFolder, filename), (err, info) => {
+                if (err) console.error("Error generating thumbnail:", err);
+                callback();
+            });
+    }
+
     // Check if an entry with this filename already exists
     db.get('SELECT * FROM images WHERE filename = ?', [filename], (err, row) => {
         if (err) {
@@ -127,37 +144,33 @@ app.post('/upload', upload.single('file'), (req, res) => {
             });
             return res.json({ overwritePrompt: true, message: 'File exists.' });
         } else {
-            if (row && overwrite) {
-                // Overwrite the existing entry
-                db.run(
-                    'UPDATE images SET title = ?, tags = ?, dateAdded = ? WHERE filename = ?', [title, defaultTag, dateAdded, filename],
-                    function(err) {
-                        if (err) {
-                            console.error("Database update error:", err);
-                            return res.status(500).json({ message: 'Database update error.' });
-                        }
-                        console.log("File overwritten in database:", filename);
-                        return res.json({ message: `${filename} overwritten successfully.` });
+            const runQuery = (query, params, successMsg) => {
+                db.run(query, params, function(err) {
+                    if (err) {
+                        console.error("DB update/insert error:", err);
+                        return res.status(500).json({ message: 'Database error.' });
                     }
+                    // Generate thumbnail after DB operation
+                    generateThumbnail(() => {
+                        console.log("Thumbnail created for:", filename);
+                        return res.json({ message: `${filename} uploaded successfully.` });
+                    });
+                });
+            };
+            if (row && overwrite) {
+                runQuery(
+                    'UPDATE images SET title = ?, tags = ?, dateAdded = ? WHERE filename = ?', [title, defaultTag, dateAdded, filename],
+                    'File overwritten'
                 );
             } else {
-                // Insert a new record
-                db.run(
+                runQuery(
                     'INSERT INTO images (filename, title, tags, dateAdded) VALUES (?, ?, ?, ?)', [filename, title, defaultTag, dateAdded],
-                    function(err) {
-                        if (err) {
-                            console.error("Database insert error:", err);
-                            return res.status(500).json({ message: 'Database insert error.' });
-                        }
-                        console.log("File inserted in database:", filename);
-                        return res.json({ message: `${filename} uploaded successfully.` });
-                    }
+                    'File inserted'
                 );
             }
         }
     });
 });
-
 
 // ---------------------
 // API Endpoint to Get Images
@@ -188,13 +201,13 @@ app.get('/api/images', (req, res) => {
                 title: row.title,
                 tags: tags, // Now an array of objects {name, color}
                 dateAdded: row.dateAdded,
-                url: `/images/${row.filename}`
+                url: `/images/${row.filename}`,
+                thumbnailUrl: `/thumbnails/${row.filename}` // NEW: thumbnail URL
             };
         });
         res.json(images);
     });
 });
-
 
 // ---------------------
 // Delete Single Entry Endpoint
