@@ -649,7 +649,7 @@ if (document.getElementById('settingsForm')) {
         const lastBtn = document.createElement('button');
         lastBtn.disabled = (currentPage === totalPages);
         lastBtn.title = "Last";
-        lastBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M28 4H30V28H28zM5 28a1 1 0 01-1-1V5a1 1 0 011.501-.8652l19 11a1 1 0 010 1.73l-19 11A.9975.9975 0 015 28z"></path><title>Skip forward filled</title></svg>`;
+        lastBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M28 4H30V28H28zM5 28a1 1 0 01-1-1V5a1 1 0 011.501-.8652l19 11a1 1 0 010 1.73l-19 11A.9975.9975,0 015 28z"></path><title>Skip forward filled</title></svg>`;
         lastBtn.addEventListener('click', () => {
             currentPage = totalPages;
             fetchImages();
@@ -961,6 +961,15 @@ if (document.getElementById('settingsForm')) {
     // NEW: Global variable to track the next tag color index for sequential assignment.
     let nextTagColorIndex = 0;
 
+    // NEW: Add a global initialization to persist the next tag color index
+    nextTagColorIndex = localStorage.getItem('nextTagColorIndex');
+    if (nextTagColorIndex === null) {
+        nextTagColorIndex = 0;
+        localStorage.setItem('nextTagColorIndex', '0');
+    } else {
+        nextTagColorIndex = parseInt(nextTagColorIndex, 10);
+    }
+
     /**
      * New Tag Creation
      */
@@ -968,8 +977,7 @@ if (document.getElementById('settingsForm')) {
         document.getElementById('newTagForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const tagName = document.getElementById('newTagName').value.trim();
-            // NEW: Retrieve and update nextTagColorIndex from localStorage for sequential ordering
-            let nextTagColorIndex = parseInt(localStorage.getItem('nextTagColorIndex')) || 0;
+            // Use the globally initialized nextTagColorIndex instead of re-reading it here
             const tagColor = backgroundColors[nextTagColorIndex];
             nextTagColorIndex = (nextTagColorIndex + 1) % backgroundColors.length;
             localStorage.setItem('nextTagColorIndex', nextTagColorIndex);
