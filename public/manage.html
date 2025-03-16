@@ -74,8 +74,18 @@
                 <div id="tagManagerSection" style="display: none;"></div>
             </div>
         </div>
-
-        <input type="text" id="search" placeholder="Search pictures..." />
+        <!-- Wrap the search bar and new filter button in a container -->
+        <div id="filterContainer" style="display:flex; align-items:center; gap:0.5rem;">
+            <input type="text" id="search" placeholder="Search pictures..." />
+            <!-- New Filter Button with SVG icon -->
+            <button id="filterBtn" title="Filter images" style="background:transparent; border:none; cursor:pointer;">
+                <svg width="24" height="24" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M4 6h24v2H4zm4 8h16v2H8zm6 8h4v2h-4z"></path>
+                </svg>
+            </button>
+        </div>
+        <!-- NEW: Replace #tagFilterDropdown with the same structure as #tagSelectionContainer -->
+        <div id="tagFilterDropdown" style="display:none; flex-wrap: wrap; gap: 0.3em;"></div>
         <div id="slideFunctionsContainer">
             <button id="playSelectBtn">Play selected</button>
             <button id="bulkDelete">Bulk Delete</button>

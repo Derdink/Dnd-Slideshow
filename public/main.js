@@ -589,6 +589,171 @@ if (document.getElementById('settingsForm')) {
         updateHeaderSelect();
     }
 
+    // NEW: Global variable to hold selected filter tags (for image table filtering)
+    let selectedFilterTags = [];
+
+    // NEW: Update the filter dropdown with tag pills from the server
+    function updateTagFilterDropdown() {
+        fetch('/api/tags')
+            .then(response => response.json())
+            .then(tags => {
+                // Filter out "all" and sort alphabetically
+                tags = tags.filter(t => t.name.trim().toLowerCase() !== 'all').sort((a, b) => a.name.localeCompare(b.name));
+                const container = document.getElementById('tagFilterDropdown');
+                if (!container) return;
+                // Clear previous items except the clear button (which we add later)
+                container.innerHTML = "";
+                tags.forEach(tag => {
+                    const pill = document.createElement('div');
+                    pill.classList.add('tag-pill');
+                    pill.style.setProperty('--pill-color', tag.color || '#FF4081');
+                    pill.style.backgroundColor = tag.color || '#FF4081';
+                    pill.style.color = getContentColorForBackground(tag.color || '#FF4081');
+                    pill.style.opacity = selectedFilterTags.includes(tag.name.toLowerCase()) ? "1" : "0.5";
+                    pill.style.cursor = "pointer";
+                    pill.style.marginRight = "0.3em";
+
+                    // Create inner structure matching #tagSelectionContainer
+                    const tagIcon = document.createElement('div');
+                    tagIcon.classList.add('tagIcon');
+                    const tagContents = document.createElement('span');
+                    tagContents.classList.add('tagContents');
+                    const tagName = document.createElement('span');
+                    tagName.classList.add('tagName');
+                    tagName.textContent = tag.name;
+                    const tagClear = document.createElement('span');
+                    tagClear.classList.add('tagClear');
+                    // Assemble inner elements
+                    tagContents.appendChild(tagName);
+                    tagContents.appendChild(tagClear);
+                    pill.innerHTML = ""; // Clear any preset text
+                    pill.appendChild(tagIcon);
+                    pill.appendChild(tagContents);
+
+                    // Toggle selection event listener
+                    pill.addEventListener('click', () => {
+                        if (pill.getAttribute('data-disabled') === 'true') return;
+                        const tagKey = tag.name.toLowerCase();
+                        const idx = selectedFilterTags.indexOf(tagKey);
+                        if (idx === -1) {
+                            selectedFilterTags.push(tagKey);
+                        } else {
+                            selectedFilterTags.splice(idx, 1);
+                        }
+                        pill.style.opacity = selectedFilterTags.includes(tagKey) ? "1" : "0.5";
+                        updateFilterAvailability();
+                        filterImagesBySelectedTags();
+                    });
+                    container.appendChild(pill);
+                });
+                // Append a clear filter pill with an explicit id
+                const clearBtn = document.createElement('div');
+                clearBtn.id = "clearFilter";
+                clearBtn.classList.add("tag-pill");
+                clearBtn.style.backgroundColor = "#0f62fe";
+                clearBtn.style.color = "#fff";
+                clearBtn.style.cursor = "pointer";
+                clearBtn.style.marginRight = "0.3em";
+                const clearIcon = document.createElement('div');
+                clearIcon.classList.add('tagIcon');
+                const clearContents = document.createElement('span');
+                clearContents.classList.add('tagContents');
+                const clearName = document.createElement('span');
+                clearName.classList.add('tagName');
+                clearName.textContent = "Clear Filters";
+                const clearEmpty = document.createElement('span');
+                clearEmpty.classList.add('tagClear');
+                clearContents.appendChild(clearName);
+                clearContents.appendChild(clearEmpty);
+                clearBtn.innerHTML = "";
+                clearBtn.appendChild(clearIcon);
+                clearBtn.appendChild(clearContents);
+                clearBtn.addEventListener('click', () => {
+                    // Reset selectedFilterTags without re-rendering the entire dropdown
+                    selectedFilterTags = [];
+                    // Reset opacity on all pills (excluding clearBtn)
+                    document.querySelectorAll('#tagFilterDropdown .tag-pill').forEach(pill => {
+                        if (pill.id !== 'clearFilter') {
+                            pill.style.opacity = "0.5";
+                        }
+                    });
+                    filterImagesBySelectedTags();
+                });
+                container.appendChild(clearBtn);
+            })
+            .catch(err => console.error(err));
+    }
+
+    // NEW: Disable filter pills that aren’t available among currently displayed images
+    function updateFilterAvailability() {
+        // Based on imagesData filtered by current search and current selection
+        const availableTags = new Set();
+        const filtered = window.imagesData.filter(image => {
+            const imageTags = image.tags.map(t => t.name.toLowerCase());
+            return selectedFilterTags.every(tag => imageTags.includes(tag));
+        });
+        filtered.forEach(image => {
+            image.tags.forEach(t => availableTags.add(t.name.toLowerCase()));
+        });
+        // Update each pill in the dropdown
+        document.querySelectorAll('#tagFilterDropdown .tag-pill').forEach(pill => {
+            if (pill.id === "clearFilter") return;
+            const tagName = pill.textContent.toLowerCase();
+            if (availableTags.has(tagName)) {
+                pill.removeAttribute('data-disabled');
+                pill.style.pointerEvents = "auto";
+                pill.style.filter = "none";
+            } else {
+                pill.setAttribute('data-disabled', 'true');
+                pill.style.pointerEvents = "none";
+                pill.style.filter = "grayscale(100%)";
+            }
+        });
+    }
+
+    // NEW: Filter images based on selected filter tags and update table
+    function filterImagesBySelectedTags() {
+        let images = window.imagesData || [];
+        // First, apply search filtering if any:
+        const queryEl = document.getElementById('search');
+        const query = queryEl ? queryEl.value.trim().toLowerCase() : '';
+        if (query) {
+            images = images.filter(image => image.title.toLowerCase().includes(query));
+        }
+        // Then filter by selected tags: only include images that contain all selected filter tags.
+        if (selectedFilterTags.length > 0) {
+            images = images.filter(image => {
+                const imageTags = image.tags.map(t => t.name.toLowerCase());
+                return selectedFilterTags.every(tag => imageTags.includes(tag));
+            });
+        }
+        // NEW: Update pagination controls based on the filtered images
+        totalPages = Math.ceil(images.length / currentLimit) || 1;
+        if (currentPage > totalPages) currentPage = totalPages;
+        const pageEntries = images.slice((currentPage - 1) * currentLimit, currentPage * currentLimit);
+        displayImages(pageEntries);
+        updatePagination(images.length);
+    }
+
+    // NEW: Toggle dropdown visibility on filter button click
+    document.addEventListener('DOMContentLoaded', () => {
+        const filterBtn = document.getElementById('filterBtn');
+        const dropdown = document.getElementById('tagFilterDropdown');
+        if (filterBtn && dropdown) {
+            filterBtn.addEventListener('click', () => {
+                dropdown.style.display = (dropdown.style.display === "none" || dropdown.style.display === "") ? "flex" : "none";
+                if (dropdown.style.display === "flex") {
+                    // Render dropdown items on open.
+                    updateTagFilterDropdown();
+                }
+            });
+        }
+        // Also update filter when the search input changes
+        document.getElementById('search').addEventListener('input', () => {
+            filterImagesBySelectedTags();
+        });
+    });
+
     // NEW: Pagination controls function
     function updatePagination(totalEntries) {
         let container = document.getElementById('pagination');
