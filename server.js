@@ -29,12 +29,22 @@ const db = new sqlite3.Database(dbFile, (err) => {
 // Create the images table if it doesn't exist, including dateAdded column
 db.serialize(() => {
     db.run(`CREATE TABLE IF NOT EXISTS images (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    filename TEXT UNIQUE,
-    title TEXT,
-    tags TEXT,
-    dateAdded TEXT
-  )`);
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        filename TEXT UNIQUE,
+        title TEXT,
+        description TEXT,  
+        tags TEXT,
+        dateAdded TEXT
+    )`);
+    // In case the table already exists from prior runs without the description column,
+    // try to add the column. Ignore error if it already exists.
+    db.run('ALTER TABLE images ADD COLUMN description TEXT', function(err) {
+        if (err && !err.message.includes("duplicate column name: description")) {
+            console.error("Error adding column description:", err);
+        } else if (!err) {
+            console.log("Column 'description' added successfully.");
+        }
+    });
 });
 
 // ---------------------
@@ -406,6 +416,23 @@ app.post('/api/updateSlideshow', (req, res) => {
         io.emit('playSelect', { images });
     }
     res.json({ message: 'Slideshow updated.' });
+});
+
+// NEW: Endpoint to update image title and description (without modifying the filename)
+app.put('/api/images/:id', (req, res) => {
+    const id = parseInt(req.params.id, 10); // ensure id is numeric
+    const { title, description } = req.body;
+    console.log("Updating image", id, "with title:", title, "and description:", description);
+    db.run('UPDATE images SET title = ?, description = ? WHERE id = ?', [title, description || '', id], function(err) {
+        if (err) {
+            console.error("Error updating image:", err);
+            return res.status(500).json({ message: 'Database update error.' });
+        }
+        if (this.changes === 0) {
+            return res.status(404).json({ message: 'Image not found.' });
+        }
+        res.json({ message: 'Image updated successfully.' });
+    });
 });
 
 // ---------------------

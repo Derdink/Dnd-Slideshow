@@ -12,24 +12,7 @@ const urlsToCache = [
 self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME)
-        .then(cache =>
-            cache.addAll(urlsToCache).catch(err => {
-                console.error('addAll failed, trying individual cache', err);
-                // Fallback: try to cache each URL individually
-                return Promise.all(
-                    urlsToCache.map(url =>
-                        fetch(url).then(response => {
-                            if (!response.ok) {
-                                throw new Error('Failed to fetch ' + url);
-                            }
-                            return cache.put(url, response);
-                        }).catch(fetchErr => {
-                            console.error('Failed to cache:', url, fetchErr);
-                        })
-                    )
-                );
-            })
-        )
+        .then(cache => cache.addAll(urlsToCache))
     );
 });
 
