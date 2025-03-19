@@ -187,15 +187,26 @@ app.post('/upload', upload.single('file'), (req, res) => {
 // ---------------------
 app.get('/api/images', (req, res) => {
     const sql = `
-    SELECT images.*, group_concat(tags.name || ':' || tags.color) as tag_list
+    SELECT images.id, images.filename, images.title, images.description, images.dateAdded, 
+           group_concat(tags.name || ':' || tags.color) as tag_list
     FROM images
     LEFT JOIN image_tags ON images.id = image_tags.image_id
     LEFT JOIN tags ON image_tags.tag_id = tags.id
     GROUP BY images.id
-  `;
+    `;
     db.all(sql, (err, rows) => {
-        if (err) return res.status(500).json({ message: 'Database error.' });
+        if (err) {
+            console.error('Database error in /api/images:', err);
+            return res.status(500).json({ message: 'Database error.' });
+        }
+        console.log('Raw database rows:', rows); // Log raw data
         const images = rows.map(row => {
+            console.log('Processing row:', {
+                id: row.id,
+                title: row.title,
+                description: row.description,
+                hasDescription: 'description' in row
+            });
             let tags = [];
             if (row.tag_list) {
                 tags = row.tag_list.split(',').map(item => {
@@ -209,12 +220,14 @@ app.get('/api/images', (req, res) => {
             return {
                 id: row.id,
                 title: row.title,
-                tags: tags, // Now an array of objects {name, color}
+                description: row.description, // Explicitly include description
+                tags: tags,
                 dateAdded: row.dateAdded,
                 url: `/images/${row.filename}`,
-                thumbnailUrl: `/thumbnails/${row.filename}` // NEW: thumbnail URL
+                thumbnailUrl: `/thumbnails/${row.filename}`
             };
         });
+        console.log('Processed first image:', images[0]); // Log first processed image
         res.json(images);
     });
 });

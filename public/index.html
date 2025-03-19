@@ -19,6 +19,9 @@
         <div class="title-container">
             <div id="title-overlay1" class="title-overlay active"></div>
             <div id="title-overlay2" class="title-overlay"></div>
+            <!-- Verify these elements exist and have the correct IDs -->
+            <div id="subtitle-overlay1" class="subtitle-overlay active"></div>
+            <div id="subtitle-overlay2" class="subtitle-overlay"></div>
         </div>
         <!-- Left hover area -->
         <div class="hover-area left" onclick="prevImage()">
@@ -50,16 +53,22 @@
 
         socket.on('playImage', ({
             imageUrl,
-            title
+            title,
+            description
         }) => {
             let slide1 = document.getElementById('slide1');
             let titleOverlay = document.getElementById('title-overlay1');
+            let subtitleOverlay = document.getElementById('subtitle-overlay1');
             let slide2 = document.getElementById('slide2');
             let titleOverlay2 = document.getElementById('title-overlay2');
+            let subtitleOverlay2 = document.getElementById('subtitle-overlay2');
             if (slide1 && slide2) {
                 slide2.src = imageUrl;
                 if (titleOverlay2) {
                     titleOverlay2.innerText = title;
+                }
+                if (subtitleOverlay2) {
+                    subtitleOverlay2.innerText = description || '';
                 }
                 // Only clear the interval. Do NOT restart the slideshow.
                 clearInterval(window.slideshowInterval);
@@ -70,6 +79,10 @@
                         titleOverlay2.classList.add('active');
                         titleOverlay.classList.remove('active');
                     }
+                    if (subtitleOverlay && subtitleOverlay2) {
+                        subtitleOverlay2.classList.add('active');
+                        subtitleOverlay.classList.remove('active');
+                    }
                     setTimeout(() => {
                         let tempImg = slide1;
                         slide1 = slide2;
@@ -79,6 +92,11 @@
                             titleOverlay = titleOverlay2;
                             titleOverlay2 = tempTitle;
                         }
+                        if (subtitleOverlay && subtitleOverlay2) {
+                            let tempSubtitle = subtitleOverlay;
+                            subtitleOverlay = subtitleOverlay2;
+                            subtitleOverlay2 = tempSubtitle;
+                        }
                     }, 1000);
                 };
             }
@@ -87,31 +105,33 @@
         socket.on('playSelect', ({
             images
         }) => {
+            console.log('Received playSelect event:', images);
+
             if (document.getElementById('slide1') && images && images.length > 0) {
+                // Stop any existing slideshow
                 clearInterval(window.slideshowInterval);
-                // If only one image is selected, load it and pause the slideshow
-                if (images.length === 1) {
-                    window.slideshowPaused = true;
-                    window.selectedSlideshowImages = images;
-                    currentIndex = 0; // Reset index
-                    const slide1 = document.getElementById('slide1');
-                    const titleOverlay = document.getElementById('title-overlay1');
-                    slide1.src = images[0].url;
-                    if (titleOverlay) {
-                        titleOverlay.innerText = images[0].title;
+
+                // Reset slideshow state
+                window.slideshowPaused = false;
+                window.selectedSlideshowImages = images;
+                window.currentIndex = 0;
+
+                // Always use crossfade for transitions
+                if (typeof window.crossfadeTo === 'function') {
+                    try {
+                        window.crossfadeTo(0, images);
+                        console.log('Crossfade initiated successfully');
+                    } catch (error) {
+                        console.error('Error in crossfadeTo:', error);
                     }
-                    // Do not restart the slideshow interval
-                } else {
-                    window.slideshowPaused = false;
-                    window.selectedSlideshowImages = images;
-                    currentIndex = 0; // Reset index
-                    const slide1 = document.getElementById('slide1');
-                    const titleOverlay = document.getElementById('title-overlay1');
-                    slide1.src = images[0].url;
-                    if (titleOverlay) {
-                        titleOverlay.innerText = images[0].title;
+                }
+
+                // Only start automatic slideshow if there's more than one image
+                if (images.length > 1) {
+                    if (typeof window.startSlideshow === 'function') {
+                        window.startSlideshow();
+                        console.log('Slideshow started');
                     }
-                    startSlideshow();
                 }
             }
         });

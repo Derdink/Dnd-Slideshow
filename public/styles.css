@@ -114,7 +114,7 @@ body {
 
 .title-container {
     position: absolute;
-    bottom: 4em;
+    bottom: 6em;
     left: 0;
     width: 100%;
     text-align: center;
@@ -142,7 +142,7 @@ body {
     width: 100%;
     text-align: center;
     color: #fff;
-    font-size: 2em;
+    font-size: 2.3em;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
     opacity: 0;
     transition: opacity 1s ease-in-out;
@@ -151,6 +151,24 @@ body {
 }
 
 .title-overlay.active {
+    opacity: 1;
+}
+
+.subtitle-overlay {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    color: #fff;
+    font-size: 1.6em;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 1s ease-in-out;
+    z-index: 2;
+    margin-top: 1.5em;
+    /* Space between title and subtitle */
+}
+
+.subtitle-overlay.active {
     opacity: 1;
 }
 
@@ -277,7 +295,8 @@ select:focus {
 }
 
 #saveSettingsBtn:hover {
-    background-color: #e73370;
+    background-color: var(--accent-color);
+    ;
 }
 
 #saveMessage {
@@ -326,7 +345,8 @@ select:focus {
 }
 
 #saveSettingsBtn:hover {
-    background-color: #e73370;
+    background-color: var(--accent-color);
+    ;
 }
 
 #order {
@@ -396,7 +416,8 @@ select:focus {
 }
 
 #dropArea button:hover {
-    background-color: #e73370;
+    background-color: var(--accent-color);
+    ;
 }
 
 
@@ -524,7 +545,8 @@ select:focus {
 /* ---------------- Delete Button Styling ---------------- */
 
 .deleteBtn,
-.playBtn {
+.playBtn,
+.editBtn {
     background-color: transparent;
     border: none;
     font-size: 1.2rem;
@@ -534,8 +556,9 @@ select:focus {
 }
 
 .deleteBtn:hover,
-.playBtn:hover {
-    color: #e73370 !important;
+.playBtn:hover,
+.editBtn {
+    color: var(--accent-color);
 }
 
 
@@ -631,7 +654,8 @@ select:focus {
 }
 
 #slideFunctionsContainer button:hover {
-    background-color: #e73370;
+    background-color: var(--accent-color);
+    ;
 }
 
 
@@ -739,7 +763,8 @@ select:focus {
 }
 
 #newTagForm button:hover {
-    background-color: #e73370;
+    background-color: var(--accent-color);
+    ;
 }
 
 
@@ -852,7 +877,8 @@ select:focus {
 }
 
 .play-button:hover {
-    background-color: #e73370;
+    background-color: var(--accent-color);
+    ;
 }
 
 
@@ -916,7 +942,8 @@ body.manage {
 /* Carbon primary button style (applied to all buttons) */
 
 button {
-    background-color: #0f62fe;
+    background-color: var(--accent-color);
+    ;
     color: #ffffff;
     border: none;
     padding: 0.5rem 1rem;
@@ -927,7 +954,8 @@ button {
 }
 
 button:hover {
-    background-color: #0353e9;
+    background-color: var(--accent-color);
+    ;
 }
 
 
@@ -999,7 +1027,8 @@ select {
 /* Carbon Design System Overrides for Pagination Buttons */
 
 #pagination button {
-    background-color: #0f62fe;
+    background-color: var(--accent-color);
+    ;
     color: #ffffff;
     border: none;
     padding: 0.5rem 1rem;
@@ -1019,7 +1048,8 @@ select {
 #pagination select {
     background-color: #ffffff;
     color: #161616;
-    border: 1px solid #0f62fe;
+    border: 1px solid var(--accent-color);
+    ;
     border-radius: 4px;
     padding: 0.5rem 0.75rem;
     font-size: 1rem;
@@ -1028,7 +1058,8 @@ select {
 
 #pagination select:focus {
     outline: none;
-    border-color: #0353e9;
+    border-color: var(--accent-color);
+    ;
 }
 
 
@@ -1079,8 +1110,9 @@ select {
     #imageTable td.col-tags {
         display: none;
     }
-    /* Hide delete button but allow the play button to remain */
-    #imageTable td.col-actions button.deleteBtn {
+    /* Hide delete button AND edit button but allow the play button to remain */
+    #imageTable td.col-actions button.deleteBtn,
+    #imageTable td.col-actions button.editBtn {
         display: none;
     }
 }
@@ -1186,5 +1218,6 @@ select {
 }
 
 .modal-buttons button#saveEditBtn:hover {
-    background-color: #e73370;
+    background-color: var(--accent-color);
+    ;
 }

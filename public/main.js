@@ -16,6 +16,8 @@ if (document.getElementById('slide1')) {
     let nextSlideElement = document.getElementById('slide2');
     let currentTitleOverlay = document.getElementById('title-overlay1');
     let nextTitleOverlay = document.getElementById('title-overlay2');
+    let currentSubtitleOverlay = document.getElementById('subtitle-overlay1');
+    let nextSubtitleOverlay = document.getElementById('subtitle-overlay2');
 
     // ======================
     // Shuffle Function
@@ -34,6 +36,7 @@ if (document.getElementById('slide1')) {
     fetch('/api/images')
         .then(response => response.json())
         .then(data => {
+            console.log('Received images data:', data[0]); // Log first image
             images = data;
             window.slideshowImages = images; // global fallback list
             if (images.length > 0) {
@@ -48,19 +51,48 @@ if (document.getElementById('slide1')) {
                     currentTitleOverlay.innerText = images[currentIndex].title;
                     currentTitleOverlay.classList.add('active');
                 }
+                if (currentSubtitleOverlay) {
+                    console.log('Setting initial description:', {
+                        imageId: images[currentIndex].id,
+                        description: images[currentIndex].description,
+                        hasDescriptionProperty: 'description' in images[currentIndex]
+                    });
+                    currentSubtitleOverlay.innerText = images[currentIndex].description || '';
+                    currentSubtitleOverlay.classList.add('active');
+                } else {
+                    console.warn('Subtitle overlay element not found');
+                }
                 startSlideshow();
             }
         })
-        .catch(err => console.error(err));
+        .catch(err => console.error('Error fetching images:', err));
 
     // ======================
     // Crossfade to Next Image
     // ======================
     function crossfadeTo(index, list) {
+        console.log('crossfadeTo called with:', {
+            index,
+            listLength: list ? list.length : 'no list provided',
+            currentSlideElement: currentSlideElement.src,
+            nextSlideElement: nextSlideElement.src,
+            windowImages: window.images ? window.images.length : 'not set',
+            selectedImages: window.selectedSlideshowImages ? window.selectedSlideshowImages.length : 'not set'
+        });
+
         const imageList = list || images;
+        console.log('Using image list:', {
+            length: imageList.length,
+            currentImage: imageList[index],
+            hasDescription: imageList[index] ? 'description' in imageList[index] : false
+        });
+
         nextSlideElement.src = imageList[index].url;
         if (nextTitleOverlay) {
             nextTitleOverlay.innerText = imageList[index].title;
+        }
+        if (nextSubtitleOverlay) {
+            nextSubtitleOverlay.innerText = imageList[index].description || '';
         }
         nextSlideElement.onload = () => {
             nextSlideElement.classList.add('active');
@@ -68,6 +100,10 @@ if (document.getElementById('slide1')) {
             if (nextTitleOverlay && currentTitleOverlay) {
                 nextTitleOverlay.classList.add('active');
                 currentTitleOverlay.classList.remove('active');
+            }
+            if (nextSubtitleOverlay && currentSubtitleOverlay) {
+                nextSubtitleOverlay.classList.add('active');
+                currentSubtitleOverlay.classList.remove('active');
             }
             setTimeout(() => {
                 let tempImg = currentSlideElement;
@@ -77,6 +113,11 @@ if (document.getElementById('slide1')) {
                     let tempTitle = currentTitleOverlay;
                     currentTitleOverlay = nextTitleOverlay;
                     nextTitleOverlay = tempTitle;
+                }
+                if (nextSubtitleOverlay && currentSubtitleOverlay) {
+                    let tempSubtitle = currentSubtitleOverlay;
+                    currentSubtitleOverlay = nextSubtitleOverlay;
+                    nextSubtitleOverlay = tempSubtitle;
                 }
             }, 1000);
         };
@@ -169,7 +210,15 @@ if (document.getElementById('slide1')) {
     window.nextImage = nextImage;
     window.prevImage = prevImage;
     window.startSlideshow = startSlideshow;
+    window.crossfadeTo = crossfadeTo;
+    window.images = images; // Make images array globally available
+    window.currentIndex = currentIndex; // Make currentIndex globally available
 
+    console.log('Initialized global slideshow functions:', {
+        hasCrossfadeTo: typeof window.crossfadeTo === 'function',
+        hasImages: Array.isArray(window.images),
+        currentIndex: window.currentIndex
+    });
 
     // ======================
     // Live Update on Storage Change
@@ -196,6 +245,10 @@ if (document.getElementById('slide1')) {
     });
 }
 
+// NEW: Global pagination variables for management page
+let currentPage = 1;
+let currentLimit = 20; // entries per page
+let totalPages = 1;
 // ======================
 // MANAGE PAGE FUNCTIONALITY (Settings, Upload, Pictures, and Tag Management)
 // ======================
@@ -353,10 +406,6 @@ if (document.getElementById('settingsForm')) {
     // FETCH AND DISPLAY IMAGES
     // ======================
 
-    // NEW: Global pagination variables for management page
-    let currentPage = 1;
-    let currentLimit = 20; // entries per page
-    let totalPages = 1;
 
     // UPDATED fetchImages: apply pagination and then update pagination controls
     function fetchImages() {
@@ -564,32 +613,39 @@ if (document.getElementById('settingsForm')) {
             playBtn.classList.add('playBtn');
             playBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                // Immediately show this image in the slideshow without transitions
+                console.log('Play button clicked for image:', image);
+
+                // Stop any existing slideshow
+                clearInterval(window.slideshowInterval);
+                window.slideshowPaused = false; // Set to false to allow new transitions
+
+                // Reset slideshow state with the single image
+                window.selectedSlideshowImages = [image];
+                window.currentIndex = 0;
+
+                // Update DOM elements directly first for immediate feedback
                 const slide1 = document.getElementById('slide1');
-                const titleOverlay = document.getElementById('title-overlay1');
-                if (slide1) {
-                    slide1.src = image.url;
-                    if (titleOverlay) {
-                        titleOverlay.innerText = image.title;
-                    }
-                    // Stop the slideshow
-                    clearInterval(window.slideshowInterval);
-                    window.slideshowPaused = true; // NEW: pause the slideshow
-                    slide1.onload = () => {
-                        slide1.classList.add('active');
-                        const slide2 = document.getElementById('slide2');
-                        if (slide2) {
-                            slide2.classList.remove('active');
-                        }
-                    };
-                }
-                // Notify the server to update the slideshow
+                const titleOverlay1 = document.getElementById('title-overlay1');
+                const subtitleOverlay1 = document.getElementById('subtitle-overlay1');
+
+                if (slide1) slide1.src = image.url;
+                if (titleOverlay1) titleOverlay1.innerText = image.title;
+                if (subtitleOverlay1) subtitleOverlay1.innerText = image.description || '';
+
+                // Then notify other clients
                 fetch('/api/updateSlideshow', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'play', imageUrl: image.url, title: image.title })
-                }).catch(err => console.error(err));
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'playSelect',
+                            images: [image]
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => console.log('Server response:', data))
+                    .catch(err => console.error('Error in play button handler:', err));
             });
+
             actionsCell.appendChild(playBtn);
 
             // Replace the custom SVG edit button with a standard button:
@@ -611,8 +667,16 @@ if (document.getElementById('settingsForm')) {
         updateHeaderSelect();
     }
 
+    // Add search input event listener within manage page context
+    const searchInput = document.getElementById('search');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            fetchImages();
+        });
+    }
 
-
+    // Initial fetch of images
+    fetchImages();
 
     updateHeaderSelect();
 }
@@ -781,22 +845,43 @@ function filterImagesBySelectedTags() {
 
 // NEW: Toggle dropdown visibility on filter button click
 document.addEventListener('DOMContentLoaded', () => {
-    const filterBtn = document.getElementById('filterBtn');
-    const dropdown = document.getElementById('tagFilterDropdown');
-    if (filterBtn && dropdown) {
-        filterBtn.addEventListener('click', () => {
-            dropdown.style.display = (dropdown.style.display === "none" || dropdown.style.display === "") ? "flex" : "none";
-            if (dropdown.style.display === "flex") {
-                // Render dropdown items on open.
-                updateTagFilterDropdown();
-            }
-        });
+    // Move these inside the settings form check
+    if (document.getElementById('settingsForm')) {
+        const filterBtn = document.getElementById('filterBtn');
+        const dropdown = document.getElementById('tagFilterDropdown');
+        if (filterBtn && dropdown) {
+            filterBtn.addEventListener('click', () => {
+                dropdown.style.display = (dropdown.style.display === "none" || dropdown.style.display === "") ? "flex" : "none";
+                if (dropdown.style.display === "flex") {
+                    updateTagFilterDropdown();
+                }
+            });
+        }
+
+        // Add search input event listener here
+        const searchInput = document.getElementById('search');
+        if (searchInput) {
+            searchInput.addEventListener('input', () => {
+                filterImagesBySelectedTags();
+            });
+        }
     }
-    // Also update filter when the search input changes
-    document.getElementById('search').addEventListener('input', () => {
-        filterImagesBySelectedTags();
-    });
+
+    // Keep other DOMContentLoaded handlers that should run on all pages
+    const leftArea = document.querySelector('.hover-area.left');
+    const rightArea = document.querySelector('.hover-area.right');
+    if (leftArea && typeof window.prevImage === 'function') {
+        leftArea.addEventListener('click', () => window.prevImage());
+    }
+    if (rightArea && typeof window.nextImage === 'function') {
+        rightArea.addEventListener('click', () => window.nextImage());
+    }
 });
+
+// Remove the standalone search event listener
+// document.getElementById('search').addEventListener('input', () => {
+//     filterImagesBySelectedTags();
+// });
 
 // NEW: Pagination controls function
 function updatePagination(totalEntries) {
@@ -924,14 +1009,6 @@ function bindHeaderSelect() {
     }
 }
 
-// Search functionality: filter images on input
-document.getElementById('search').addEventListener('input', function() {
-    fetchImages();
-});
-
-// Initial fetch of images
-fetchImages();
-
 // Bulk Delete functionality remains unchanged
 document.getElementById('bulkDelete').addEventListener('click', () => {
     const checkboxes = document.querySelectorAll('.selectImage:checked');
@@ -995,7 +1072,7 @@ document.addEventListener('DOMContentLoaded', () => {
 if (document.getElementById('tagManagerToggle')) {
     const tagManagerToggle = document.getElementById('tagManagerToggle');
     // Set the innerHTML to the provided SVG
-    tagManagerToggle.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="2"></circle><path d="M20,30a.9967.9967.0,0,1-.707-.293L8.5859,19A2.0126,2.0126,0,0,1,8,17.5859V10a2.002,2.002,0,0,1,2-2h7.5859A1.9864,1.9864,0,0,1,19,8.5859L29.707,19.293a.9994.9994,0,0,1,0,1.414l-9,9A.9967.9967,0,0,1,20,30ZM10,10v7.5859l10,10L27.5859,20l-10-10Z"></path><path d="M12,30H4a2.0021,2.0021,0,0,1-2-2V4A2.0021,2.0021,0,0,1,4,2H28a2.0021,2.0021,0,0,1,2,2v8H28V4H4V28h8Z"></path></svg>`;
+    tagManagerToggle.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="2"></circle><path d="M20,30a.9967.9967,0,0,1-.707-.293L8.5859,19A2.0126,2.0126,0,0,1,8,17.5859V10a2.002,2.002,0,0,1,2-2h7.5859A1.9864,1.9864,0,0,1,19,8.5859L29.707,19.293a.9994.9994,0,0,1,0,1.414l-9,9A.9967.9967,0,0,1,20,30ZM10,10v7.5859l10,10L27.5859,20l-10-10Z"></path><path d="M12,30H4a2.0021,2.0021,0,0,1-2-2V4A2.0021,2.0021,0,0,1,4,2H28a2.0021,2.0021,0,0,1,2,2v8H28V4H4V28h8Z"></path></svg>`;
 
     // Apply the same style as settingsToggle (assumes you have a common class for toggles)
     tagManagerToggle.classList.add('settingsToggle');
@@ -1425,29 +1502,15 @@ function showEditModal(image) {
     const modal = document.getElementById('editModal');
     modal.style.display = 'block';
 
-    // Debug the image object we're receiving
-    console.log('Image object received by modal:', image);
-
     // Set the title value
     document.getElementById('editTitle').value = image.title || '';
 
-    let description = '';
-    if (image.hasOwnProperty('description') && image.description !== null) {
-        description = image.description;
-    }
-    // Set the description field value
+    // Handle description, use existing description or empty string if null/undefined
+    const description = image.description || '';
     document.getElementById('editDescription').value = description;
 
     // Store the image ID for the save operation
     modal.setAttribute('data-image-id', image.id);
-
-    // Debug log
-    console.log('Image data in modal:', {
-        id: image.id,
-        title: image.title,
-        description: image.description,
-        descriptionType: typeof image.description
-    });
 }
 
 function hideEditModal() {
