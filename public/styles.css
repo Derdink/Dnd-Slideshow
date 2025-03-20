@@ -283,7 +283,8 @@ select:focus {
     border-color: var(--accent-color);
 }
 
-#saveSettingsBtn {
+
+/* #saveSettingsBtn {
     background-color: var(--accent-color);
     color: #fff;
     border: none;
@@ -297,7 +298,7 @@ select:focus {
 #saveSettingsBtn:hover {
     background-color: var(--accent-color);
     ;
-}
+} */
 
 #saveMessage {
     opacity: 0;
@@ -318,22 +319,15 @@ select:focus {
 
 /* When the details element is not open, keep it compact */
 
-#settings-details:not([open]) {
-    max-height: 40px;
-    /* Adjust collapsed height as needed */
-    overflow: hidden;
-    padding: 0px;
-    margin-bottom: 0px;
-}
-
-#settings-details summary {
-    display: none;
+#settings-details {
+    padding: 1rem;
 }
 
 
 /* --- Save Button and Order Dropdown Styling --- */
 
-#saveSettingsBtn {
+
+/* #saveSettingsBtn {
     background-color: var(--accent-color);
     color: #fff;
     border: none;
@@ -347,7 +341,7 @@ select:focus {
 #saveSettingsBtn:hover {
     background-color: var(--accent-color);
     ;
-}
+} */
 
 #order {
     padding: 0.4rem;
@@ -431,6 +425,8 @@ select:focus {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1rem;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
 }
 
 #manageTitle {
@@ -453,6 +449,28 @@ select:focus {
 #filterBtn:hover {
     background-color: var(--accent-color);
     color: #fff;
+}
+
+.settingsToggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.settingsToggle.active {
+    background-color: var(--accent-color);
+    color: #fff;
+    border-radius: 4px;
+}
+
+
+/* Updated Settings Section Styles */
+
+#settingsSection {
+    margin-bottom: 2rem;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
 }
 
 
@@ -1220,4 +1238,176 @@ select {
 .modal-buttons button#saveEditBtn:hover {
     background-color: var(--accent-color);
     ;
+}
+
+
+/* Header Controls Styling */
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.nav-btn {
+    background: transparent;
+    border: none;
+    padding: 0.5rem;
+    cursor: pointer;
+    color: var(--text-color);
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-btn:hover {
+    background-color: var(--accent-color);
+    color: #fff;
+    border-radius: 4px;
+}
+
+
+/* Carbon Tabs Custom Styling */
+
+.bx--tabs {
+    width: 100%;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 1rem;
+}
+
+.bx--tab-content {
+    padding: 1rem;
+}
+
+.bx--tab-panel {
+    display: none;
+}
+
+.bx--tab-panel[aria-hidden="false"] {
+    display: block;
+}
+
+
+/* Ensure tab panels maintain their spacing */
+
+#tab-panel-1,
+#tab-panel-2,
+#tab-panel-3,
+#tab-panel-4 {
+    padding: 1rem 0;
+}
+
+
+/* Play Settings Tab Styles */
+
+.settings-group {
+    padding: 1rem;
+}
+
+.settings-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.time-inputs {
+    display: flex;
+    gap: 1rem;
+}
+
+.time-inputs .bx--form-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 100px;
+    width: auto;
+}
+
+#orderContainer {
+    width: fit-content;
+    min-width: 580px;
+}
+
+#orderContainer .bx--btn-set {
+    display: inline-flex;
+}
+
+
+/* Carbon overrides */
+
+.bx--label {
+    margin-bottom: 0.5rem;
+}
+
+.bx--text-input {
+    min-width: 100px;
+    width: auto;
+}
+
+.bx--number {
+    width: auto;
+}
+
+
+/* Ensure save button aligns with order container */
+
+#saveSettingsBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    align-self: flex-start;
+    /* NEW: Align with top of container */
+    margin-top: 1.5rem;
+    /* NEW: Match the spacing of other inputs */
+}
+
+
+/* Mobile styles */
+
+@media (max-width: 768px) {
+    .settings-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .time-inputs {
+        flex-direction: column;
+        width: 100%;
+    }
+    .bx--btn-set {
+        flex-direction: column;
+        width: 100%;
+    }
+    .bx--btn-set .bx--btn {
+        width: 100%;
+        margin: 0.25rem 0;
+        max-width: 100%;
+    }
+    #saveSettingsBtn {
+        width: 100%;
+        justify-content: center;
+    }
+    #orderContainer {
+        max-width: none;
+        /* NEW: Allow full width on mobile */
+        width: 100%;
+        min-width: 100%;
+    }
+    .bx--btn {
+        max-width: 100%;
+    }
+    .bx--number {
+        width: 100%;
+    }
+}
+
+
+/* Toast notification positioning */
+
+.bx--toast-notification {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 1000;
 }

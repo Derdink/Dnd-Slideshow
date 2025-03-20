@@ -1,3 +1,12 @@
+// Move order to global scope
+const order = localStorage.getItem('slideshowOrder') || 'random';
+
+// Make order globally available 
+window.slideshowOrder = localStorage.getItem('slideshowOrder') || 'random';
+
+// At the top of the file, add global variable
+window.images = [];
+
 // ======================
 // SLIDESHOW FUNCTIONALITY (Index Page)
 // ======================
@@ -6,7 +15,8 @@ if (document.getElementById('slide1')) {
     let images = [];
     let currentIndex = 0;
     let transitionTime = parseFloat(localStorage.getItem('transitionTime')) || 3;
-    const order = localStorage.getItem('slideshowOrder') || 'random';
+    // Remove duplicate order declaration
+    // const order = localStorage.getItem('slideshowOrder') || 'random';
     // Store interval and pause flag on window for global consistency
     window.slideshowInterval = null;
     window.slideshowPaused = false;
@@ -38,7 +48,8 @@ if (document.getElementById('slide1')) {
         .then(data => {
             console.log('Received images data:', data[0]); // Log first image
             images = data;
-            window.slideshowImages = images; // global fallback list
+            window.images = data; // Ensure global assignment
+            window.slideshowImages = data; // global fallback list
             if (images.length > 0) {
                 if (order === 'alphabetical') {
                     images.sort((a, b) => a.title.localeCompare(b.title));
@@ -71,13 +82,28 @@ if (document.getElementById('slide1')) {
     // Crossfade to Next Image
     // ======================
     function crossfadeTo(index, list) {
+        // Add validation checks
+        if (!list || !Array.isArray(list) || list.length === 0) {
+            console.warn('Invalid image list provided to crossfadeTo');
+            return;
+        }
+
+        if (index < 0 || index >= list.length) {
+            console.warn('Invalid index provided to crossfadeTo');
+            return;
+        }
+
+        // Verify the image object has required properties
+        const image = list[index];
+        if (!image || !image.url) {
+            console.warn('Invalid image object at index:', index);
+            return;
+        }
+
         console.log('crossfadeTo called with:', {
             index,
-            listLength: list ? list.length : 'no list provided',
-            currentSlideElement: currentSlideElement.src,
-            nextSlideElement: nextSlideElement.src,
-            windowImages: window.images ? window.images.length : 'not set',
-            selectedImages: window.selectedSlideshowImages ? window.selectedSlideshowImages.length : 'not set'
+            listLength: list.length,
+            currentImage: image
         });
 
         const imageList = list || images;
@@ -243,6 +269,48 @@ if (document.getElementById('slide1')) {
             }
         }
     });
+
+    // Make order available to navigation functions by defining it in this scope
+    const order = localStorage.getItem('slideshowOrder') || 'random';
+
+    // Modify the window.nextImage function to use the order from this scope
+    window.nextImage = function() {
+        const imageList = (window.selectedSlideshowImages && window.selectedSlideshowImages.length > 0) ?
+            window.selectedSlideshowImages :
+            images;
+        let newList = imageList;
+        if (order === 'alphabetical') {
+            newList.sort((a, b) => a.title.localeCompare(b.title));
+            currentIndex = (currentIndex + 1) % newList.length;
+        } else if (order === 'random') {
+            if (currentIndex < newList.length - 1) {
+                currentIndex++;
+            } else {
+                shuffleArray(newList);
+                currentIndex = 0;
+            }
+        } else if (order === 'groups') {
+            const groupedList = groupOrderImages(newList);
+            if (!groupedList.length) return;
+            newList = groupedList;
+            currentIndex = (currentIndex + 1) % newList.length;
+        }
+        // Emit navigation event to other clients
+        socket.emit('navigation', { action: 'next', index: currentIndex });
+        crossfadeTo(currentIndex, newList);
+        resetSlideshowInterval();
+    };
+
+    window.prevImage = function() {
+        const imageList = (window.selectedSlideshowImages && window.selectedSlideshowImages.length > 0) ?
+            window.selectedSlideshowImages :
+            images;
+        currentIndex = (currentIndex - 1 + imageList.length) % imageList.length;
+        // Emit navigation event to other clients
+        socket.emit('navigation', { action: 'prev', index: currentIndex });
+        crossfadeTo(currentIndex, imageList);
+        resetSlideshowInterval();
+    };
 }
 
 // NEW: Global pagination variables for management page
@@ -252,7 +320,7 @@ let totalPages = 1;
 // ======================
 // MANAGE PAGE FUNCTIONALITY (Settings, Upload, Pictures, and Tag Management)
 // ======================
-if (document.getElementById('settingsForm')) {
+if (document.getElementById('settingsSection')) {
     // ----- SETTINGS PANEL TOGGLE -----
     // In your HTML, remove the <summary> from #settings-details and add a separate header.
     // For example, your HTML should include:
@@ -684,7 +752,6 @@ if (document.getElementById('settingsForm')) {
 // NEW: Global variable to hold selected filter tags (for image table filtering)
 let selectedFilterTags = [];
 
-
 // NEW: Update the filter dropdown with tag pills from the server
 function updateTagFilterDropdown() {
     fetch('/api/tags')
@@ -791,7 +858,6 @@ function updateTagFilterDropdown() {
         .catch(err => console.error(err));
 }
 
-
 // NEW: Disable filter pills that aren’t available among currently displayed images
 function updateFilterAvailability() {
     // Based on imagesData filtered by current search and current selection
@@ -846,7 +912,7 @@ function filterImagesBySelectedTags() {
 // NEW: Toggle dropdown visibility on filter button click
 document.addEventListener('DOMContentLoaded', () => {
     // Move these inside the settings form check
-    if (document.getElementById('settingsForm')) {
+    if (document.getElementById('settingsSection')) {
         const filterBtn = document.getElementById('filterBtn');
         const dropdown = document.getElementById('tagFilterDropdown');
         if (filterBtn && dropdown) {
@@ -965,8 +1031,6 @@ function updatePagination(totalEntries) {
     });
 
     // Append controls in order (without the "Show per page" span)
-    container.appendChild(firstBtn);
-    container.appendChild(prevBtn);
     container.appendChild(pageSelect);
     container.appendChild(nextBtn);
     container.appendChild(lastBtn);
@@ -1009,61 +1073,119 @@ function bindHeaderSelect() {
     }
 }
 
-// Bulk Delete functionality remains unchanged
-document.getElementById('bulkDelete').addEventListener('click', () => {
-    const checkboxes = document.querySelectorAll('.selectImage:checked');
-    if (checkboxes.length === 0) {
-        alert('No images selected.');
-        return;
-    }
-    if (!confirm('Are you sure you want to delete the selected images?')) return;
-    const ids = Array.from(checkboxes).map(cb => cb.value);
-    fetch('/api/images', {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ids })
-        })
-        .then(response => response.json())
-        .then(result => {
-            alert(result.message);
-            fetchImages();
-        })
-        .catch(err => console.error(err));
-});
+// Replace the unconditional event listener with a null check
+const bulkDeleteBtn = document.getElementById('bulkDelete');
+if (bulkDeleteBtn) {
+    bulkDeleteBtn.addEventListener('click', () => {
+        const checkboxes = document.querySelectorAll('.selectImage:checked');
+        if (checkboxes.length === 0) {
+            alert('No images selected.');
+            return;
+        }
+        if (!confirm('Are you sure you want to delete the selected images?')) return;
+        const ids = Array.from(checkboxes).map(cb => cb.value);
+        fetch('/api/images', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids })
+            })
+            .then(response => response.json())
+            .then(result => {
+                alert(result.message);
+                fetchImages();
+            })
+            .catch(err => console.error(err));
+    });
+}
 
 // Call this function on DOMContentLoaded:
 document.addEventListener('DOMContentLoaded', bindHeaderSelect);
 
 // Function to update slideshow settings
 function updateSlideshowSettings() {
-    const speed = parseFloat(document.getElementById('speed').value);
-    const order = document.getElementById('order').value;
-    localStorage.setItem('transitionTime', speed);
+    const minutes = parseInt(document.getElementById('minutes').value) || 0;
+    const seconds = parseInt(document.getElementById('seconds').value) || 0;
+    const totalSeconds = (minutes * 60) + seconds;
+
+    // Find the selected order button
+    const selectedOrderBtn = document.querySelector('.bx--btn-set .bx--btn--primary');
+    const order = selectedOrderBtn ? selectedOrderBtn.id.replace('order', '').toLowerCase() : 'random';
+
+    localStorage.setItem('transitionTime', totalSeconds);
     localStorage.setItem('slideshowOrder', order);
+
     // Notify the server to update the slideshow settings
     fetch('/api/updateSlideshow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'updateSettings', speed, order })
+        body: JSON.stringify({ action: 'updateSettings', speed: totalSeconds, order })
     }).catch(err => console.error(err));
+
+    window.slideshowOrder = order;
 }
 
 // Settings form submission
 document.addEventListener('DOMContentLoaded', () => {
-    const settingsForm = document.getElementById('settingsForm');
-    if (settingsForm) {
-        settingsForm.addEventListener('submit', function(e) {
-            e.preventDefault(); // Prevent page refresh
+    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    if (saveSettingsBtn) {
+        saveSettingsBtn.addEventListener('click', () => {
             updateSlideshowSettings();
             const saveMessage = document.getElementById('saveMessage');
-            saveMessage.innerText = 'Settings saved!';
-            saveMessage.classList.add('visible');
-            setTimeout(() => {
-                saveMessage.classList.add('fade-out');
-                setTimeout(() => saveMessage.remove(), 500);
-            }, 5000);
+            if (saveMessage) {
+                saveMessage.innerText = 'Settings saved!';
+                saveMessage.classList.add('visible');
+                setTimeout(() => {
+                    saveMessage.classList.add('fade-out');
+                    setTimeout(() => {
+                        if (saveMessage.parentNode) {
+                            saveMessage.classList.remove('visible', 'fade-out');
+                        }
+                    }, 500);
+                }, 5000);
+            }
         });
     }
+
+    // Initialize order buttons
+    const orderButtons = ['orderAlphabetical', 'orderRandom', 'orderGroups'];
+    const currentOrder = localStorage.getItem('slideshowOrder') || 'alphabetical';
+
+    // Set initial active state
+    orderButtons.forEach(btnId => {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+            if (btnId === `order${currentOrder.charAt(0).toUpperCase() + currentOrder.slice(1)}`) {
+                btn.classList.remove('bx--btn--secondary');
+                btn.classList.add('bx--btn--primary');
+            }
+
+            btn.addEventListener('click', () => {
+                // Remove primary class from all buttons
+                orderButtons.forEach(id => {
+                    const button = document.getElementById(id);
+                    if (button) {
+                        button.classList.remove('bx--btn--primary');
+                        button.classList.add('bx--btn--secondary');
+                    }
+                });
+
+                // Add primary class to clicked button
+                btn.classList.remove('bx--btn--secondary');
+                btn.classList.add('bx--btn--primary');
+            });
+        }
+    });
+
+    // Initialize time inputs
+    const savedTime = parseFloat(localStorage.getItem('transitionTime')) || 3;
+    const minutes = Math.floor(savedTime / 60);
+    const seconds = Math.floor(savedTime % 60);
+
+    const minutesInput = document.getElementById('minutes');
+    const secondsInput = document.getElementById('seconds');
+
+    if (minutesInput) minutesInput.value = minutes;
+    if (secondsInput) secondsInput.value = seconds;
 });
 
 // ---------------------
@@ -1496,6 +1618,133 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Add socket.io initialization
+const socket = io();
+
+// Move navigation functions to be globally available
+window.nextImage = function() {
+    // Ensure we have a valid image list
+    const imageList = (window.selectedSlideshowImages && window.selectedSlideshowImages.length > 0) ?
+        window.selectedSlideshowImages :
+        window.images || [];
+
+    if (imageList.length === 0) {
+        console.warn('No images available for navigation');
+        return;
+    }
+
+    let newList = imageList;
+    if (window.slideshowOrder === 'alphabetical') {
+        newList.sort((a, b) => a.title.localeCompare(b.title));
+        currentIndex = (currentIndex + 1) % newList.length;
+    } else if (window.slideshowOrder === 'random') {
+        if (currentIndex < newList.length - 1) {
+            currentIndex++;
+        } else {
+            shuffleArray(newList);
+            currentIndex = 0;
+        }
+    } else if (window.slideshowOrder === 'groups') {
+        const groupedList = groupOrderImages(newList);
+        if (!groupedList || groupedList.length === 0) return;
+        newList = groupedList;
+        currentIndex = (currentIndex + 1) % newList.length;
+    }
+    // Emit navigation event to other clients
+    socket.emit('navigation', { action: 'next', index: currentIndex });
+    crossfadeTo(currentIndex, newList);
+    resetSlideshowInterval();
+};
+
+window.prevImage = function() {
+    // Ensure we have a valid image list
+    const imageList = (window.selectedSlideshowImages && window.selectedSlideshowImages.length > 0) ?
+        window.selectedSlideshowImages :
+        window.images || [];
+
+    if (imageList.length === 0) {
+        console.warn('No images available for navigation');
+        return;
+    }
+
+    currentIndex = (currentIndex - 1 + imageList.length) % imageList.length;
+    // Emit navigation event to other clients
+    socket.emit('navigation', { action: 'prev', index: currentIndex });
+    crossfadeTo(currentIndex, imageList);
+    resetSlideshowInterval();
+};
+
+// Add socket event listeners for navigation
+socket.on('navigation', ({ action, index }) => {
+    if (!document.getElementById('slide1')) {
+        console.log('Not on slideshow page, ignoring navigation event');
+        return;
+    }
+
+    const imageList = (window.selectedSlideshowImages && window.selectedSlideshowImages.length > 0) ?
+        window.selectedSlideshowImages :
+        window.images;
+
+    // Validate we have images to work with
+    if (!imageList || !Array.isArray(imageList) || imageList.length === 0) {
+        console.warn('No valid image list available for navigation');
+        return;
+    }
+
+    // Ensure index is valid
+    if (typeof index !== 'number' || index < 0 || index >= imageList.length) {
+        console.warn('Invalid index received:', index);
+        return;
+    }
+
+    if (action === 'next' || action === 'prev') {
+        currentIndex = index;
+        crossfadeTo(currentIndex, imageList);
+        resetSlideshowInterval();
+    }
+});
+
+// Add event listeners for navigation controls
+document.addEventListener('DOMContentLoaded', () => {
+    // Handle header navigation buttons on manage.html
+    const headerNextBtn = document.getElementById('headerNextBtn');
+    const headerPrevBtn = document.getElementById('headerPrevBtn');
+
+    console.log('Navigation buttons found:', {
+        headerNextBtn: !!headerNextBtn,
+        headerPrevBtn: !!headerPrevBtn
+    });
+
+    if (headerNextBtn) {
+        headerNextBtn.addEventListener('click', () => {
+            console.log('Next button clicked');
+            triggerSlideshow('next');
+        });
+    }
+
+    if (headerPrevBtn) {
+        headerPrevBtn.addEventListener('click', () => {
+            console.log('Prev button clicked');
+            triggerSlideshow('prev');
+        });
+    }
+
+    // Handle slideshow hover areas on index.html
+    const leftArea = document.querySelector('.hover-area.left');
+    const rightArea = document.querySelector('.hover-area.right');
+
+    if (leftArea) {
+        leftArea.addEventListener('click', () => {
+            if (window.prevImage) window.prevImage();
+        });
+    }
+
+    if (rightArea) {
+        rightArea.addEventListener('click', () => {
+            if (window.nextImage) window.nextImage();
+        });
+    }
+});
 
 // Add modal handling functions at the end of the file:
 function showEditModal(image) {
@@ -1520,23 +1769,92 @@ function hideEditModal() {
 
 // Attach modal event listeners when DOM is ready:
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('closeEditBtn').addEventListener('click', hideEditModal);
-    document.getElementById('saveEditBtn').addEventListener('click', () => {
-        const modal = document.getElementById('editModal');
-        const id = modal.getAttribute('data-image-id');
-        const newTitle = document.getElementById('editTitle').value.trim();
-        const newDescription = document.getElementById('editDescription').value.trim();
-        fetch(`/api/images/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ title: newTitle, description: newDescription })
-            })
-            .then(response => response.json())
-            .then(result => {
-                alert(result.message);
-                hideEditModal();
-                fetchImages();
-            })
-            .catch(err => console.error(err));
+    const closeEditBtn = document.getElementById('closeEditBtn');
+    const saveEditBtn = document.getElementById('saveEditBtn');
+
+    if (closeEditBtn) {
+        closeEditBtn.addEventListener('click', hideEditModal);
+    }
+
+    if (saveEditBtn) {
+        saveEditBtn.addEventListener('click', () => {
+            const modal = document.getElementById('editModal');
+            if (!modal) return;
+
+            const id = modal.getAttribute('data-image-id');
+            const editTitle = document.getElementById('editTitle');
+            const editDescription = document.getElementById('editDescription');
+
+            if (!editTitle || !editDescription) return;
+
+            const newTitle = editTitle.value.trim();
+            const newDescription = editDescription.value.trim();
+
+            fetch(`/api/images/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: newTitle, description: newDescription })
+                })
+                .then(response => response.json())
+                .then(result => {
+                    alert(result.message);
+                    hideEditModal();
+                    fetchImages();
+                })
+                .catch(err => console.error(err));
+        });
+    }
+});
+
+// NEW: Add at the top of the file
+function triggerSlideshow(action) {
+    console.log('triggerSlideshow called with action:', action);
+    fetch('/api/updateSlideshow', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Server response:', data);
+            // Handle the response locally if we're on manage.html
+            if (document.getElementById('settingsSection')) {
+                if (action === 'next') {
+                    socket.emit('navigation', { action: 'next' });
+                } else if (action === 'prev') {
+                    socket.emit('navigation', { action: 'prev' });
+                }
+            }
+        })
+        .catch(err => console.error('Navigation error:', err));
+}
+
+// Modify the DOMContentLoaded event listener for manage.html navigation
+document.addEventListener('DOMContentLoaded', () => {
+    const headerNextBtn = document.getElementById('headerNextBtn');
+    const headerPrevBtn = document.getElementById('headerPrevBtn');
+
+    console.log('Header navigation buttons:', {
+        nextFound: !!headerNextBtn,
+        prevFound: !!headerPrevBtn
     });
+
+    // Remove any existing click listeners
+    if (headerNextBtn) {
+        const newNextBtn = headerNextBtn.cloneNode(true);
+        headerNextBtn.parentNode.replaceChild(newNextBtn, headerNextBtn);
+        newNextBtn.addEventListener('click', () => {
+            console.log('Next button clicked on manage page');
+            triggerSlideshow('next');
+        });
+    }
+
+    if (headerPrevBtn) {
+        const newPrevBtn = headerPrevBtn.cloneNode(true);
+        headerPrevBtn.parentNode.replaceChild(newPrevBtn, headerPrevBtn);
+        newPrevBtn.addEventListener('click', () => {
+            console.log('Prev button clicked on manage page');
+            triggerSlideshow('prev');
+        });
+    }
 });

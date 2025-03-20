@@ -5,6 +5,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Photo Slideshow</title>
+    <link rel="icon" href="/icons/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/icons/favicon.ico" type="image/x-icon">
     <link rel="stylesheet" href="styles.css" />
     <link rel="manifest" href="manifest.json" />
 </head>
@@ -34,15 +36,13 @@
     </div>
 
     <!-- External JavaScript files -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="socket-client.js"></script>
     <script src="main.js"></script>
     <script src="sw-register.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
     <script>
-        // Removed the duplicate global declaration of slideshowInterval.
-        // main.js will manage the slideshowInterval and pause state.
-        const socket = io();
-
-        socket.on('settingsUpdate', ({
+        // Use window.socket from socket-client.js
+        window.socket.on('settingsUpdate', ({
             speed,
             order
         }) => {
@@ -51,7 +51,7 @@
             location.reload(); // Reload to apply new settings
         });
 
-        socket.on('playImage', ({
+        window.socket.on('playImage', ({
             imageUrl,
             title,
             description
@@ -102,7 +102,7 @@
             }
         });
 
-        socket.on('playSelect', ({
+        window.socket.on('playSelect', ({
             images
         }) => {
             console.log('Received playSelect event:', images);
@@ -136,13 +136,29 @@
             }
         });
 
-        function nextImage() {
-            // Logic to navigate to the next image
-        }
+        window.socket.on('slideAction', ({
+            action
+        }) => {
+            console.log('Received slideAction:', action);
+            console.log('Navigation functions available:', {
+                nextImage: typeof window.nextImage === 'function',
+                prevImage: typeof window.prevImage === 'function'
+            });
 
-        function prevImage() {
-            // Logic to navigate to the previous image
-        }
+            if (action === 'next' && typeof window.nextImage === 'function') {
+                console.log('Executing next image transition');
+                window.nextImage();
+            } else if (action === 'prev' && typeof window.prevImage === 'function') {
+                console.log('Executing prev image transition');
+                window.prevImage();
+            } else {
+                console.warn('Cannot execute navigation:', {
+                    action,
+                    hasNextImage: typeof window.nextImage === 'function',
+                    hasPrevImage: typeof window.prevImage === 'function'
+                });
+            }
+        });
     </script>
 </body>
 

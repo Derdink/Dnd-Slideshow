@@ -418,14 +418,26 @@ app.delete('/api/entries/tags', (req, res) => {
 // ---------------------
 app.post('/api/updateSlideshow', (req, res) => {
     const { action, speed, order, imageUrl, title, images } = req.body;
+    console.log('Received updateSlideshow request:', {
+        action,
+        speed,
+        order,
+        hasImages: !!images
+    });
+
+    if (action === 'next' || action === 'prev') {
+        console.log('Broadcasting slideAction:', action);
+        // Broadcast to ALL clients, not just others
+        io.emit('slideAction', { action });
+        return res.json({ message: 'Navigation broadcast sent', success: true });
+    }
+
+    // Handle existing cases
     if (action === 'updateSettings') {
-        // Broadcast settings update to all clients
         io.emit('settingsUpdate', { speed, order });
     } else if (action === 'play') {
-        // Broadcast play specific image to all clients
         io.emit('playImage', { imageUrl, title });
     } else if (action === 'playSelect') {
-        // Broadcast the selected images to all clients
         io.emit('playSelect', { images });
     }
     res.json({ message: 'Slideshow updated.' });
@@ -456,3 +468,16 @@ const server = app.listen(PORT, () => {
 });
 
 const io = require('socket.io')(server);
+
+io.on('connection', (socket) => {
+    console.log('New client connected');
+
+    socket.on('navigation', (data) => {
+        console.log('Received navigation event:', data);
+        socket.broadcast.emit('navigation', data);
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Client disconnected');
+    });
+});
