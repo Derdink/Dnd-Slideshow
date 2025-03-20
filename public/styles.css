@@ -420,15 +420,6 @@ select:focus {
 
 /* Example styling for your new header (adjust as needed) */
 
-#manageHeader {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-    padding: 1rem;
-    border-bottom: 1px solid var(--border-color);
-}
-
 #manageTitle {
     font-size: 1.5rem;
     margin: 0;
@@ -949,7 +940,6 @@ body.manage {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
     background-color: #ffffff;
     padding: 1rem;
     border: 1px solid #e0e0e0;

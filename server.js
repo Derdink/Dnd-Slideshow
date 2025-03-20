@@ -186,27 +186,28 @@ app.post('/upload', upload.single('file'), (req, res) => {
 // API Endpoint to Get Images
 // ---------------------
 app.get('/api/images', (req, res) => {
+    const after = parseInt(req.query.after) || 0;
+    const limit = parseInt(req.query.limit) || 20;
+
     const sql = `
     SELECT images.id, images.filename, images.title, images.description, images.dateAdded, 
            group_concat(tags.name || ':' || tags.color) as tag_list
     FROM images
     LEFT JOIN image_tags ON images.id = image_tags.image_id
     LEFT JOIN tags ON image_tags.tag_id = tags.id
+    WHERE images.id > ?
     GROUP BY images.id
+    ORDER BY images.id ASC
+    LIMIT ?
     `;
-    db.all(sql, (err, rows) => {
+
+    db.all(sql, [after, limit], (err, rows) => {
         if (err) {
             console.error('Database error in /api/images:', err);
             return res.status(500).json({ message: 'Database error.' });
         }
-        console.log('Raw database rows:', rows); // Log raw data
+
         const images = rows.map(row => {
-            console.log('Processing row:', {
-                id: row.id,
-                title: row.title,
-                description: row.description,
-                hasDescription: 'description' in row
-            });
             let tags = [];
             if (row.tag_list) {
                 tags = row.tag_list.split(',').map(item => {
@@ -220,14 +221,14 @@ app.get('/api/images', (req, res) => {
             return {
                 id: row.id,
                 title: row.title,
-                description: row.description, // Explicitly include description
+                description: row.description,
                 tags: tags,
                 dateAdded: row.dateAdded,
                 url: `/images/${row.filename}`,
                 thumbnailUrl: `/thumbnails/${row.filename}`
             };
         });
-        console.log('Processed first image:', images[0]); // Log first processed image
+
         res.json(images);
     });
 });
@@ -475,6 +476,12 @@ io.on('connection', (socket) => {
     socket.on('navigation', (data) => {
         console.log('Received navigation event:', data);
         socket.broadcast.emit('navigation', data);
+    });
+
+    socket.on('slideAction', (data) => {
+        console.log('Received slideAction event:', data);
+        // Broadcast to ALL clients including sender
+        io.emit('slideAction', data);
     });
 
     socket.on('disconnect', () => {

@@ -159,6 +159,21 @@
                 });
             }
         });
+
+        window.socket.on('slideAction', ({
+            action
+        }) => {
+            console.log('Received slideAction:', action);
+
+            if (action === 'pause') {
+                window.slideshowPaused = true;
+                clearInterval(window.slideshowInterval);
+            } else if (action === 'play') {
+                window.slideshowPaused = false;
+                const transitionTime = parseFloat(localStorage.getItem('transitionTime')) || 3;
+                window.slideshowInterval = setInterval(window.nextImage, transitionTime * 1000);
+            }
+        });
     </script>
 </body>
 

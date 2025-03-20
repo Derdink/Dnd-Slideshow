@@ -7,6 +7,51 @@ window.slideshowOrder = localStorage.getItem('slideshowOrder') || 'random';
 // At the top of the file, add global variable
 window.images = [];
 
+// Add this helper function near the top with other helpers
+function formatDateAdded(timestamp) {
+    const now = Date.now();
+    const diff = now - Number(timestamp);
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+    if (hours < 24) {
+        return `${hours} ${hours === 1 ? 'Hr' : 'Hrs'} ago`;
+    } else if (days < 3) {
+        return `${days} ${days === 1 ? 'Day' : 'Days'} ago`;
+    } else {
+        const date = new Date(Number(timestamp));
+        const day = date.getDate().toString().padStart(2, '0');
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const year = date.getFullYear().toString().slice(-2);
+        return `${day}/${month}/${year}`;
+    }
+}
+
+// Add these variables near other global variables
+const BATCH_SIZE = 20; // Number of entries to fetch at once
+let isLoadingImages = false;
+let lastLoadedId = 0;
+
+// Add this near the top with other global variables
+let selectedImageIds = new Set();
+
+// Replace the imageObserver with a simpler version that only loads images once
+const imageObserver = new IntersectionObserver((entries, observer) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            const img = entry.target;
+            if (img.dataset.src) {
+                img.src = img.dataset.src;
+                img.removeAttribute('data-src');
+                // Don't unobserve - keep watching in case of dynamic content changes
+            }
+        }
+    });
+}, {
+    rootMargin: '50px 0px',
+    threshold: 0.1
+});
+
 // ======================
 // SLIDESHOW FUNCTIONALITY (Index Page)
 // ======================
@@ -476,21 +521,25 @@ if (document.getElementById('settingsSection')) {
 
 
     // UPDATED fetchImages: apply pagination and then update pagination controls
-    function fetchImages() {
-        fetch('/api/images')
+    function fetchImages(reset = false) {
+        if (isLoadingImages) return;
+        isLoadingImages = true;
+
+        if (reset) {
+            lastLoadedId = 0;
+            window.imagesData = [];
+        }
+
+        fetch(`/api/images?after=${lastLoadedId}&limit=${BATCH_SIZE}`)
             .then(response => response.json())
             .then(data => {
                 if (data.length > 0) {
-                    console.log('Sample image data from API:', {
-                        id: data[0].id,
-                        title: data[0].title,
-                        description: data[0].description,
-                        hasDescriptionProperty: 'description' in data[0]
-                    });
+                    lastLoadedId = data[data.length - 1].id;
+                    window.imagesData = window.imagesData.concat(data);
                 }
-                window.imagesData = data;
-                let sortedImages = sortImages(data);
-                // NEW: Filter images using the search query (by title)
+
+                let sortedImages = sortImages(window.imagesData);
+                // Apply search filtering if any
                 const queryEl = document.getElementById('search');
                 const query = queryEl ? queryEl.value.trim().toLowerCase() : '';
                 if (query) {
@@ -498,19 +547,26 @@ if (document.getElementById('settingsSection')) {
                         image.title.toLowerCase().includes(query)
                     );
                 }
-                // Global pagination update
+
                 totalPages = Math.ceil(sortedImages.length / currentLimit) || 1;
                 if (currentPage > totalPages) currentPage = totalPages;
                 const pageEntries = sortedImages.slice((currentPage - 1) * currentLimit, currentPage * currentLimit);
                 displayImages(pageEntries);
                 updatePagination(sortedImages.length);
+
+                isLoadingImages = false;
             })
-            .catch(err => console.error("Error fetching images:", err));
+            .catch(err => {
+                console.error("Error fetching images:", err);
+                isLoadingImages = false;
+            });
     }
 
     // Function to display images in the table
     function displayImages(images) {
         const imageTableBody = document.querySelector('#imageTable tbody');
+        if (!imageTableBody) return;
+
         imageTableBody.innerHTML = '';
 
         images.forEach(image => {
@@ -530,7 +586,7 @@ if (document.getElementById('settingsSection')) {
                 updateHeaderSelect();
             });
 
-            // Checkbox cell with custom checkbox
+            // Checkbox cell with custom checkbox - now using global selection state
             const selectCell = document.createElement('td');
             selectCell.classList.add('col-select');
             const checkboxLabel = document.createElement('label');
@@ -539,8 +595,9 @@ if (document.getElementById('settingsSection')) {
             checkbox.type = 'checkbox';
             checkbox.classList.add('selectImage');
             checkbox.value = image.id;
-            if (selectedImageIds.has(image.id)) {
-                checkbox.checked = true;
+            // Use global selection state
+            checkbox.checked = selectedImageIds.has(image.id);
+            if (checkbox.checked) {
                 tr.classList.add('selected');
             }
             checkbox.addEventListener('change', function() {
@@ -552,6 +609,7 @@ if (document.getElementById('settingsSection')) {
                 tr.classList.toggle('selected', checkbox.checked);
                 updateHeaderSelect();
             });
+
             const checkmarkSpan = document.createElement('span');
             checkmarkSpan.classList.add('checkmark');
             checkboxLabel.appendChild(checkbox);
@@ -563,9 +621,13 @@ if (document.getElementById('settingsSection')) {
             const thumbCell = document.createElement('td');
             thumbCell.classList.add('col-thumb');
             const thumb = document.createElement('img');
-            thumb.src = image.url;
-            thumb.alt = image.title;
             thumb.className = 'thumbnail';
+            thumb.alt = image.title;
+            // Use data-src for lazy loading
+            thumb.dataset.src = image.url;
+            // Set a placeholder or low-res image initially
+            thumb.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"%3E%3C/svg%3E';
+            imageObserver.observe(thumb);
             thumbCell.appendChild(thumb);
             tr.appendChild(thumbCell);
 
@@ -642,11 +704,7 @@ if (document.getElementById('settingsSection')) {
             // Date cell formatted as day/month/yy
             const dateCell = document.createElement('td');
             dateCell.classList.add('col-date');
-            const dateObj = new Date(Number(image.dateAdded));
-            const day = dateObj.getDate();
-            const month = dateObj.getMonth() + 1;
-            const year = dateObj.getFullYear().toString().slice(-2);
-            dateCell.textContent = `${day}/${month}/${year}`;
+            dateCell.textContent = formatDateAdded(image.dateAdded);
             tr.appendChild(dateCell);
 
             // Actions cell with delete and play buttons
@@ -731,6 +789,21 @@ if (document.getElementById('settingsSection')) {
             tr.appendChild(actionsCell);
             imageTableBody.appendChild(tr);
         });
+
+        // Add scroll event listener to handle infinite scroll
+        const handleScroll = () => {
+            const lastRow = imageTableBody.lastElementChild;
+            if (!lastRow) return;
+
+            const rect = lastRow.getBoundingClientRect();
+            if (rect.bottom <= window.innerHeight + 100 && !isLoadingImages) {
+                fetchImages();
+            }
+        };
+
+        // Remove existing scroll listener if any
+        window.removeEventListener('scroll', handleScroll);
+        window.addEventListener('scroll', handleScroll);
 
         updateHeaderSelect();
     }
@@ -953,29 +1026,38 @@ document.addEventListener('DOMContentLoaded', () => {
 function updatePagination(totalEntries) {
     let container = document.getElementById('pagination');
     if (!container) {
-        // Insert pagination container immediately after the image table
-        const table = document.getElementById('imageTable');
         container = document.createElement('div');
         container.id = 'pagination';
-        table.parentNode.insertBefore(container, table.nextSibling);
+        const table = document.getElementById('imageTable');
+        if (table && table.parentNode) {
+            table.parentNode.insertBefore(container, table.nextSibling);
+        }
     }
+
+    // Calculate total pages before clearing container
+    totalPages = Math.ceil(totalEntries / currentLimit);
+
+    // Clear existing content
     container.innerHTML = '';
 
-    // Create First button with Carbon SkipBackOutline icon
+    // Only show pagination if we have more than one page
+    if (totalPages <= 1) return;
+
+    // Create First button
     const firstBtn = document.createElement('button');
     firstBtn.disabled = (currentPage === 1);
     firstBtn.title = "First";
-    firstBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M27 28a.9975.9975,0 01-.501-.1348l-19-11a1 1 0 010-1.73l19-11A1 1 0 0128 5V27a1 1 0 01-1 1zM2 4H4V28H2z"></path><title>Skip back filled</title></svg>`;
+    firstBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M27 28a.9975.9975,0 01-.501-.1348l-19-11a1 1 0 010-1.73l19-11A1 1 0 0128 5V27a1 1 0 01-1 1zM2 4H4V28H2z"></path></svg>`;
     firstBtn.addEventListener('click', () => {
         currentPage = 1;
         fetchImages();
     });
 
-    // Create Prev button with Carbon ChevronLeft icon
+    // Create Prev button
     const prevBtn = document.createElement('button');
     prevBtn.disabled = (currentPage === 1);
     prevBtn.title = "Previous";
-    prevBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M14 26L15.41 24.59 7.83 17 28 17 28 15 7.83 15 15.41 7.41 14 6 4 16 14 26z"></path><title>Arrow left</title></svg>`;
+    prevBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M14 26L15.41 24.59 7.83 17 28 17 28 15 7.83 15 15.41 7.41 14 6 4 16 14 26z"></path></svg>`;
     prevBtn.addEventListener('click', () => {
         if (currentPage > 1) currentPage--;
         fetchImages();
@@ -986,7 +1068,7 @@ function updatePagination(totalEntries) {
     for (let i = 1; i <= totalPages; i++) {
         const opt = document.createElement('option');
         opt.value = i;
-        opt.textContent = i;
+        opt.textContent = `Page ${i} of ${totalPages}`;
         if (i === currentPage) opt.selected = true;
         pageSelect.appendChild(opt);
     }
@@ -995,32 +1077,32 @@ function updatePagination(totalEntries) {
         fetchImages();
     });
 
-    // Create Next button with Carbon ChevronRight icon
+    // Create Next button
     const nextBtn = document.createElement('button');
     nextBtn.disabled = (currentPage === totalPages);
     nextBtn.title = "Next";
-    nextBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L16.57 7.393 24.15 15 4 15 4 17 24.15 17 16.57 24.573 18 26 28 16 18 6z"></path><title>Arrow right</title></svg>`;
+    nextBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L16.57 7.393 24.15 15 4 15 4 17 24.15 17 16.57 24.573 18 26 28 16 18 6z"></path></svg>`;
     nextBtn.addEventListener('click', () => {
         if (currentPage < totalPages) currentPage++;
         fetchImages();
     });
 
-    // Create Last button with Carbon SkipForwardOutline icon
+    // Create Last button
     const lastBtn = document.createElement('button');
     lastBtn.disabled = (currentPage === totalPages);
     lastBtn.title = "Last";
-    lastBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M28 4H30V28H28zM5 28a1 1 0 01-1-1V5a1 1 0 011.501-.8652l19 11a1 1 0 010 1.73l-19 11A.9975.9975,0 015 28z"></path><title>Skip forward filled</title></svg>`;
+    lastBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M28 4H30V28H28zM5 28a1 1 0 01-1-1V5a1 1 0 011.501-.8652l19 11a1 1 0 010 1.73l-19 11A.9975.9975,0 015 28z"></path></svg>`;
     lastBtn.addEventListener('click', () => {
         currentPage = totalPages;
         fetchImages();
     });
 
-    // Create a limit selection dropdown for entries per page
+    // Create entries per page dropdown
     const limitSelect = document.createElement('select');
     [20, 50, 100, 200].forEach(limit => {
         const opt = document.createElement('option');
         opt.value = limit;
-        opt.textContent = limit;
+        opt.textContent = `${limit} per page`;
         if (limit === currentLimit) opt.selected = true;
         limitSelect.appendChild(opt);
     });
@@ -1030,7 +1112,9 @@ function updatePagination(totalEntries) {
         fetchImages();
     });
 
-    // Append controls in order (without the "Show per page" span)
+    // Append all controls in correct order
+    container.appendChild(firstBtn);
+    container.appendChild(prevBtn);
     container.appendChild(pageSelect);
     container.appendChild(nextBtn);
     container.appendChild(lastBtn);
@@ -1044,9 +1128,18 @@ function updatePagination(totalEntries) {
 // Function to update header select checkbox
 function updateHeaderSelect() {
     const headerSelect = document.getElementById('headerSelect');
-    const rowCheckboxes = document.querySelectorAll('#imageTable tbody .selectImage');
-    const allChecked = Array.from(rowCheckboxes).every(cb => cb.checked);
-    headerSelect.checked = allChecked;
+    if (!headerSelect) return;
+
+    // Get all image IDs from the global imagesData
+    const allImageIds = window.imagesData.map(img => img.id);
+
+    // Check if all images are selected
+    const allSelected = allImageIds.every(id => selectedImageIds.has(id));
+    // Check if some images are selected
+    const someSelected = allImageIds.some(id => selectedImageIds.has(id));
+
+    headerSelect.checked = allSelected;
+    headerSelect.indeterminate = someSelected && !allSelected;
 }
 
 // Function to bind header select checkbox
@@ -1055,7 +1148,18 @@ function bindHeaderSelect() {
     if (headerSelect) {
         headerSelect.addEventListener('change', function() {
             const checked = headerSelect.checked;
-            // Use a specific selector for rows in the table body
+
+            // Get all image IDs from the global imagesData
+            const allImageIds = window.imagesData.map(img => img.id);
+
+            // Update global selection state
+            if (checked) {
+                allImageIds.forEach(id => selectedImageIds.add(id));
+            } else {
+                selectedImageIds.clear();
+            }
+
+            // Update visible checkboxes
             const rowCheckboxes = document.querySelectorAll('#imageTable tbody .selectImage');
             rowCheckboxes.forEach(cb => {
                 cb.checked = checked;
@@ -1063,12 +1167,10 @@ function bindHeaderSelect() {
                 if (row) {
                     row.classList.toggle('selected', checked);
                 }
-                if (checked) {
-                    selectedImageIds.add(cb.value);
-                } else {
-                    selectedImageIds.delete(cb.value);
-                }
             });
+
+            // Update header checkbox state
+            updateHeaderSelect();
         });
     }
 }
@@ -1335,9 +1437,8 @@ function displayTags(tags) {
                     })
                     .then(() => {
                         fetchImages();
-                        // NEW: Clear selection after applying tag from a pill click
-                        selectedImageIds = new Set();
-                        updateHeaderSelect();
+                        // Deselect all images after adding tags
+                        deselectAllImages();
                     })
                     .catch(err => console.error(err));
             }
@@ -1410,9 +1511,8 @@ if (document.getElementById('newTagForm')) {
                         .then(res => {
                             // Removed alert(res.message);
                             fetchImages();
-                            // NEW: Clear selection after applying tag
-                            selectedImageIds = new Set();
-                            updateHeaderSelect();
+                            // Deselect all images after adding tags
+                            deselectAllImages();
                         })
                         .catch(err => console.error(err));
                 } else {
@@ -1858,3 +1958,315 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Attach event listeners to navigation arrows to fix the bug
+    const leftArea = document.querySelector('.hover-area.left');
+    const rightArea = document.querySelector('.hover-area.right');
+    if (leftArea && typeof window.prevImage === 'function') {
+        leftArea.addEventListener('click', () => window.prevImage());
+    }
+    if (rightArea && typeof window.nextImage === 'function') {
+        rightArea.addEventListener('click', () => window.nextImage());
+    }
+
+    const headerResetBtn = document.getElementById('headerResetBtn');
+    if (headerResetBtn) {
+        headerResetBtn.addEventListener('click', () => {
+            console.log('Reset button clicked');
+            // Reset to first image in the current slideshow
+            window.currentIndex = 0;
+            const imageList = (window.selectedSlideshowImages && window.selectedSlideshowImages.length > 0) ?
+                window.selectedSlideshowImages :
+                window.images;
+
+            if (imageList && imageList.length > 0) {
+                crossfadeTo(0, imageList);
+                socket.emit('navigation', { action: 'reset', index: 0 });
+            }
+        });
+    }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    // ...existing code...
+
+    const headerPlayBtn = document.getElementById('headerPlayBtn');
+    if (headerPlayBtn) {
+        headerPlayBtn.addEventListener('click', () => {
+            console.log('Play/Pause button clicked, current state:', {
+                paused: window.slideshowPaused,
+                hasInterval: !!window.slideshowInterval
+            });
+
+            // Function to handle play/pause state change
+            const togglePlayPause = (shouldPause) => {
+                window.slideshowPaused = shouldPause;
+
+                // Always clear existing interval first
+                if (window.slideshowInterval) {
+                    clearInterval(window.slideshowInterval);
+                    window.slideshowInterval = null;
+                }
+
+                // Start new interval if unpausing
+                if (!shouldPause) {
+                    const transitionTime = parseFloat(localStorage.getItem('transitionTime')) || 3;
+                    window.slideshowInterval = setInterval(window.nextImage, transitionTime * 1000);
+                }
+
+                // Update button appearance
+                headerPlayBtn.innerHTML = shouldPause ?
+                    `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32">
+                        <path d="M7 28a1 1 0 01-1-1V5a1 1 0 011.4819-.8763l20 11a1 1 0 010 1.7525l-20 11A1.0005,1.0005,0 017 28z"></path>
+                    </svg>` :
+                    `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32">
+                        <path d="M12 8V24H8V8h4m1-2H7v20h6V6zM24 8V24H20V8h4m1-2H19v20h6V6z"></path>
+                    </svg>`;
+                headerPlayBtn.title = shouldPause ? "Play" : "Pause";
+            };
+
+            // Toggle the state
+            togglePlayPause(!window.slideshowPaused);
+
+            // Broadcast state change to other clients
+            socket.emit('slideAction', {
+                action: window.slideshowPaused ? 'pause' : 'play'
+            });
+        });
+    }
+});
+
+// Update socket.on handler to use the same logic
+socket.on('slideAction', ({ action }) => {
+    // ...existing code...
+
+    if (action === 'pause') {
+        window.slideshowPaused = true;
+        if (window.slideshowInterval) {
+            clearInterval(window.slideshowInterval);
+            window.slideshowInterval = null;
+        }
+        const headerPlayBtn = document.getElementById('headerPlayBtn');
+        if (headerPlayBtn) {
+            headerPlayBtn.innerHTML = `
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32">
+                    <path d="M7 28a1 1 0 01-1-1V5a1 1 0 011.4819-.8763l20 11a1 1 0 010 1.7525l-20 11A1.0005,1.0005,0 017 28z"></path>
+                </svg>`;
+            headerPlayBtn.title = "Play";
+        }
+    } else if (action === 'play') {
+        window.slideshowPaused = false;
+        if (window.slideshowInterval) {
+            clearInterval(window.slideshowInterval);
+        }
+        const transitionTime = parseFloat(localStorage.getItem('transitionTime')) || 3;
+        window.slideshowInterval = setInterval(window.nextImage, transitionTime * 1000);
+        const headerPlayBtn = document.getElementById('headerPlayBtn');
+        if (headerPlayBtn) {
+            headerPlayBtn.innerHTML = `
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32">
+                    <path d="M12 8V24H8V8h4m1-2H7v20h6V6zM24 8V24H20V8h4m1-2H19v20h6V6z"></path>
+                </svg>`;
+            headerPlayBtn.title = "Pause";
+        }
+    }
+});
+
+// ...existing code...
+
+// Add this function near the top with other helper functions
+function getSelectedTags() {
+    const selectedPills = document.querySelectorAll('#tagSelectionContainer .tag-pill.selected');
+    return Array.from(selectedPills).map(p => p.textContent.trim().toLowerCase());
+}
+
+// Update the groupOrderImages function
+function groupOrderImages(imageList) {
+    const selectedTags = getSelectedTags();
+
+    // If no tags selected, return empty array to disable groups order
+    if (selectedTags.length === 0) {
+        return [];
+    }
+
+    let groupedImages = [];
+    // Process each selected tag in order
+    selectedTags.forEach(tagName => {
+        // Get all images with this tag
+        const tagImages = imageList.filter(img =>
+            img.tags.some(t => t.name.trim().toLowerCase() === tagName)
+        );
+        // Sort images within this tag group alphabetically
+        tagImages.sort((a, b) => a.title.localeCompare(b.title));
+        // Add this group's images to the result
+        groupedImages = groupedImages.concat(tagImages);
+    });
+
+    return groupedImages;
+}
+
+// Update the order buttons initialization
+document.addEventListener('DOMContentLoaded', () => {
+    // ...existing code...
+
+    // Add tag selection change handler
+    const tagContainer = document.getElementById('tagSelectionContainer');
+    if (tagContainer) {
+        const updateGroupsButtonState = () => {
+            const orderGroupsBtn = document.getElementById('orderGroups');
+            const selectedTags = getSelectedTags();
+
+            if (orderGroupsBtn) {
+                if (selectedTags.length === 0) {
+                    orderGroupsBtn.disabled = true;
+                    orderGroupsBtn.classList.remove('bx--btn--primary');
+                    orderGroupsBtn.classList.add('bx--btn--secondary');
+
+                    // If groups was selected but now disabled, switch to random
+                    if (localStorage.getItem('slideshowOrder') === 'groups') {
+                        localStorage.setItem('slideshowOrder', 'random');
+                        document.getElementById('orderRandom').classList.add('bx--btn--primary');
+                        document.getElementById('orderRandom').classList.remove('bx--btn--secondary');
+                    }
+                } else {
+                    orderGroupsBtn.disabled = false;
+                }
+            }
+        };
+
+        // Add mutation observer to watch for tag selection changes
+        const observer = new MutationObserver(updateGroupsButtonState);
+        observer.observe(tagContainer, {
+            attributes: true,
+            subtree: true,
+            attributeFilter: ['class']
+        });
+
+        // Initial state check
+        updateGroupsButtonState();
+    }
+
+    // ...rest of existing code...
+});
+
+// Update nextImage function to handle grouping correctly
+function nextImage() {
+    const imageList = (window.selectedSlideshowImages && window.selectedSlideshowImages.length > 0) ?
+        window.selectedSlideshowImages :
+        images;
+
+    let newList = imageList;
+    const order = localStorage.getItem('slideshowOrder') || 'random';
+
+    if (order === 'groups') {
+        const groupedList = groupOrderImages(newList);
+        if (!groupedList.length) {
+            // If no valid grouped list, fall back to random
+            localStorage.setItem('slideshowOrder', 'random');
+            shuffleArray(newList);
+            currentIndex = (currentIndex + 1) % newList.length;
+        } else {
+            newList = groupedList;
+            currentIndex = (currentIndex + 1) % newList.length;
+        }
+    } else if (order === 'alphabetical') {
+        newList.sort((a, b) => a.title.localeCompare(b.title));
+        currentIndex = (currentIndex + 1) % newList.length;
+    } else { // random
+        if (currentIndex < newList.length - 1) {
+            currentIndex++;
+        } else {
+            shuffleArray(newList);
+            currentIndex = 0;
+        }
+    }
+
+    crossfadeTo(currentIndex, newList);
+    resetSlideshowInterval();
+}
+
+// ...existing code...
+
+// Helper function to deselect all images
+function deselectAllImages() {
+    // Clear the selection set
+    selectedImageIds.clear();
+    // Uncheck all checkboxes and remove selected class
+    document.querySelectorAll('#imageTable tbody .selectImage').forEach(cb => {
+        cb.checked = false;
+        const row = cb.closest('tr');
+        if (row) {
+            row.classList.remove('selected');
+        }
+    });
+    // Update header checkbox
+    updateHeaderSelect();
+}
+
+// ... existing code ...
+
+function displayTags(tags) {
+    // ... existing code ...
+
+    // When clicking the pill (except the delete buttons), apply tag to selected entries
+    pill.addEventListener('click', function(e) {
+        if (e.target.closest('.tagDeleteButton') || e.target.closest('.tagDeleteDbButton')) return;
+        const selectedCheckboxes = document.querySelectorAll('.selectImage:checked');
+        const ids = Array.from(selectedCheckboxes).map(cb => cb.value);
+        if (ids.length > 0) {
+            fetch('/api/entries/tags', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: ids, tag: tag.name })
+                })
+                .then(() => {
+                    fetchImages();
+                    // Deselect all images after adding tags
+                    deselectAllImages();
+                })
+                .catch(err => console.error(err));
+        }
+    });
+
+    // ... existing code ...
+}
+
+// Update new tag form submission handler
+if (document.getElementById('newTagForm')) {
+    document.getElementById('newTagForm').addEventListener('submit', function(e) {
+        // ... existing code until fetch block ...
+
+        fetch('/api/tags', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: tagName, color: tagColor })
+            })
+            .then(response => response.json())
+            .then(result => {
+                const selectedCheckboxes = document.querySelectorAll('.selectImage:checked');
+                const ids = Array.from(selectedCheckboxes).map(cb => cb.value);
+                if (ids.length > 0) {
+                    fetch('/api/entries/tags', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ids: ids, tag: tagName })
+                        })
+                        .then(response => response.json())
+                        .then(res => {
+                            fetchImages();
+                            // Deselect all images after adding tags
+                            deselectAllImages();
+                        })
+                        .catch(err => console.error(err));
+                } else {
+                    fetchImages();
+                }
+                fetchTags().then(() => updateTagSelection());
+                document.getElementById('newTagForm').reset();
+            })
+            .catch(err => {
+                console.error(err);
+            });
+    });
+}
