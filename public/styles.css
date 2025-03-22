@@ -718,21 +718,8 @@ select:focus {
 }
 
 #tagManagerSection {
-    flex-wrap: wrap;
-    align-content: space-between;
-    row-gap: 0.3em;
-}
-
-
-/* Update tag manager container styles */
-
-#tagManagerContainer {
-    width: 100%;
-    margin-bottom: 1rem;
-}
-
-#tagManagerSection {
     display: none;
+    /* Set default display to none */
     flex-wrap: wrap;
     gap: 0.3em;
     margin-top: 1rem;

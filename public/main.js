@@ -643,7 +643,6 @@ if (document.getElementById('settingsSection')) {
                     // Create tagIcon with fixed width of 1em for image entries
                     const tagIcon = document.createElement('div');
                     tagIcon.classList.add('tagIcon');
-                    tagIcon.style.width = '1em';
 
                     // Create tagContents container with 80% opacity
                     const tagContents = document.createElement('span');
@@ -1003,7 +1002,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const tagManagerSection = document.getElementById('tagManagerSection');
     if (tagManagerSection) {
         console.log('Initializing tag manager');
-        // Pre-fetch tags but keep the section hidden until toggled
+        // Make sure the section starts hidden
+        tagManagerSection.style.display = 'none';
+        // Pre-fetch tags but keep the section hidden
         fetchTags()
             .then(tags => console.log(`Pre-loaded ${tags.length} tags`))
             .catch(err => console.error('Failed to pre-load tags:', err));
@@ -1317,13 +1318,15 @@ if (document.getElementById('tagManagerToggle')) {
     tagManagerToggle.addEventListener('click', function() {
         const managerSection = document.getElementById('tagManagerSection');
         const newTagForm = document.getElementById('newTagForm');
-        if (managerSection.style.display === 'flex') {
+        const isVisible = window.getComputedStyle(managerSection).display !== 'none';
+
+        if (isVisible) {
             managerSection.style.display = 'none';
             newTagForm.style.display = 'none';
         } else {
-            managerSection.style.display = 'flex';
+            managerSection.style.display = 'flex'; // Only set to flex when showing
             newTagForm.style.display = 'flex';
-            fetchTags(); // Remove the chained .then() since updateTagSelection is for a different container
+            fetchTags();
         }
     });
 }
@@ -1379,13 +1382,8 @@ function displayTagsInManager(tags) {
         return;
     }
 
-    // Clear existing tags and ensure display style is set
+    // Clear existing tags but don't change display property
     container.innerHTML = '';
-    container.style.display = 'flex';
-    container.style.flexWrap = 'wrap';
-    container.style.gap = '0.3em';
-    container.style.padding = '0.5rem';
-    container.style.minHeight = '50px';
 
     if (!tags || !Array.isArray(tags)) {
         console.error('Invalid tags data:', tags);
@@ -1409,7 +1407,6 @@ function displayTagsInManager(tags) {
             // Create tag icon container with delete button
             const tagIcon = document.createElement('div');
             tagIcon.classList.add('tagIcon');
-            tagIcon.style.width = '1em';
 
             // Create delete button and add to tagIcon
             const tagDeleteButton = document.createElement('button');
