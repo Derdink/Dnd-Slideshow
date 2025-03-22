@@ -186,28 +186,27 @@ app.post('/upload', upload.single('file'), (req, res) => {
 // API Endpoint to Get Images
 // ---------------------
 app.get('/api/images', (req, res) => {
-    const after = parseInt(req.query.after) || 0;
-    const limit = parseInt(req.query.limit) || 20;
-
     const sql = `
     SELECT images.id, images.filename, images.title, images.description, images.dateAdded, 
            group_concat(tags.name || ':' || tags.color) as tag_list
     FROM images
     LEFT JOIN image_tags ON images.id = image_tags.image_id
     LEFT JOIN tags ON image_tags.tag_id = tags.id
-    WHERE images.id > ?
     GROUP BY images.id
-    ORDER BY images.id ASC
-    LIMIT ?
     `;
-
-    db.all(sql, [after, limit], (err, rows) => {
+    db.all(sql, (err, rows) => {
         if (err) {
             console.error('Database error in /api/images:', err);
             return res.status(500).json({ message: 'Database error.' });
         }
-
+        console.log('Raw database rows:', rows); // Log raw data
         const images = rows.map(row => {
+            console.log('Processing row:', {
+                id: row.id,
+                title: row.title,
+                description: row.description,
+                hasDescription: 'description' in row
+            });
             let tags = [];
             if (row.tag_list) {
                 tags = row.tag_list.split(',').map(item => {
@@ -221,14 +220,14 @@ app.get('/api/images', (req, res) => {
             return {
                 id: row.id,
                 title: row.title,
-                description: row.description,
+                description: row.description, // Explicitly include description
                 tags: tags,
                 dateAdded: row.dateAdded,
                 url: `/images/${row.filename}`,
                 thumbnailUrl: `/thumbnails/${row.filename}`
             };
         });
-
+        console.log('Processed first image:', images[0]); // Log first processed image
         res.json(images);
     });
 });
@@ -306,11 +305,13 @@ db.serialize(() => {
 // GET ALL TAGS
 // ---------------------
 app.get('/api/tags', (req, res) => {
-    db.all('SELECT * FROM tags', (err, rows) => {
+    console.log('GET /api/tags - Fetching all tags');
+    db.all('SELECT * FROM tags ORDER BY name', (err, rows) => {
         if (err) {
-            console.error(err);
-            return res.status(500).json({ message: 'Error fetching tags.' });
+            console.error('Error fetching tags:', err);
+            return res.status(500).json({ message: 'Error fetching tags.', error: err.message });
         }
+        console.log('Successfully fetched tags:', rows);
         res.json(rows);
     });
 });
@@ -320,15 +321,41 @@ app.get('/api/tags', (req, res) => {
 // ---------------------
 app.post('/api/tags', (req, res) => {
     const { name, color } = req.body;
+    console.log('POST /api/tags - Creating new tag:', { name, color });
+
     if (!name) {
+        console.error('Tag creation failed: Missing name');
         return res.status(400).json({ message: 'Tag name is required.' });
     }
-    db.run('INSERT INTO tags (name, color) VALUES (?, ?)', [name, color || '#FF4081'], function(err) {
+
+    // First check if tag already exists
+    db.get('SELECT id FROM tags WHERE name = ?', [name], (err, existing) => {
         if (err) {
-            console.error(err);
-            return res.status(500).json({ message: 'Error creating tag.' });
+            console.error('Error checking existing tag:', err);
+            return res.status(500).json({ message: 'Database error checking tag existence.' });
         }
-        res.json({ message: `Tag "${name}" created successfully.`, id: this.lastID });
+
+        if (existing) {
+            console.log('Tag already exists:', name);
+            return res.status(409).json({ message: 'Tag already exists.' });
+        }
+
+        // If tag doesn't exist, create it
+        db.run('INSERT INTO tags (name, color) VALUES (?, ?)', [name, color || '#FF4081'],
+            function(err) {
+                if (err) {
+                    console.error('Error creating tag:', err);
+                    return res.status(500).json({ message: 'Error creating tag.', error: err.message });
+                }
+                console.log('Successfully created tag:', { id: this.lastID, name, color });
+                res.json({
+                    message: `Tag "${name}" created successfully.`,
+                    id: this.lastID,
+                    name,
+                    color
+                });
+            }
+        );
     });
 });
 
@@ -337,19 +364,55 @@ app.post('/api/tags', (req, res) => {
 // ---------------------
 app.delete('/api/tags/:id', (req, res) => {
     const tagId = req.params.id;
-    // First remove associations
-    db.run('DELETE FROM image_tags WHERE tag_id = ?', [tagId], (err) => {
+    console.log('DELETE /api/tags/:id - Deleting tag:', tagId);
+
+    // First verify the tag exists
+    db.get('SELECT * FROM tags WHERE id = ?', [tagId], (err, tag) => {
         if (err) {
-            console.error(err);
-            return res.status(500).json({ message: 'Error removing tag associations.' });
+            console.error('Error checking tag existence:', err);
+            return res.status(500).json({ message: 'Database error checking tag.' });
         }
-        // Then delete the tag
-        db.run('DELETE FROM tags WHERE id = ?', [tagId], function(err) {
-            if (err) {
-                console.error(err);
-                return res.status(500).json({ message: 'Error deleting tag.' });
-            }
-            res.json({ message: 'Tag deleted successfully.' });
+
+        if (!tag) {
+            console.log('Tag not found:', tagId);
+            return res.status(404).json({ message: 'Tag not found.' });
+        }
+
+        // Begin transaction
+        db.serialize(() => {
+            db.run('BEGIN TRANSACTION');
+
+            // Remove associations first
+            db.run('DELETE FROM image_tags WHERE tag_id = ?', [tagId], (err) => {
+                if (err) {
+                    console.error('Error removing tag associations:', err);
+                    db.run('ROLLBACK');
+                    return res.status(500).json({
+                        message: 'Error removing tag associations.',
+                        error: err.message
+                    });
+                }
+
+                // Then delete the tag
+                db.run('DELETE FROM tags WHERE id = ?', [tagId], function(err) {
+                    if (err) {
+                        console.error('Error deleting tag:', err);
+                        db.run('ROLLBACK');
+                        return res.status(500).json({
+                            message: 'Error deleting tag.',
+                            error: err.message
+                        });
+                    }
+
+                    db.run('COMMIT');
+                    console.log('Successfully deleted tag:', tagId);
+                    res.json({
+                        message: 'Tag deleted successfully.',
+                        tagId: tagId,
+                        changes: this.changes
+                    });
+                });
+            });
         });
     });
 });
@@ -468,23 +531,36 @@ const server = app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
 });
 
-const io = require('socket.io')(server);
+// Configure Socket.IO with proper options
+const io = require('socket.io')(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    },
+    transports: ['websocket', 'polling'],
+    pingTimeout: 60000,
+    pingInterval: 25000
+});
 
 io.on('connection', (socket) => {
-    console.log('New client connected');
+    console.log('Client connected:', socket.id);
 
-    socket.on('navigation', (data) => {
-        console.log('Received navigation event:', data);
-        socket.broadcast.emit('navigation', data);
+    socket.on('error', (error) => {
+        console.error('Socket error:', error);
     });
 
-    socket.on('slideAction', (data) => {
-        console.log('Received slideAction event:', data);
-        // Broadcast to ALL clients including sender
-        io.emit('slideAction', data);
+    socket.on('connect_error', (error) => {
+        console.error('Connection error:', error);
     });
 
-    socket.on('disconnect', () => {
-        console.log('Client disconnected');
+    // ...existing socket event handlers...
+
+    socket.on('disconnect', (reason) => {
+        console.log('Client disconnected:', socket.id, 'Reason:', reason);
     });
+});
+
+// Add error handler for the server
+server.on('error', (error) => {
+    console.error('Server error:', error);
 });

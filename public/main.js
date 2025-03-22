@@ -27,30 +27,9 @@ function formatDateAdded(timestamp) {
     }
 }
 
-// Add these variables near other global variables
-const BATCH_SIZE = 20; // Number of entries to fetch at once
-let isLoadingImages = false;
-let lastLoadedId = 0;
-
 // Add this near the top with other global variables
 let selectedImageIds = new Set();
-
-// Replace the imageObserver with a simpler version that only loads images once
-const imageObserver = new IntersectionObserver((entries, observer) => {
-    entries.forEach(entry => {
-        if (entry.isIntersecting) {
-            const img = entry.target;
-            if (img.dataset.src) {
-                img.src = img.dataset.src;
-                img.removeAttribute('data-src');
-                // Don't unobserve - keep watching in case of dynamic content changes
-            }
-        }
-    });
-}, {
-    rootMargin: '50px 0px',
-    threshold: 0.1
-});
+let imagesData = [];
 
 // ======================
 // SLIDESHOW FUNCTIONALITY (Index Page)
@@ -456,7 +435,6 @@ if (document.getElementById('settingsSection')) {
         }
     }
     // Global set to keep track of selected image IDs
-    let selectedImageIds = new Set();
 
     // Ensure global imagesData is available for management page
     window.imagesData = [];
@@ -521,25 +499,21 @@ if (document.getElementById('settingsSection')) {
 
 
     // UPDATED fetchImages: apply pagination and then update pagination controls
-    function fetchImages(reset = false) {
-        if (isLoadingImages) return;
-        isLoadingImages = true;
-
-        if (reset) {
-            lastLoadedId = 0;
-            window.imagesData = [];
-        }
-
-        fetch(`/api/images?after=${lastLoadedId}&limit=${BATCH_SIZE}`)
+    function fetchImages() {
+        fetch('/api/images')
             .then(response => response.json())
             .then(data => {
                 if (data.length > 0) {
-                    lastLoadedId = data[data.length - 1].id;
-                    window.imagesData = window.imagesData.concat(data);
+                    console.log('Sample image data from API:', {
+                        id: data[0].id,
+                        title: data[0].title,
+                        description: data[0].description,
+                        hasDescriptionProperty: 'description' in data[0]
+                    });
                 }
-
-                let sortedImages = sortImages(window.imagesData);
-                // Apply search filtering if any
+                window.imagesData = data;
+                let sortedImages = sortImages(data);
+                // NEW: Filter images using the search query (by title)
                 const queryEl = document.getElementById('search');
                 const query = queryEl ? queryEl.value.trim().toLowerCase() : '';
                 if (query) {
@@ -547,27 +521,41 @@ if (document.getElementById('settingsSection')) {
                         image.title.toLowerCase().includes(query)
                     );
                 }
-
+                // Global pagination update
                 totalPages = Math.ceil(sortedImages.length / currentLimit) || 1;
                 if (currentPage > totalPages) currentPage = totalPages;
                 const pageEntries = sortedImages.slice((currentPage - 1) * currentLimit, currentPage * currentLimit);
                 displayImages(pageEntries);
                 updatePagination(sortedImages.length);
-
-                isLoadingImages = false;
             })
-            .catch(err => {
-                console.error("Error fetching images:", err);
-                isLoadingImages = false;
-            });
+            .catch(err => console.error("Error fetching images:", err));
     }
 
     // Function to display images in the table
     function displayImages(images) {
         const imageTableBody = document.querySelector('#imageTable tbody');
-        if (!imageTableBody) return;
-
         imageTableBody.innerHTML = '';
+
+        // Create IntersectionObserver for lazy loading
+        const imageObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    // Start loading the image
+                    img.src = img.dataset.src;
+                    img.addEventListener('load', () => {
+                        // Remove skeleton and show image
+                        const skeleton = img.previousElementSibling;
+                        if (skeleton) skeleton.remove();
+                        img.classList.add('loaded');
+                    });
+                    observer.unobserve(img);
+                }
+            });
+        }, {
+            rootMargin: '50px 0px',
+            threshold: 0.1
+        });
 
         images.forEach(image => {
             const tr = document.createElement('tr');
@@ -586,7 +574,7 @@ if (document.getElementById('settingsSection')) {
                 updateHeaderSelect();
             });
 
-            // Checkbox cell with custom checkbox - now using global selection state
+            // Checkbox cell with custom checkbox
             const selectCell = document.createElement('td');
             selectCell.classList.add('col-select');
             const checkboxLabel = document.createElement('label');
@@ -595,21 +583,20 @@ if (document.getElementById('settingsSection')) {
             checkbox.type = 'checkbox';
             checkbox.classList.add('selectImage');
             checkbox.value = image.id;
-            // Use global selection state
-            checkbox.checked = selectedImageIds.has(image.id);
-            if (checkbox.checked) {
+            if (selectedImageIds.has(image.id)) {
+                checkbox.checked = true;
                 tr.classList.add('selected');
             }
             checkbox.addEventListener('change', function() {
-                if (checkbox.checked) {
-                    selectedImageIds.add(image.id);
+                const imageId = parseInt(image.id);
+                if (this.checked) {
+                    selectedImageIds.add(imageId);
                 } else {
-                    selectedImageIds.delete(image.id);
+                    selectedImageIds.delete(imageId);
                 }
-                tr.classList.toggle('selected', checkbox.checked);
+                tr.classList.toggle('selected', this.checked);
                 updateHeaderSelect();
             });
-
             const checkmarkSpan = document.createElement('span');
             checkmarkSpan.classList.add('checkmark');
             checkboxLabel.appendChild(checkbox);
@@ -617,16 +604,20 @@ if (document.getElementById('settingsSection')) {
             selectCell.appendChild(checkboxLabel);
             tr.appendChild(selectCell);
 
-            // Thumbnail cell
+            // Thumbnail cell with skeleton loader
             const thumbCell = document.createElement('td');
             thumbCell.classList.add('col-thumb');
+
+            // Add skeleton loader
+            const skeleton = document.createElement('div');
+            skeleton.classList.add('thumbnail-skeleton');
+            thumbCell.appendChild(skeleton);
+
+            // Create thumbnail with lazy loading
             const thumb = document.createElement('img');
             thumb.className = 'thumbnail';
             thumb.alt = image.title;
-            // Use data-src for lazy loading
-            thumb.dataset.src = image.url;
-            // Set a placeholder or low-res image initially
-            thumb.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"%3E%3C/svg%3E';
+            thumb.dataset.src = image.thumbnailUrl || image.url; // Store URL for lazy loading
             imageObserver.observe(thumb);
             thumbCell.appendChild(thumb);
             tr.appendChild(thumbCell);
@@ -790,21 +781,6 @@ if (document.getElementById('settingsSection')) {
             imageTableBody.appendChild(tr);
         });
 
-        // Add scroll event listener to handle infinite scroll
-        const handleScroll = () => {
-            const lastRow = imageTableBody.lastElementChild;
-            if (!lastRow) return;
-
-            const rect = lastRow.getBoundingClientRect();
-            if (rect.bottom <= window.innerHeight + 100 && !isLoadingImages) {
-                fetchImages();
-            }
-        };
-
-        // Remove existing scroll listener if any
-        window.removeEventListener('scroll', handleScroll);
-        window.addEventListener('scroll', handleScroll);
-
         updateHeaderSelect();
     }
 
@@ -961,25 +937,43 @@ function updateFilterAvailability() {
 // NEW: Filter images based on selected filter tags and update table
 function filterImagesBySelectedTags() {
     let images = window.imagesData || [];
-    // First, apply search filtering if any:
     const queryEl = document.getElementById('search');
     const query = queryEl ? queryEl.value.trim().toLowerCase() : '';
+
+    // Apply search filter if any
     if (query) {
         images = images.filter(image => image.title.toLowerCase().includes(query));
     }
-    // Then filter by selected tags: only include images that contain all selected filter tags.
+
+    // Apply tag filters if any
     if (selectedFilterTags.length > 0) {
         images = images.filter(image => {
             const imageTags = image.tags.map(t => t.name.toLowerCase());
             return selectedFilterTags.every(tag => imageTags.includes(tag));
         });
+    } else {
+        // When no filters are active, reset all tag pills to be selectable
+        document.querySelectorAll('#tagFilterDropdown .tag-pill').forEach(pill => {
+            if (pill.id !== 'clearFilter') {
+                pill.removeAttribute('data-disabled');
+                pill.style.pointerEvents = "auto";
+                pill.style.filter = "none";
+                pill.style.opacity = "0.5";
+            }
+        });
     }
-    // NEW: Update pagination controls based on the filtered images
+
+    // Update pagination
     totalPages = Math.ceil(images.length / currentLimit) || 1;
     if (currentPage > totalPages) currentPage = totalPages;
     const pageEntries = images.slice((currentPage - 1) * currentLimit, currentPage * currentLimit);
     displayImages(pageEntries);
     updatePagination(images.length);
+
+    // Only update tag availability if there are active filters
+    if (selectedFilterTags.length > 0) {
+        updateFilterAvailability();
+    }
 }
 
 // NEW: Toggle dropdown visibility on filter button click
@@ -1005,6 +999,15 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
+    // Initialize tag manager if it exists
+    const tagManagerSection = document.getElementById('tagManagerSection');
+    if (tagManagerSection) {
+        console.log('Initializing tag manager');
+        // Pre-fetch tags but keep the section hidden until toggled
+        fetchTags()
+            .then(tags => console.log(`Pre-loaded ${tags.length} tags`))
+            .catch(err => console.error('Failed to pre-load tags:', err));
+    }
 
     // Keep other DOMContentLoaded handlers that should run on all pages
     const leftArea = document.querySelector('.hover-area.left');
@@ -1026,38 +1029,29 @@ document.addEventListener('DOMContentLoaded', () => {
 function updatePagination(totalEntries) {
     let container = document.getElementById('pagination');
     if (!container) {
+        // Insert pagination container immediately after the image table
+        const table = document.getElementById('imageTable');
         container = document.createElement('div');
         container.id = 'pagination';
-        const table = document.getElementById('imageTable');
-        if (table && table.parentNode) {
-            table.parentNode.insertBefore(container, table.nextSibling);
-        }
+        table.parentNode.insertBefore(container, table.nextSibling);
     }
-
-    // Calculate total pages before clearing container
-    totalPages = Math.ceil(totalEntries / currentLimit);
-
-    // Clear existing content
     container.innerHTML = '';
 
-    // Only show pagination if we have more than one page
-    if (totalPages <= 1) return;
-
-    // Create First button
+    // Create First button with Carbon SkipBackOutline icon
     const firstBtn = document.createElement('button');
     firstBtn.disabled = (currentPage === 1);
     firstBtn.title = "First";
-    firstBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M27 28a.9975.9975,0 01-.501-.1348l-19-11a1 1 0 010-1.73l19-11A1 1 0 0128 5V27a1 1 0 01-1 1zM2 4H4V28H2z"></path></svg>`;
+    firstBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M27 28a.9975.9975,0 01-.501-.1348l-19-11a1 1 0 010-1.73l19-11A1 1 0 0128 5V27a1 1 0 01-1 1zM2 4H4V28H2z"></path><title>Skip back filled</title></svg>`;
     firstBtn.addEventListener('click', () => {
         currentPage = 1;
         fetchImages();
     });
 
-    // Create Prev button
+    // Create Prev button with Carbon ChevronLeft icon
     const prevBtn = document.createElement('button');
     prevBtn.disabled = (currentPage === 1);
     prevBtn.title = "Previous";
-    prevBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M14 26L15.41 24.59 7.83 17 28 17 28 15 7.83 15 15.41 7.41 14 6 4 16 14 26z"></path></svg>`;
+    prevBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M14 26L15.41 24.59 7.83 17 28 17 28 15 7.83 15 15.41 7.41 14 6 4 16 14 26z"></path><title>Arrow left</title></svg>`;
     prevBtn.addEventListener('click', () => {
         if (currentPage > 1) currentPage--;
         fetchImages();
@@ -1068,7 +1062,7 @@ function updatePagination(totalEntries) {
     for (let i = 1; i <= totalPages; i++) {
         const opt = document.createElement('option');
         opt.value = i;
-        opt.textContent = `Page ${i} of ${totalPages}`;
+        opt.textContent = i;
         if (i === currentPage) opt.selected = true;
         pageSelect.appendChild(opt);
     }
@@ -1077,32 +1071,32 @@ function updatePagination(totalEntries) {
         fetchImages();
     });
 
-    // Create Next button
+    // Create Next button with Carbon ChevronRight icon
     const nextBtn = document.createElement('button');
     nextBtn.disabled = (currentPage === totalPages);
     nextBtn.title = "Next";
-    nextBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L16.57 7.393 24.15 15 4 15 4 17 24.15 17 16.57 24.573 18 26 28 16 18 6z"></path></svg>`;
+    nextBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L16.57 7.393 24.15 15 4 15 4 17 24.15 17 16.57 24.573 18 26 28 16 18 6z"></path><title>Arrow right</title></svg>`;
     nextBtn.addEventListener('click', () => {
         if (currentPage < totalPages) currentPage++;
         fetchImages();
     });
 
-    // Create Last button
+    // Create Last button with Carbon SkipForwardOutline icon
     const lastBtn = document.createElement('button');
     lastBtn.disabled = (currentPage === totalPages);
     lastBtn.title = "Last";
-    lastBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M28 4H30V28H28zM5 28a1 1 0 01-1-1V5a1 1 0 011.501-.8652l19 11a1 1 0 010 1.73l-19 11A.9975.9975,0 015 28z"></path></svg>`;
+    lastBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M28 4H30V28H28zM5 28a1 1 0 01-1-1V5a1 1 0 011.501-.8652l19 11a1 1 0 010 1.73l-19 11A.9975.9975,0 015 28z"></path><title>Skip forward filled</title></svg>`;
     lastBtn.addEventListener('click', () => {
         currentPage = totalPages;
         fetchImages();
     });
 
-    // Create entries per page dropdown
+    // Create a limit selection dropdown for entries per page
     const limitSelect = document.createElement('select');
     [20, 50, 100, 200].forEach(limit => {
         const opt = document.createElement('option');
         opt.value = limit;
-        opt.textContent = `${limit} per page`;
+        opt.textContent = limit;
         if (limit === currentLimit) opt.selected = true;
         limitSelect.appendChild(opt);
     });
@@ -1112,7 +1106,7 @@ function updatePagination(totalEntries) {
         fetchImages();
     });
 
-    // Append all controls in correct order
+    // Append controls in correct order
     container.appendChild(firstBtn);
     container.appendChild(prevBtn);
     container.appendChild(pageSelect);
@@ -1125,54 +1119,57 @@ function updatePagination(totalEntries) {
 // HEADER SELECT MANAGEMENT
 // ======================
 
-// Function to update header select checkbox
+// Update the function to handle one-item case correctly
 function updateHeaderSelect() {
     const headerSelect = document.getElementById('headerSelect');
     if (!headerSelect) return;
 
-    // Get all image IDs from the global imagesData
-    const allImageIds = window.imagesData.map(img => img.id);
+    // Get current visible checkboxes and their values
+    const currentCheckboxes = document.querySelectorAll('#imageTable tbody .selectImage');
+    const currentValues = Array.from(currentCheckboxes).map(cb => parseInt(cb.value));
 
-    // Check if all images are selected
-    const allSelected = allImageIds.every(id => selectedImageIds.has(id));
-    // Check if some images are selected
-    const someSelected = allImageIds.some(id => selectedImageIds.has(id));
+    if (currentCheckboxes.length === 0) {
+        headerSelect.checked = false;
+        headerSelect.indeterminate = false;
+        return;
+    }
 
-    headerSelect.checked = allSelected;
-    headerSelect.indeterminate = someSelected && !allSelected;
+    // Check if all visible checkboxes are part of selectedImageIds
+    const allVisibleSelected = currentValues.every(value => selectedImageIds.has(value));
+    const someVisibleSelected = currentValues.some(value => selectedImageIds.has(value));
+
+    // Update header checkbox state
+    headerSelect.checked = allVisibleSelected;
+    headerSelect.indeterminate = !allVisibleSelected && someVisibleSelected;
 }
 
-// Function to bind header select checkbox
+// Update bindHeaderSelect to handle all images across all pages
 function bindHeaderSelect() {
     const headerSelect = document.getElementById('headerSelect');
-    if (headerSelect) {
-        headerSelect.addEventListener('change', function() {
-            const checked = headerSelect.checked;
+    if (!headerSelect) return;
 
-            // Get all image IDs from the global imagesData
-            const allImageIds = window.imagesData.map(img => img.id);
+    headerSelect.addEventListener('change', function() {
+        if (this.checked) {
+            // Select all images across all pages
+            window.imagesData.forEach(img => selectedImageIds.add(img.id));
+        } else {
+            // Clear all selections
+            selectedImageIds.clear();
+        }
 
-            // Update global selection state
-            if (checked) {
-                allImageIds.forEach(id => selectedImageIds.add(id));
-            } else {
-                selectedImageIds.clear();
+        // Update visible checkboxes
+        const rowCheckboxes = document.querySelectorAll('#imageTable tbody .selectImage');
+        rowCheckboxes.forEach(cb => {
+            cb.checked = this.checked;
+            const row = cb.closest('tr');
+            if (row) {
+                row.classList.toggle('selected', this.checked);
             }
-
-            // Update visible checkboxes
-            const rowCheckboxes = document.querySelectorAll('#imageTable tbody .selectImage');
-            rowCheckboxes.forEach(cb => {
-                cb.checked = checked;
-                const row = cb.closest('tr');
-                if (row) {
-                    row.classList.toggle('selected', checked);
-                }
-            });
-
-            // Update header checkbox state
-            updateHeaderSelect();
         });
-    }
+
+        // Reset indeterminate state
+        headerSelect.indeterminate = false;
+    });
 }
 
 // Replace the unconditional event listener with a null check
@@ -1287,7 +1284,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const secondsInput = document.getElementById('seconds');
 
     if (minutesInput) minutesInput.value = minutes;
-    if (secondsInput) secondsInput.value = seconds;
+    if (secondsInput) minutesInput.value = seconds;
 });
 
 // ---------------------
@@ -1326,7 +1323,7 @@ if (document.getElementById('tagManagerToggle')) {
         } else {
             managerSection.style.display = 'flex';
             newTagForm.style.display = 'flex';
-            fetchTags().then(() => updateTagSelection());
+            fetchTags(); // Remove the chained .then() since updateTagSelection is for a different container
         }
     });
 }
@@ -1335,118 +1332,217 @@ if (document.getElementById('tagManagerToggle')) {
  * Fetch all tags (excluding "all")
  */
 function fetchTags() {
+    console.log('Fetching tags...');
     return fetch('/api/tags')
-        .then(response => response.json())
-        .then(tags => {
-            tags = tags.filter(tag => tag.name.toLowerCase() !== 'all');
-            tags.sort((a, b) => a.name.localeCompare(b.name));
-            displayTags(tags);
+        .then(response => {
+            console.log('Tag API response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
         })
-        .catch(err => console.error(err));
+        .then(tags => {
+            console.log('Received tags:', tags);
+            try {
+                // Filter and sort tags before displaying
+                const filteredTags = tags
+                    .filter(tag => tag && tag.name && tag.name.toLowerCase() !== 'all')
+                    .sort((a, b) => a.name.localeCompare(b.name));
+
+                displayTagsInManager(filteredTags);
+                return filteredTags;
+            } catch (err) {
+                console.error('Error processing tags:', err);
+                return [];
+            }
+        })
+        .catch(err => {
+            console.error('Error in fetchTags:', err);
+            return [];
+        });
 }
 
 /**
- * Display tag pills
+ * Display tag pills in the tag manager
  * @param {Array} tags - Array of tag objects
  */
-function displayTags(tags) {
+function displayTagsInManager(tags) {
     const container = document.getElementById('tagManagerSection');
-    container.innerHTML = ''; // Clear previous tags
-    tags.forEach(tag => {
-        const pill = document.createElement('div');
-        pill.classList.add('tag-pill');
-        // Set custom property for background color
-        const tagColor = tag.color ? tag.color : '#FF4081';
-        pill.style.setProperty('--pill-color', tagColor);
-        const contrast = getContentColorForBackground(tagColor);
-        pill.style.color = contrast;
-
-        // Create tagIcon container and add a delete button inside it
-        const tagIcon = document.createElement('div');
-        tagIcon.classList.add('tagIcon');
-        // Create a button inside tagIcon that deletes the tag from the DB
-        const tagDeleteDbButton = document.createElement('button');
-        tagDeleteDbButton.type = 'button';
-        tagDeleteDbButton.classList.add('tagDeleteDbButton', 'tagDeleteButton');
-        // Insert an SVG icon (using currentColor so it takes the contrast color)
-        tagDeleteDbButton.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="${contrast}" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M12 12H14V24H12zM18 12H20V24H18z"></path><path d="M4 6V8H6V28a2 2 0 002 2H24a2 2 0 002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"></path></svg>`;
-        tagDeleteDbButton.addEventListener('click', function(e) {
-            e.stopPropagation();
-            if (confirm(`Delete tag "${tag.name}" from the database? This will remove it from all entries.`)) {
-                fetch(`/api/tags/${tag.id}`, { method: 'DELETE' })
-                    .then(response => response.json())
-                    .then(result => {
-                        alert(result.message); // Alert on deletion
-                        fetchTags().then(() => updateTagSelection());
-                        fetchImages();
-                    })
-                    .catch(err => console.error(err));
-            }
-        });
-        tagIcon.appendChild(tagDeleteDbButton);
-
-        // Create tagContents container (for tag name and clear button)
-        const tagContents = document.createElement('span');
-        tagContents.classList.add('tagContents');
-        tagContents.style.opacity = '0.8';
-
-        const tagName = document.createElement('span');
-        tagName.classList.add('tagName');
-        tagName.textContent = tag.name;
-
-        const tagClear = document.createElement('span');
-        tagClear.classList.add('tagClear');
-
-        // Create delete button for removing tag from selected entries (no alert)
-        const tagDeleteButton = document.createElement('button');
-        tagDeleteButton.type = 'button';
-        tagDeleteButton.classList.add('tagDeleteButton');
-        tagDeleteButton.addEventListener('click', function(e) {
-            e.stopPropagation();
-            // Remove tag from all selected entries (no alert)
-            const selectedCheckboxes = document.querySelectorAll('.selectImage:checked');
-            const ids = Array.from(selectedCheckboxes).map(cb => cb.value);
-            if (ids.length > 0) {
-                fetch('/api/entries/tags', {
-                        method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ids: ids, tag: tag.name })
-                    })
-                    .then(() => fetchImages())
-                    .catch(err => console.error(err));
-            }
-        });
-        tagClear.appendChild(tagDeleteButton);
-
-        tagContents.appendChild(tagName);
-        tagContents.appendChild(tagClear);
-
-        pill.appendChild(tagIcon);
-        pill.appendChild(tagContents);
-
-        // When clicking the pill (except the delete buttons), apply tag to selected entries (no alert)
-        pill.addEventListener('click', function(e) {
-            if (e.target.closest('.tagDeleteButton') || e.target.closest('.tagDeleteDbButton')) return;
-            const selectedCheckboxes = document.querySelectorAll('.selectImage:checked');
-            const ids = Array.from(selectedCheckboxes).map(cb => cb.value);
-            if (ids.length > 0) {
-                fetch('/api/entries/tags', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ids: ids, tag: tag.name })
-                    })
-                    .then(() => {
-                        fetchImages();
-                        // Deselect all images after adding tags
-                        deselectAllImages();
-                    })
-                    .catch(err => console.error(err));
-            }
-        });
-
-        container.appendChild(pill);
+    console.log('Starting displayTagsInManager:', {
+        hasContainer: !!container,
+        tags: tags,
+        tagsLength: tags ? tags.length : 0
     });
+
+    if (!container) {
+        console.error('Tag manager section container not found');
+        return;
+    }
+
+    // Clear existing tags and ensure display style is set
+    container.innerHTML = '';
+    container.style.display = 'flex';
+    container.style.flexWrap = 'wrap';
+    container.style.gap = '0.3em';
+    container.style.padding = '0.5rem';
+    container.style.minHeight = '50px';
+
+    if (!tags || !Array.isArray(tags)) {
+        console.error('Invalid tags data:', tags);
+        return;
+    }
+
+    console.log('Processing tags array:', tags);
+
+    tags.forEach((tag, index) => {
+        console.log(`Processing tag ${index}:`, tag);
+
+        try {
+            // Create pill container - DEFINE THIS FIRST
+            const pill = document.createElement('div');
+            pill.classList.add('tag-pill');
+            const tagColor = tag.color || '#FF4081';
+            pill.style.setProperty('--pill-color', tagColor);
+            const contrast = getContentColorForBackground(tagColor);
+            pill.style.color = contrast;
+
+            // Create tag icon container with delete button
+            const tagIcon = document.createElement('div');
+            tagIcon.classList.add('tagIcon');
+            tagIcon.style.width = '1em';
+
+            // Create delete button and add to tagIcon
+            const tagDeleteButton = document.createElement('button');
+            tagDeleteButton.type = 'button';
+            tagDeleteButton.classList.add('tagDeleteButton');
+            tagDeleteButton.title = 'Delete tag from database';
+            tagDeleteButton.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="${contrast}" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M12 12H14V24H12zM18 12H20V24H18z"></path><path d="M4 6V8H6V28a2 2 0 002 2H24a2 2 0 002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"></path></svg>`;
+
+            // Delete button click handler
+            tagDeleteButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                console.log('Delete button clicked for tag:', tag.name);
+                if (confirm(`Delete tag "${tag.name}" from the database? This will remove it from all entries.`)) {
+                    fetch(`/api/tags/${tag.id}`, { method: 'DELETE' })
+                        .then(response => response.json())
+                        .then(result => {
+                            console.log('Tag deleted:', result);
+                            fetchTags().then(() => updateTagSelection());
+                            fetchImages();
+                        })
+                        .catch(err => console.error('Error deleting tag:', err));
+                }
+            });
+
+            // Add delete button to tagIcon
+            tagIcon.appendChild(tagDeleteButton);
+
+            // Create tag contents container
+            const tagContents = document.createElement('span');
+            tagContents.classList.add('tagContents');
+            tagContents.style.opacity = '0.8';
+
+            // Create tag name
+            const tagName = document.createElement('span');
+            tagName.classList.add('tagName');
+            tagName.textContent = tag.name;
+
+            // Create tagClear container for remove from entries button
+            const tagClear = document.createElement('span');
+            tagClear.classList.add('tagClear');
+
+            // Add remove from entries button
+            const tagRemoveButton = document.createElement('button');
+            tagRemoveButton.type = 'button';
+            tagRemoveButton.classList.add('tagDeleteButton');
+            tagRemoveButton.title = 'Remove tag from selected images';
+            tagRemoveButton.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="${contrast}" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4l6.6 6.6L8 22.6 9.4 24l6.6-6.6 6.6 6.6 1.4-1.4-6.6-6.6L24 9.4z"></path></svg>`;
+
+            // Add remove handler
+            tagRemoveButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const selectedCheckboxes = document.querySelectorAll('.selectImage:checked');
+                const ids = Array.from(selectedCheckboxes).map(cb => cb.value);
+                if (ids.length > 0) {
+                    fetch('/api/entries/tags', {
+                            method: 'DELETE',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ids: ids, tag: tag.name })
+                        })
+                        .then(() => {
+                            fetchImages();
+                            deselectAllImages();
+                        })
+                        .catch(err => console.error('Error removing tag from images:', err));
+                }
+            });
+
+            // Add remove button to tagClear
+            tagClear.appendChild(tagRemoveButton);
+
+            // Assemble the pill structure
+            tagContents.appendChild(tagName);
+            tagContents.appendChild(tagClear);
+            pill.appendChild(tagIcon);
+            pill.appendChild(tagContents);
+
+            // Click handler for the pill
+            pill.addEventListener('click', (e) => {
+                if (e.target.closest('.tagDeleteButton')) return;
+
+                console.log('Tag pill clicked:', tag.name);
+                const selectedCheckboxes = document.querySelectorAll('.selectImage:checked');
+                const ids = Array.from(selectedCheckboxes).map(cb => cb.value);
+
+                if (ids.length > 0) {
+                    console.log('Adding tag to selected images:', ids);
+                    fetch('/api/entries/tags', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ids: ids, tag: tag.name })
+                        })
+                        .then(() => {
+                            fetchImages();
+                            deselectAllImages();
+                        })
+                        .catch(err => console.error('Error adding tag to images:', err));
+                } else {
+                    console.log('No images selected');
+                }
+            });
+
+            // Add the completed pill to the container
+            container.appendChild(pill);
+            console.log(`Successfully added tag pill for: ${tag.name}`);
+        } catch (error) {
+            console.error(`Error processing tag ${index}:`, error, tag);
+        }
+    });
+
+    console.log(`Rendered ${tags.length} tags in manager`);
+
+    pill.addEventListener('click', function(e) {
+        if (e.target.closest('.tagDeleteButton') || e.target.closest('.tagDeleteDbButton')) return;
+        const selectedCheckboxes = document.querySelectorAll('.selectImage:checked');
+        const ids = Array.from(selectedCheckboxes).map(cb => cb.value);
+        if (ids.length > 0) {
+            fetch('/api/entries/tags', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: ids, tag: tag.name })
+                })
+                .then(() => {
+                    fetchImages();
+                    // Deselect all images after adding tags
+                    deselectAllImages();
+                })
+                .catch(err => console.error('Error adding tag to images:', err));
+        }
+    });
+
 }
+
+
 
 // NEW: Define correct arrays with background colors and corresponding content (text) colors.
 const backgroundColors = [
@@ -1571,65 +1667,70 @@ if (document.getElementById('playSelectBtn')) {
 }
 
 // UPDATED: Update tag selector for play functionality using same structure as tag manager including .tagClear span
+function displayTagsInSelection(tags) {
+    // Filter out "all" and sort alphabetically
+    tags = tags.filter(t => t.name.trim().toLowerCase() !== 'all')
+        .sort((a, b) => a.name.localeCompare(b.name));
+    const container = document.getElementById('tagSelectionContainer');
+    if (!container) return;
+    container.innerHTML = ''; // Clear existing
+
+    tags.forEach(tag => {
+        const pill = document.createElement('div');
+        pill.classList.add('tag-pill');
+        pill.style.setProperty('--pill-color', tag.color || '#FF4081');
+        pill.style.backgroundColor = tag.color || '#FF4081';
+        // NEW: Use mapped content color
+        pill.style.color = getContentColorForBackground(tag.color || '#FF4081');
+        // Set default opacity for unselected tags
+        pill.style.opacity = "0.5";
+
+        // Create tag icon (empty placeholder)
+        const tagIcon = document.createElement('div');
+        tagIcon.classList.add('tagIcon');
+
+        // Create tag contents container
+        const tagContents = document.createElement('span');
+        tagContents.classList.add('tagContents');
+
+        // Create tagName element
+        const tagName = document.createElement('span');
+        tagName.classList.add('tagName');
+        tagName.textContent = tag.name;
+
+        // NEW: Create tagClear span (no delete button here)
+        const tagClear = document.createElement('span');
+        tagClear.classList.add('tagClear');
+
+        // Assemble tagContents: tagName and tagClear
+        tagContents.appendChild(tagName);
+        tagContents.appendChild(tagClear);
+
+        // Assemble the pill structure similar to tag manager
+        pill.appendChild(tagIcon);
+        pill.appendChild(tagContents);
+
+        // Toggle selected state on click:
+        pill.addEventListener('click', () => {
+            // Toggle class
+            if (pill.classList.contains('selected')) {
+                pill.classList.remove('selected');
+                pill.style.opacity = "0.5";
+            } else {
+                pill.classList.add('selected');
+                pill.style.opacity = "1";
+            }
+        });
+        container.appendChild(pill);
+    });
+}
+
+// Update updateTagSelection to use the renamed function
 function updateTagSelection() {
     fetch('/api/tags')
         .then(response => response.json())
-        .then(tags => {
-            // Filter out "all" and sort alphabetically
-            tags = tags.filter(t => t.name.trim().toLowerCase() !== 'all').sort((a, b) => a.name.localeCompare(b.name));
-            const container = document.getElementById('tagSelectionContainer');
-            if (!container) return;
-            container.innerHTML = ''; // Clear existing
-            tags.forEach(tag => {
-                const pill = document.createElement('div');
-                pill.classList.add('tag-pill');
-                pill.style.setProperty('--pill-color', tag.color || '#FF4081');
-                pill.style.backgroundColor = tag.color || '#FF4081';
-                // NEW: Use mapped content color
-                pill.style.color = getContentColorForBackground(tag.color || '#FF4081');
-                // Set default opacity for unselected tags
-                pill.style.opacity = "0.5";
-
-                // Create tag icon (empty placeholder)
-                const tagIcon = document.createElement('div');
-                tagIcon.classList.add('tagIcon');
-
-                // Create tag contents container
-                const tagContents = document.createElement('span');
-                tagContents.classList.add('tagContents');
-
-                // Create tagName element
-                const tagName = document.createElement('span');
-                tagName.classList.add('tagName');
-                tagName.textContent = tag.name;
-
-                // NEW: Create tagClear span (no delete button here)
-                const tagClear = document.createElement('span');
-                tagClear.classList.add('tagClear');
-
-                // Assemble tagContents: tagName and tagClear
-                tagContents.appendChild(tagName);
-                tagContents.appendChild(tagClear);
-
-                // Assemble the pill structure similar to tag manager
-                pill.appendChild(tagIcon);
-                pill.appendChild(tagContents);
-
-                // Toggle selected state on click:
-                pill.addEventListener('click', () => {
-                    // Toggle class
-                    if (pill.classList.contains('selected')) {
-                        pill.classList.remove('selected');
-                        pill.style.opacity = "0.5";
-                    } else {
-                        pill.classList.add('selected');
-                        pill.style.opacity = "1";
-                    }
-                });
-                container.appendChild(pill);
-            });
-        })
-        .catch(err => console.error(err));
+        .then(tags => displayTagsInSelection(tags))
+        .catch(err => console.error('Error updating tag selection:', err));
 }
 
 // MODIFY: In the Play tags button event listener, use selected tags for filtering.
@@ -1674,7 +1775,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // fetchTags().then(() => updateTagSelection());
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Attach event listeners to navigation arrows to fix the bug
     const leftArea = document.querySelector('.hover-area.left');
     const rightArea = document.querySelector('.hover-area.right');
     if (leftArea && typeof window.prevImage === 'function') {
@@ -2206,31 +2306,7 @@ function deselectAllImages() {
 
 // ... existing code ...
 
-function displayTags(tags) {
-    // ... existing code ...
 
-    // When clicking the pill (except the delete buttons), apply tag to selected entries
-    pill.addEventListener('click', function(e) {
-        if (e.target.closest('.tagDeleteButton') || e.target.closest('.tagDeleteDbButton')) return;
-        const selectedCheckboxes = document.querySelectorAll('.selectImage:checked');
-        const ids = Array.from(selectedCheckboxes).map(cb => cb.value);
-        if (ids.length > 0) {
-            fetch('/api/entries/tags', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ids: ids, tag: tag.name })
-                })
-                .then(() => {
-                    fetchImages();
-                    // Deselect all images after adding tags
-                    deselectAllImages();
-                })
-                .catch(err => console.error(err));
-        }
-    });
-
-    // ... existing code ...
-}
 
 // Update new tag form submission handler
 if (document.getElementById('newTagForm')) {
