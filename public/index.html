@@ -35,8 +35,14 @@
         </div>
     </div>
 
-    <!-- External JavaScript files -->
+    <!-- Update Socket.IO script to use specific version and load before other scripts -->
     <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Verify Socket.IO is loaded
+        if (typeof io === 'undefined') {
+            console.error('Socket.IO failed to load');
+        }
+    </script>
     <script src="socket-client.js"></script>
     <script src="main.js"></script>
     <script src="sw-register.js"></script>

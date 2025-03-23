@@ -524,6 +524,42 @@ app.put('/api/images/:id', (req, res) => {
     });
 });
 
+// Add this new endpoint before the server startup code
+app.put('/api/tags/:id', (req, res) => {
+    const tagId = req.params.id;
+    const { name } = req.body;
+
+    if (!name) {
+        return res.status(400).json({ message: 'Tag name is required.' });
+    }
+
+    // Check if new name already exists for different tag
+    db.get('SELECT id FROM tags WHERE name = ? AND id != ?', [name, tagId], (err, existing) => {
+        if (err) {
+            console.error('Error checking tag name:', err);
+            return res.status(500).json({ message: 'Database error.' });
+        }
+
+        if (existing) {
+            return res.status(409).json({ message: 'Tag name already exists.' });
+        }
+
+        // Update tag name
+        db.run('UPDATE tags SET name = ? WHERE id = ?', [name, tagId], function(err) {
+            if (err) {
+                console.error('Error updating tag:', err);
+                return res.status(500).json({ message: 'Error updating tag.' });
+            }
+
+            if (this.changes === 0) {
+                return res.status(404).json({ message: 'Tag not found.' });
+            }
+
+            res.json({ message: 'Tag updated successfully.' });
+        });
+    });
+});
+
 // ---------------------
 // Start the Server with Socket.io
 // ---------------------
@@ -534,16 +570,37 @@ const server = app.listen(PORT, () => {
 // Configure Socket.IO with proper options
 const io = require('socket.io')(server, {
     cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
+        origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+        methods: ["GET", "POST"],
+        credentials: true
     },
-    transports: ['websocket', 'polling'],
+    allowEIO3: true,
     pingTimeout: 60000,
-    pingInterval: 25000
+    pingInterval: 25000,
+    upgradeTimeout: 30000,
+    maxHttpBufferSize: 1e8,
+    transports: ['polling', 'websocket'],
+    allowUpgrades: true,
+    cookie: {
+        name: 'io',
+        path: '/',
+        httpOnly: true,
+        sameSite: 'strict'
+    }
 });
 
 io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
+
+    // Handle transport errors
+    socket.on('transport_error', (error) => {
+        console.error('Transport error:', error);
+    });
+
+    // Handle ping timeouts
+    socket.on('ping_timeout', () => {
+        console.warn('Ping timeout for socket:', socket.id);
+    });
 
     socket.on('error', (error) => {
         console.error('Socket error:', error);
@@ -558,6 +615,11 @@ io.on('connection', (socket) => {
     socket.on('disconnect', (reason) => {
         console.log('Client disconnected:', socket.id, 'Reason:', reason);
     });
+});
+
+// Add global error handlers
+io.engine.on('connection_error', (err) => {
+    console.error('Connection error:', err);
 });
 
 // Add error handler for the server

@@ -31,7 +31,7 @@
 :root {
     --bg-color: #fafafa;
     --text-color: #333;
-    --accent-color: #FF4081;
+    --accent-color: #0f62fe;
     --border-color: #e0e0e0;
     --font-family: 'Founders Grotesk', sans-serif;
     --transition-speed: 0.3s;
@@ -42,7 +42,7 @@
      :root {
         --bg-color: #121212;
         --text-color: #e0e0e0;
-        --accent-color: #FF4081;
+        --accent-color: #0f62fe;
         --border-color: #333333;
         --shadow-light: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
@@ -424,7 +424,6 @@ select:focus {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
     padding: 1rem;
     border-bottom: 1px solid var(--border-color);
 }
@@ -467,10 +466,87 @@ select:focus {
 /* Updated Settings Section Styles */
 
 #settingsSection {
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
     background: var(--bg-color);
     border: 1px solid var(--border-color);
     border-radius: 4px;
+}
+
+
+/* Carbon Design System Header Styles */
+
+#manageHeader {
+    background-color: #ffffff;
+    border-bottom: 1px solid #e0e0e0;
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 3rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+#manageTitle {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 1rem;
+    font-weight: 400;
+    color: #161616;
+    margin: 0;
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.header-controls button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: #161616;
+    cursor: pointer;
+    transition: all 70ms cubic-bezier(0.2, 0, 0.38, 0.9);
+}
+
+.header-controls button:hover {
+    background-color: #0f62fe;
+}
+
+.header-controls button:focus {
+    outline: 2px solid #0f62fe;
+    outline-offset: -2px;
+}
+
+.header-controls button svg {
+    fill: currentColor;
+    width: 20px;
+    height: 20px;
+}
+
+.header-controls button.active {
+    background-color: #e8e8e8;
+}
+
+
+/* Handle mobile responsiveness */
+
+@media (max-width: 768px) {
+    #manageHeader {
+        padding: 1rem;
+        height: auto;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+    .header-controls {
+        width: 100%;
+        justify-content: center;
+    }
 }
 
 
@@ -584,7 +660,6 @@ select:focus {
     font-size: 1rem;
     background: var(--bg-color);
     color: var(--text-color);
-    margin-bottom: 1rem;
 }
 
 
@@ -668,12 +743,7 @@ select:focus {
 /* Top Controls Container styling */
 
 #topControls {
-    padding: 0.5rem 1rem;
-    background-color: var(--bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    margin-bottom: 1rem;
+    display: none;
 }
 
 
@@ -681,8 +751,8 @@ select:focus {
 
 #slideFunctionsContainer {
     display: flex;
-    flex-direction: row;
-    justify-content: space-between;
+    justify-content: flex-start;
+    margin-bottom: 1rem;
 }
 
 
@@ -991,7 +1061,6 @@ body.manage {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
     background-color: #ffffff;
     padding: 1rem;
     border: 1px solid #e0e0e0;
@@ -1007,7 +1076,6 @@ button {
     color: #ffffff;
     border: none;
     padding: 0.5rem 1rem;
-    border-radius: 4px;
     cursor: pointer;
     font-size: 1rem;
     transition: background-color 0.3s ease;
@@ -1053,7 +1121,6 @@ select {
     border: 1px solid #8d8d8d;
     border-radius: 4px;
     width: 100%;
-    margin-bottom: 1rem;
 }
 
 
@@ -1301,12 +1368,18 @@ select {
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 40px;
+    height: 40px;
+}
+
+.nav-btn svg {
+    width: 16px;
+    height: 16px;
 }
 
 .nav-btn:hover {
     background-color: var(--accent-color);
     color: #fff;
-    border-radius: 4px;
 }
 
 
@@ -1452,4 +1525,435 @@ select {
     bottom: 1rem;
     right: 1rem;
     z-index: 1000;
+}
+
+
+/* Update filter container styles */
+
+#filterContainer {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+#filterContainer button {
+    background: transparent;
+    border: none;
+    padding: 0.5rem;
+    cursor: pointer;
+    color: var(--text-color);
+    transition: background-color 0.3s ease;
+    border-radius: 4px;
+}
+
+#filterContainer button:hover {
+    background-color: var(--accent-color);
+    color: #fff;
+}
+
+
+/* Carbon Design System Search Input */
+
+#search {
+    font-size: 0.875rem;
+    font-weight: 400;
+    line-height: 1.28572;
+    letter-spacing: 0.16px;
+    outline: 2px solid transparent;
+    outline-offset: -2px;
+    width: 100%;
+    height: 40px;
+    padding: 0 2.5rem;
+    border: none;
+    border-bottom: 1px solid #8d8d8d;
+    background-color: #f4f4f4;
+    color: #161616;
+    transition: background-color 70ms cubic-bezier(0.2, 0, 0.38, 0.9), outline 70ms cubic-bezier(0.2, 0, 0.38, 0.9);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='M15,14.3L10.7,10c0.9-1.2,1.4-2.6,1.4-4c0-3.3-2.7-6-6-6S0,2.7,0,6s2.7,6,6,6c1.4,0,2.8-0.5,4-1.4l4.3,4.3c0.2,0.2,0.5,0.3,0.7,0.3s0.5-0.1,0.7-0.3C15.5,15.3,15.5,14.7,15,14.3z M6,10.5c-2.5,0-4.5-2-4.5-4.5s2-4.5,4.5-4.5s4.5,2,4.5,4.5S8.5,10.5,6,10.5z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 16px 50%;
+}
+
+#search:focus {
+    outline: 2px solid #0f62fe;
+    outline-offset: -2px;
+    background-color: #ffffff;
+}
+
+
+/* Carbon Design System Icon Button */
+
+.settingsToggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    cursor: pointer;
+    transition: all 70ms cubic-bezier(0.2, 0, 0.38, 0.9);
+    color: #161616;
+}
+
+.settingsToggle:hover {
+    background-color: #0f62fe;
+}
+
+.settingsToggle:focus {
+    outline: 2px solid #0f62fe;
+    outline-offset: -2px;
+}
+
+.settingsToggle:active {
+    background-color: #0f62fe;
+    color: #161616;
+}
+
+.settingsToggle.active {
+    background-color: #0f62fe;
+}
+
+.settingsToggle svg {
+    fill: currentColor;
+    width: 16px;
+    height: 16px;
+}
+
+
+/* Apply the same styles to other icon buttons in the filter container */
+
+#filterContainer button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0 0.5em;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    cursor: pointer;
+    transition: all 70ms cubic-bezier(0.2, 0, 0.38, 0.9);
+    color: #161616;
+}
+
+#filterContainer button:hover {
+    background-color: #0f62fe;
+}
+
+#filterContainer button:focus {
+    outline: 2px solid #0f62fe;
+    outline-offset: -2px;
+}
+
+#filterContainer button svg {
+    fill: currentColor;
+    width: 16px;
+    height: 16px;
+}
+
+
+/* Filter Tabs Wrapper Styles - Updated to match settings */
+
+#filterTabsWrapper {
+    display: none;
+    /* Hidden by default */
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    margin: 1rem 0;
+    padding: 1rem;
+}
+
+
+/* Carbon Tabs Styling - Match settings tabs */
+
+#filterTabsWrapper .bx--tabs {
+    width: 100%;
+    border-bottom: 1px solid var(--border-color);
+}
+
+#filterTabsWrapper .bx--tabs__nav {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    flex-wrap: nowrap;
+}
+
+#filterTabsWrapper .bx--tabs__nav-item {
+    display: flex;
+    align-items: center;
+    padding: 0;
+    margin: 0;
+    text-decoration: none;
+    transition: background-color 70ms cubic-bezier(0.2, 0, 0.38, 0.9);
+    height: 3rem;
+    position: relative;
+}
+
+#filterTabsWrapper .bx--tabs__nav-link {
+    display: inline-flex;
+    align-items: center;
+    color: var(--text-color);
+    text-decoration: none;
+    padding: 0 1rem;
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: none;
+    font-size: 0.875rem;
+    font-weight: 400;
+    cursor: pointer;
+}
+
+#filterTabsWrapper .bx--tabs__nav-item--selected {
+    border-bottom: 2px solid var(--accent-color);
+}
+
+#filterTabsWrapper .bx--tabs__nav-item--selected .bx--tabs__nav-link {
+    color: var(--accent-color);
+    font-weight: 600;
+}
+
+
+/* Tab Panels */
+
+#filterTabsWrapper .bx--tab-panels {
+    padding: 1rem;
+}
+
+#filterTabsWrapper .bx--tab-panel {
+    display: none;
+    padding: 0;
+}
+
+#filterTabsWrapper .bx--tab-panel[aria-hidden="false"] {
+    display: block;
+}
+
+
+/* Filter Wrapper Styles */
+
+#filterTabsWrapper {
+    display: none;
+    /* Hidden by default */
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    margin: 1rem 0;
+    padding: 1rem;
+}
+
+
+/* Grid Layout */
+
+.filter-grid {
+    display: grid;
+    grid-template-columns: 3fr 1fr;
+    gap: 1rem;
+}
+
+
+/* Section Styles */
+
+.tags-section,
+.playlist-section {
+    padding: 1rem;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}
+
+.tags-section h3,
+.playlist-section h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+
+/* Ensure tag filter dropdown fits within panel */
+
+#tagFilterDropdown {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    background: var(--bg-color);
+}
+
+
+/* Responsive Layout */
+
+@media (max-width: 768px) {
+    .filter-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+/* Ensure tag filter dropdown fits within panel */
+
+#tagFilterDropdown {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: var(--bg-color);
+}
+
+
+/* Tag Edit Modal Styles */
+
+#tagEditModal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+}
+
+#tagEditModal .modal-content {
+    max-width: 400px;
+    /* Slightly smaller than image edit modal */
+}
+
+#tagEditModal #editTagName {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+
+/* Playlist Manager Section */
+
+#playlistManagerSection {
+    display: none;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1rem;
+    width: 100%;
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 1rem;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.section-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+#newPlaylistBtn {
+    background-color: var(--accent-color);
+    color: #fff;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+#newPlaylistBtn:hover {
+    background-color: #0353e9;
+}
+
+#playlistContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+
+/* Update filter container styles to prevent button wrapping */
+
+#filterContainer .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-right: 1rem;
+}
+
+
+/* Update playlist button to match tag manager button */
+
+#playlistManagerToggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 70ms cubic-bezier(0.2, 0, 0.38, 0.9);
+    color: #161616;
+}
+
+#playlistManagerToggle:hover {
+    background-color: #0f62fe;
+    color: #fff;
+}
+
+#playlistManagerToggle.active {
+    background-color: #0f62fe;
+    color: #fff;
+}
+
+
+/* Clean up and update filter container styles */
+
+#filterContainer .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-right: 1rem;
+}
+
+
+/* Style buttons in the filter container the same way */
+
+#filterContainer button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: all 70ms cubic-bezier(0.2, 0, 0.38, 0.9);
+    color: #161616;
+}
+
+#filterContainer button:hover {
+    background-color: #0f62fe;
+    color: #fff;
+}
+
+#filterContainer button.active {
+    background-color: #0f62fe;
+    color: #fff;
 }

@@ -245,14 +245,20 @@ if (document.getElementById('slide1')) {
     // ======================
     // Start the slideshow
     function startSlideshow() {
-        window.slideshowInterval = setInterval(nextImage, transitionTime * 1000);
+        if (!window.slideshowPaused && !window.slideshowInterval) {
+            console.log('Starting slideshow interval');
+            window.slideshowInterval = setInterval(window.nextImage, transitionTime * 1000);
+        }
     }
 
     // Reset the slideshow interval
     function resetSlideshowInterval() {
-        if (!window.slideshowPaused) { // Only restart if not paused
+        if (window.slideshowInterval) {
             clearInterval(window.slideshowInterval);
-            window.slideshowInterval = setInterval(nextImage, transitionTime * 1000);
+            window.slideshowInterval = null;
+        }
+        if (!window.slideshowPaused) {
+            startSlideshow();
         }
     }
 
@@ -335,6 +341,72 @@ if (document.getElementById('slide1')) {
         crossfadeTo(currentIndex, imageList);
         resetSlideshowInterval();
     };
+
+    // Replace or update the existing headerPlayBtn click handler
+    document.addEventListener('DOMContentLoaded', () => {
+        const headerPlayBtn = document.getElementById('headerPlayBtn');
+        if (headerPlayBtn) {
+            // Set initial state
+            updatePlayPauseButton(!window.slideshowPaused);
+
+            headerPlayBtn.addEventListener('click', () => {
+                window.slideshowPaused = !window.slideshowPaused;
+                console.log('Slideshow state updated:', {
+                    paused: window.slideshowPaused,
+                    hasInterval: !!window.slideshowInterval
+                });
+
+                if (window.slideshowPaused) {
+                    if (window.slideshowInterval) {
+                        clearInterval(window.slideshowInterval);
+                        window.slideshowInterval = null;
+                    }
+                } else {
+                    startSlideshow();
+                }
+
+                updatePlayPauseButton(!window.slideshowPaused);
+
+                // Broadcast state change
+                socket.emit('slideAction', {
+                    action: window.slideshowPaused ? 'pause' : 'play'
+                });
+            });
+        }
+    });
+
+    // Helper function to update button appearance
+    function updatePlayPauseButton(isPlaying) {
+        const headerPlayBtn = document.getElementById('headerPlayBtn');
+        if (!headerPlayBtn) return;
+
+        headerPlayBtn.innerHTML = isPlaying ?
+            `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 8V24H8V8h4m0-2H8A2 2 0 006 8V24a2 2 0 002 2h4a2 2 0 002-2V8a2 2 0 00-2-2zM24 8V24H20V8h4m0-2H20a2 2 0 00-2 2V24a2 2 0 002 2h4a2 2 0 002-2V8a2 2 0 00-2-2z"></path>
+                <title>Pause</title>
+            </svg>` :
+            `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+                <path d="M7,28a1,1,0,0,1-1-1V5a1,1,0,0,1,1.4819-.8763l20,11a1,1,0,0,1,0,1.7525l-20,11A1.0005,1.0005,0,0,1,7,28ZM8,6.6909V25.3088L24.9248,16Z"></path>
+                <title>Play</title>
+            </svg>`;
+        headerPlayBtn.title = isPlaying ? "Pause" : "Play";
+    }
+
+    // Update socket event handler for slideAction
+    socket.on('slideAction', ({ action }) => {
+        window.slideshowPaused = action === 'pause';
+
+        if (window.slideshowInterval) {
+            clearInterval(window.slideshowInterval);
+            window.slideshowInterval = null;
+        }
+
+        if (action === 'play') {
+            startSlideshow();
+        }
+
+        updatePlayPauseButton(!window.slideshowPaused);
+    });
 }
 
 // NEW: Global pagination variables for management page
@@ -512,21 +584,7 @@ if (document.getElementById('settingsSection')) {
                     });
                 }
                 window.imagesData = data;
-                let sortedImages = sortImages(data);
-                // NEW: Filter images using the search query (by title)
-                const queryEl = document.getElementById('search');
-                const query = queryEl ? queryEl.value.trim().toLowerCase() : '';
-                if (query) {
-                    sortedImages = sortedImages.filter(image =>
-                        image.title.toLowerCase().includes(query)
-                    );
-                }
-                // Global pagination update
-                totalPages = Math.ceil(sortedImages.length / currentLimit) || 1;
-                if (currentPage > totalPages) currentPage = totalPages;
-                const pageEntries = sortedImages.slice((currentPage - 1) * currentLimit, currentPage * currentLimit);
-                displayImages(pageEntries);
-                updatePagination(sortedImages.length);
+                filterImagesBySelectedTags();
             })
             .catch(err => console.error("Error fetching images:", err));
     }
@@ -559,6 +617,10 @@ if (document.getElementById('settingsSection')) {
 
         images.forEach(image => {
             const tr = document.createElement('tr');
+            // Check if this image is selected and add selected class
+            if (selectedImageIds.has(image.id)) {
+                tr.classList.add('selected');
+            }
 
             // Row click toggles selection (except in actions cell)
             tr.addEventListener('click', function(e) {
@@ -583,6 +645,8 @@ if (document.getElementById('settingsSection')) {
             checkbox.type = 'checkbox';
             checkbox.classList.add('selectImage');
             checkbox.value = image.id;
+            // Check if this image is selected
+            checkbox.checked = selectedImageIds.has(image.id);
             if (selectedImageIds.has(image.id)) {
                 checkbox.checked = true;
                 tr.classList.add('selected');
@@ -908,7 +972,20 @@ function updateTagFilterDropdown() {
 
 // NEW: Disable filter pills that aren’t available among currently displayed images
 function updateFilterAvailability() {
-    // Based on imagesData filtered by current search and current selection
+    // If no filters are active, make all tags available
+    if (selectedFilterTags.length === 0) {
+        document.querySelectorAll('#tagFilterDropdown .tag-pill').forEach(pill => {
+            if (pill.id !== 'clearFilter') {
+                pill.removeAttribute('data-disabled');
+                pill.style.pointerEvents = "auto";
+                pill.style.filter = "none";
+                pill.style.opacity = "0.5";
+            }
+        });
+        return;
+    }
+
+    // Otherwise, proceed with normal filter availability logic
     const availableTags = new Set();
     const filtered = window.imagesData.filter(image => {
         const imageTags = image.tags.map(t => t.name.toLowerCase());
@@ -917,7 +994,7 @@ function updateFilterAvailability() {
     filtered.forEach(image => {
         image.tags.forEach(t => availableTags.add(t.name.toLowerCase()));
     });
-    // Update each pill in the dropdown
+
     document.querySelectorAll('#tagFilterDropdown .tag-pill').forEach(pill => {
         if (pill.id === "clearFilter") return;
         const tagName = pill.textContent.toLowerCase();
@@ -939,40 +1016,38 @@ function filterImagesBySelectedTags() {
     const queryEl = document.getElementById('search');
     const query = queryEl ? queryEl.value.trim().toLowerCase() : '';
 
-    // Apply search filter if any
-    if (query) {
-        images = images.filter(image => image.title.toLowerCase().includes(query));
-    }
+    // Get selected images first
+    const selectedImages = images.filter(img => selectedImageIds.has(img.id));
 
-    // Apply tag filters if any
-    if (selectedFilterTags.length > 0) {
-        images = images.filter(image => {
-            const imageTags = image.tags.map(t => t.name.toLowerCase());
-            return selectedFilterTags.every(tag => imageTags.includes(tag));
-        });
-    } else {
-        // When no filters are active, reset all tag pills to be selectable
-        document.querySelectorAll('#tagFilterDropdown .tag-pill').forEach(pill => {
-            if (pill.id !== 'clearFilter') {
-                pill.removeAttribute('data-disabled');
-                pill.style.pointerEvents = "auto";
-                pill.style.filter = "none";
-                pill.style.opacity = "0.5";
-            }
-        });
-    }
+    // Filter remaining unselected images based on search and tags
+    let filteredImages = images.filter(img => {
+        // Skip if already in selected images
+        if (selectedImageIds.has(img.id)) return false;
 
-    // Update pagination
+        // Apply search filter (only for unselected images)
+        if (query && !img.title.toLowerCase().includes(query)) return false;
+
+        // Apply tag filters
+        if (selectedFilterTags.length > 0) {
+            const imageTags = img.tags.map(t => t.name.toLowerCase());
+            if (!selectedFilterTags.every(tag => imageTags.includes(tag))) return false;
+        }
+
+        return true;
+    });
+
+    // Combine selected images with filtered results
+    images = [...selectedImages, ...filteredImages];
+
+    // Update pagination and display
     totalPages = Math.ceil(images.length / currentLimit) || 1;
     if (currentPage > totalPages) currentPage = totalPages;
     const pageEntries = images.slice((currentPage - 1) * currentLimit, currentPage * currentLimit);
     displayImages(pageEntries);
     updatePagination(images.length);
 
-    // Only update tag availability if there are active filters
-    if (selectedFilterTags.length > 0) {
-        updateFilterAvailability();
-    }
+    // Always update tag availability to ensure proper reset when filters are cleared
+    updateFilterAvailability();
 }
 
 // NEW: Toggle dropdown visibility on filter button click
@@ -980,11 +1055,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Move these inside the settings form check
     if (document.getElementById('settingsSection')) {
         const filterBtn = document.getElementById('filterBtn');
-        const dropdown = document.getElementById('tagFilterDropdown');
-        if (filterBtn && dropdown) {
+        const filterTabsWrapper = document.getElementById('filterTabsWrapper');
+
+        if (filterBtn && filterTabsWrapper) {
             filterBtn.addEventListener('click', () => {
-                dropdown.style.display = (dropdown.style.display === "none" || dropdown.style.display === "") ? "flex" : "none";
-                if (dropdown.style.display === "flex") {
+                const isVisible = filterTabsWrapper.style.display === "block";
+                filterTabsWrapper.style.display = isVisible ? "none" : "block";
+
+                // Update tag filters only when showing the wrapper
+                if (!isVisible) {
                     updateTagFilterDropdown();
                 }
             });
@@ -1296,24 +1375,6 @@ if (document.getElementById('tagManagerToggle')) {
     // Set the innerHTML to the provided SVG
     tagManagerToggle.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="2"></circle><path d="M20,30a.9967.9967,0,0,1-.707-.293L8.5859,19A2.0126,2.0126,0,0,1,8,17.5859V10a2.002,2.002,0,0,1,2-2h7.5859A1.9864,1.9864,0,0,1,19,8.5859L29.707,19.293a.9994.9994,0,0,1,0,1.414l-9,9A.9967.9967,0,0,1,20,30ZM10,10v7.5859l10,10L27.5859,20l-10-10Z"></path><path d="M12,30H4a2.0021,2.0021,0,0,1-2-2V4A2.0021,2.0021,0,0,1,4,2H28a2.0021,2.0021,0,0,1,2,2v8H28V4H4V28h8Z"></path></svg>`;
 
-    // Apply the same style as settingsToggle (assumes you have a common class for toggles)
-    tagManagerToggle.classList.add('settingsToggle');
-    tagManagerToggle.style.backgroundColor = 'transparent';
-    tagManagerToggle.style.color = 'inherit';
-
-    // Add hover state (if details is not open)
-    tagManagerToggle.addEventListener('mouseover', function() {
-        tagManagerToggle.style.backgroundColor = 'var(--accent-color)';
-        tagManagerToggle.style.color = '#fff';
-    });
-    tagManagerToggle.addEventListener('mouseout', function() {
-        const details = document.getElementById('settings-details');
-        if (!details.open) {
-            tagManagerToggle.style.backgroundColor = 'transparent';
-            tagManagerToggle.style.color = 'inherit';
-        }
-    });
-
     // Toggle Tag Manager Visibility when clicked
     tagManagerToggle.addEventListener('click', function() {
         const managerSection = document.getElementById('tagManagerSection');
@@ -1504,7 +1565,8 @@ function displayTagsInManager(tags) {
                         })
                         .catch(err => console.error('Error adding tag to images:', err));
                 } else {
-                    console.log('No images selected');
+                    console.log('No images selected, showing edit modal');
+                    showTagEditModal(tag);
                 }
             });
 
@@ -1517,29 +1579,7 @@ function displayTagsInManager(tags) {
     });
 
     console.log(`Rendered ${tags.length} tags in manager`);
-
-    pill.addEventListener('click', function(e) {
-        if (e.target.closest('.tagDeleteButton') || e.target.closest('.tagDeleteDbButton')) return;
-        const selectedCheckboxes = document.querySelectorAll('.selectImage:checked');
-        const ids = Array.from(selectedCheckboxes).map(cb => cb.value);
-        if (ids.length > 0) {
-            fetch('/api/entries/tags', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ ids: ids, tag: tag.name })
-                })
-                .then(() => {
-                    fetchImages();
-                    // Deselect all images after adding tags
-                    deselectAllImages();
-                })
-                .catch(err => console.error('Error adding tag to images:', err));
-        }
-    });
-
 }
-
-
 
 // NEW: Define correct arrays with background colors and corresponding content (text) colors.
 const backgroundColors = [
@@ -1621,11 +1661,8 @@ if (document.getElementById('newTagForm')) {
     });
 }
 
-
-
 // Call this function on DOMContentLoaded:
 document.addEventListener('DOMContentLoaded', bindHeaderSelect);
-
 
 // --------------------
 // Management Page: Play Select Button Handler
@@ -1672,6 +1709,70 @@ function displayTagsInSelection(tags) {
     if (!container) return;
     container.innerHTML = ''; // Clear existing
 
+    // Add Select All pill
+    const selectAllPill = document.createElement('div');
+    selectAllPill.classList.add('tag-pill');
+    selectAllPill.style.backgroundColor = '#0f62fe';
+    selectAllPill.style.color = '#fff';
+    selectAllPill.style.cursor = 'pointer';
+    selectAllPill.style.marginRight = '0.3em';
+
+    const selectAllIcon = document.createElement('div');
+    selectAllIcon.classList.add('tagIcon');
+    const selectAllContents = document.createElement('span');
+    selectAllContents.classList.add('tagContents');
+    const selectAllName = document.createElement('span');
+    selectAllName.classList.add('tagName');
+    selectAllName.textContent = 'Select All';
+    const selectAllClear = document.createElement('span');
+    selectAllClear.classList.add('tagClear');
+    selectAllContents.appendChild(selectAllName);
+    selectAllContents.appendChild(selectAllClear);
+    selectAllPill.appendChild(selectAllIcon);
+    selectAllPill.appendChild(selectAllContents);
+
+    // Add Clear All pill
+    const clearAllPill = document.createElement('div');
+    clearAllPill.classList.add('tag-pill');
+    clearAllPill.style.backgroundColor = '#da1e28';
+    clearAllPill.style.color = '#fff';
+    clearAllPill.style.cursor = 'pointer';
+    clearAllPill.style.marginRight = '0.3em';
+
+    const clearAllIcon = document.createElement('div');
+    clearAllIcon.classList.add('tagIcon');
+    const clearAllContents = document.createElement('span');
+    clearAllContents.classList.add('tagContents');
+    const clearAllName = document.createElement('span');
+    clearAllName.classList.add('tagName');
+    clearAllName.textContent = 'Clear All';
+    const clearAllClear = document.createElement('span');
+    clearAllClear.classList.add('tagClear');
+    clearAllContents.appendChild(clearAllName);
+    clearAllContents.appendChild(clearAllClear);
+    clearAllPill.appendChild(clearAllIcon);
+    clearAllPill.appendChild(clearAllContents);
+
+    // Add click handlers
+    selectAllPill.addEventListener('click', () => {
+        container.querySelectorAll('.tag-pill:not(:first-child):not(:nth-child(2))').forEach(pill => {
+            pill.classList.add('selected');
+            pill.style.opacity = "1";
+        });
+    });
+
+    clearAllPill.addEventListener('click', () => {
+        container.querySelectorAll('.tag-pill').forEach(pill => {
+            pill.classList.remove('selected');
+            pill.style.opacity = "0.5";
+        });
+    });
+
+    // Add pills to container
+    container.appendChild(selectAllPill);
+    container.appendChild(clearAllPill);
+
+    // Add the rest of the tag pills
     tags.forEach(tag => {
         const pill = document.createElement('div');
         pill.classList.add('tag-pill');
@@ -2114,12 +2215,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Update button appearance
                 headerPlayBtn.innerHTML = shouldPause ?
-                    `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32">
-                        <path d="M7 28a1 1 0 01-1-1V5a1 1 0 011.4819-.8763l20 11a1 1 0 010 1.7525l-20 11A1.0005,1.0005,0 017 28z"></path>
-                    </svg>` :
-                    `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32">
-                        <path d="M12 8V24H8V8h4m1-2H7v20h6V6zM24 8V24H20V8h4m1-2H19v20h6V6z"></path>
-                    </svg>`;
+                    `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M7,28a1,1,0,0,1-1-1V5a1,1,0,0,1,1.4819-.8763l20,11a1,1,0,0,1,0,1.7525l-20,11A1.0005,1.0005,0,0,1,7,28ZM8,6.6909V25.3088L24.9248,16Z"></path><title>Play</title></svg>` :
+                    `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M12 8V24H8V8h4m0-2H8A2 2 0 006 8V24a2 2 0 002 2h4a2 2 0 002-2V8a2 2 0 00-2-2zM24 8V24H20V8h4m0-2H20a2 2 0 00-2 2V24a2 2 0 002 2h4a2 2 0 002-2V8a2 2 0 00-2-2z"></path><title>Pause</title></svg>`;
                 headerPlayBtn.title = shouldPause ? "Play" : "Pause";
             };
 
@@ -2147,8 +2244,9 @@ socket.on('slideAction', ({ action }) => {
         const headerPlayBtn = document.getElementById('headerPlayBtn');
         if (headerPlayBtn) {
             headerPlayBtn.innerHTML = `
-                <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32">
-                    <path d="M7 28a1 1 0 01-1-1V5a1 1 0 011.4819-.8763l20 11a1 1 0 010 1.7525l-20 11A1.0005,1.0005,0 017 28z"></path>
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="32" height="32">
+                    <path d="M7,28a1,1,0,0,1-1-1V5a1,1,0,0,1,1.4819-.8763l20,11a1,1,0,0,1,0,1.7525l-20,11A1.0005,1.0005,0,0,1,7,28ZM8,6.6909V25.3088L24.9248,16Z"></path>
+                    <title>Play</title>
                 </svg>`;
             headerPlayBtn.title = "Play";
         }
@@ -2162,8 +2260,9 @@ socket.on('slideAction', ({ action }) => {
         const headerPlayBtn = document.getElementById('headerPlayBtn');
         if (headerPlayBtn) {
             headerPlayBtn.innerHTML = `
-                <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32">
-                    <path d="M12 8V24H8V8h4m1-2H7v20h6V6zM24 8V24H20V8h4m1-2H19v20h6V6z"></path>
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="32" height="32">
+                    <path d="M12 8V24H8V8h4m0-2H8A2 2 0 006 8V24a2 2 0 002 2h4a2 2 0 002-2V8a2 2 0 00-2-2zM24 8V24H20V8h4m0-2H20a2 2 0 00-2 2V24a2 2 0 002 2h4a2 2 0 002-2V8a2 2 0 00-2-2z"></path>
+                    <title>Pause</title>
                 </svg>`;
             headerPlayBtn.title = "Pause";
         }
@@ -2172,174 +2271,292 @@ socket.on('slideAction', ({ action }) => {
 
 // ...existing code...
 
-// Add this function near the top with other helper functions
-function getSelectedTags() {
-    const selectedPills = document.querySelectorAll('#tagSelectionContainer .tag-pill.selected');
-    return Array.from(selectedPills).map(p => p.textContent.trim().toLowerCase());
-}
-
-// Update the groupOrderImages function
-function groupOrderImages(imageList) {
-    const selectedTags = getSelectedTags();
-
-    // If no tags selected, return empty array to disable groups order
-    if (selectedTags.length === 0) {
-        return [];
-    }
-
-    let groupedImages = [];
-    // Process each selected tag in order
-    selectedTags.forEach(tagName => {
-        // Get all images with this tag
-        const tagImages = imageList.filter(img =>
-            img.tags.some(t => t.name.trim().toLowerCase() === tagName)
-        );
-        // Sort images within this tag group alphabetically
-        tagImages.sort((a, b) => a.title.localeCompare(b.title));
-        // Add this group's images to the result
-        groupedImages = groupedImages.concat(tagImages);
-    });
-
-    return groupedImages;
-}
-
-// Update the order buttons initialization
+// Add tab initialization to DOMContentLoaded
 document.addEventListener('DOMContentLoaded', () => {
     // ...existing code...
 
-    // Add tag selection change handler
-    const tagContainer = document.getElementById('tagSelectionContainer');
-    if (tagContainer) {
-        const updateGroupsButtonState = () => {
-            const orderGroupsBtn = document.getElementById('orderGroups');
-            const selectedTags = getSelectedTags();
+    // Initialize tabs
+    const tabList = document.querySelector('.bx--tabs__nav');
+    if (tabList) {
+        const tabs = tabList.querySelectorAll('.bx--tabs__nav-item');
+        const panels = document.querySelectorAll('.bx--tab-panel');
 
-            if (orderGroupsBtn) {
-                if (selectedTags.length === 0) {
-                    orderGroupsBtn.disabled = true;
-                    orderGroupsBtn.classList.remove('bx--btn--primary');
-                    orderGroupsBtn.classList.add('bx--btn--secondary');
+        tabs.forEach((tab, index) => {
+            tab.addEventListener('click', () => {
+                // Remove selected state from all tabs
+                tabs.forEach(t => {
+                    t.classList.remove('bx--tabs__nav-item--selected');
+                    t.setAttribute('aria-selected', 'false');
+                });
 
-                    // If groups was selected but now disabled, switch to random
-                    if (localStorage.getItem('slideshowOrder') === 'groups') {
-                        localStorage.setItem('slideshowOrder', 'random');
-                        document.getElementById('orderRandom').classList.add('bx--btn--primary');
-                        document.getElementById('orderRandom').classList.remove('bx--btn--secondary');
-                    }
-                } else {
-                    orderGroupsBtn.disabled = false;
-                }
-            }
-        };
+                // Add selected state to clicked tab
+                tab.classList.add('bx--tabs__nav-item--selected');
+                tab.setAttribute('aria-selected', 'true');
 
-        // Add mutation observer to watch for tag selection changes
-        const observer = new MutationObserver(updateGroupsButtonState);
-        observer.observe(tagContainer, {
-            attributes: true,
-            subtree: true,
-            attributeFilter: ['class']
+                // Hide all panels
+                panels.forEach(panel => {
+                    panel.hidden = true;
+                    panel.setAttribute('aria-hidden', 'true');
+                });
+
+                // Show selected panel
+                panels[index].hidden = false;
+                panels[index].setAttribute('aria-hidden', 'false');
+            });
         });
-
-        // Initial state check
-        updateGroupsButtonState();
     }
 
-    // ...rest of existing code...
+    // ...existing code...
 });
-
-// Update nextImage function to handle grouping correctly
-function nextImage() {
-    const imageList = (window.selectedSlideshowImages && window.selectedSlideshowImages.length > 0) ?
-        window.selectedSlideshowImages :
-        images;
-
-    let newList = imageList;
-    const order = localStorage.getItem('slideshowOrder') || 'random';
-
-    if (order === 'groups') {
-        const groupedList = groupOrderImages(newList);
-        if (!groupedList.length) {
-            // If no valid grouped list, fall back to random
-            localStorage.setItem('slideshowOrder', 'random');
-            shuffleArray(newList);
-            currentIndex = (currentIndex + 1) % newList.length;
-        } else {
-            newList = groupedList;
-            currentIndex = (currentIndex + 1) % newList.length;
-        }
-    } else if (order === 'alphabetical') {
-        newList.sort((a, b) => a.title.localeCompare(b.title));
-        currentIndex = (currentIndex + 1) % newList.length;
-    } else { // random
-        if (currentIndex < newList.length - 1) {
-            currentIndex++;
-        } else {
-            shuffleArray(newList);
-            currentIndex = 0;
-        }
-    }
-
-    crossfadeTo(currentIndex, newList);
-    resetSlideshowInterval();
-}
 
 // ...existing code...
 
-// Helper function to deselect all images
-function deselectAllImages() {
-    // Clear the selection set
-    selectedImageIds.clear();
-    // Uncheck all checkboxes and remove selected class
-    document.querySelectorAll('#imageTable tbody .selectImage').forEach(cb => {
-        cb.checked = false;
-        const row = cb.closest('tr');
-        if (row) {
-            row.classList.remove('selected');
-        }
-    });
-    // Update header checkbox
-    updateHeaderSelect();
+// Add these functions after the existing tag management code
+function showTagEditModal(tag) {
+    const modal = document.getElementById('tagEditModal');
+    const input = document.getElementById('editTagName');
+
+    // Set current tag values
+    input.value = tag.name;
+    modal.setAttribute('data-tag-id', tag.id);
+
+    // Show modal
+    modal.style.display = 'block';
+
+    // Focus input
+    input.focus();
 }
 
-// ... existing code ...
+function hideTagEditModal() {
+    const modal = document.getElementById('tagEditModal');
+    modal.style.display = 'none';
+}
 
+// Modify displayTagsInManager to add double-click handling
+function displayTagsInManager(tags) {
+    const container = document.getElementById('tagManagerSection');
+    console.log('Starting displayTagsInManager:', {
+        hasContainer: !!container,
+        tags: tags,
+        tagsLength: tags ? tags.length : 0
+    });
 
+    if (!container) {
+        console.error('Tag manager section container not found');
+        return;
+    }
 
-// Update new tag form submission handler
-if (document.getElementById('newTagForm')) {
-    document.getElementById('newTagForm').addEventListener('submit', function(e) {
-        // ... existing code until fetch block ...
+    // Clear existing tags but don't change display property
+    container.innerHTML = '';
 
-        fetch('/api/tags', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: tagName, color: tagColor })
-            })
-            .then(response => response.json())
-            .then(result => {
+    if (!tags || !Array.isArray(tags)) {
+        console.error('Invalid tags data:', tags);
+        return;
+    }
+
+    console.log('Processing tags array:', tags);
+
+    tags.forEach((tag, index) => {
+        console.log(`Processing tag ${index}:`, tag);
+
+        try {
+            // Create pill container - DEFINE THIS FIRST
+            const pill = document.createElement('div');
+            pill.classList.add('tag-pill');
+            const tagColor = tag.color || '#FF4081';
+            pill.style.setProperty('--pill-color', tagColor);
+            const contrast = getContentColorForBackground(tagColor);
+            pill.style.color = contrast;
+
+            // Create tag icon container with delete button
+            const tagIcon = document.createElement('div');
+            tagIcon.classList.add('tagIcon');
+
+            // Create delete button and add to tagIcon
+            const tagDeleteButton = document.createElement('button');
+            tagDeleteButton.type = 'button';
+            tagDeleteButton.classList.add('tagDeleteButton');
+            tagDeleteButton.title = 'Delete tag from database';
+            tagDeleteButton.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="${contrast}" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M12 12H14V24H12zM18 12H20V24H18z"></path><path d="M4 6V8H6V28a2 2 0 002 2H24a2 2 0 002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"></path></svg>`;
+
+            // Delete button click handler
+            tagDeleteButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                console.log('Delete button clicked for tag:', tag.name);
+                if (confirm(`Delete tag "${tag.name}" from the database? This will remove it from all entries.`)) {
+                    fetch(`/api/tags/${tag.id}`, { method: 'DELETE' })
+                        .then(response => response.json())
+                        .then(result => {
+                            console.log('Tag deleted:', result);
+                            fetchTags().then(() => updateTagSelection());
+                            fetchImages();
+                        })
+                        .catch(err => console.error('Error deleting tag:', err));
+                }
+            });
+
+            // Add delete button to tagIcon
+            tagIcon.appendChild(tagDeleteButton);
+
+            // Create tag contents container
+            const tagContents = document.createElement('span');
+            tagContents.classList.add('tagContents');
+            tagContents.style.opacity = '0.8';
+
+            // Create tag name
+            const tagName = document.createElement('span');
+            tagName.classList.add('tagName');
+            tagName.textContent = tag.name;
+
+            // Create tagClear container for remove from entries button
+            const tagClear = document.createElement('span');
+            tagClear.classList.add('tagClear');
+
+            // Add remove from entries button
+            const tagRemoveButton = document.createElement('button');
+            tagRemoveButton.type = 'button';
+            tagRemoveButton.classList.add('tagDeleteButton');
+            tagRemoveButton.title = 'Remove tag from selected images';
+            tagRemoveButton.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="${contrast}" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4l6.6 6.6L8 22.6 9.4 24l6.6-6.6 6.6 6.6 1.4-1.4-6.6-6.6L24 9.4z"></path></svg>`;
+
+            // Add remove handler
+            tagRemoveButton.addEventListener('click', (e) => {
+                e.stopPropagation();
                 const selectedCheckboxes = document.querySelectorAll('.selectImage:checked');
                 const ids = Array.from(selectedCheckboxes).map(cb => cb.value);
                 if (ids.length > 0) {
                     fetch('/api/entries/tags', {
-                            method: 'POST',
+                            method: 'DELETE',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ ids: ids, tag: tagName })
+                            body: JSON.stringify({ ids: ids, tag: tag.name })
                         })
-                        .then(response => response.json())
-                        .then(res => {
+                        .then(() => {
                             fetchImages();
-                            // Deselect all images after adding tags
                             deselectAllImages();
                         })
-                        .catch(err => console.error(err));
-                } else {
-                    fetchImages();
+                        .catch(err => console.error('Error removing tag from images:', err));
                 }
-                fetchTags().then(() => updateTagSelection());
-                document.getElementById('newTagForm').reset();
-            })
-            .catch(err => {
-                console.error(err);
             });
+
+            // Add remove button to tagClear
+            tagClear.appendChild(tagRemoveButton);
+
+            // Assemble the pill structure
+            tagContents.appendChild(tagName);
+            tagContents.appendChild(tagClear);
+            pill.appendChild(tagIcon);
+            pill.appendChild(tagContents);
+
+            // Click handler for the pill
+            pill.addEventListener('click', (e) => {
+                if (e.target.closest('.tagDeleteButton')) return;
+
+                console.log('Tag pill clicked:', tag.name);
+                const selectedCheckboxes = document.querySelectorAll('.selectImage:checked');
+                const ids = Array.from(selectedCheckboxes).map(cb => cb.value);
+
+                if (ids.length > 0) {
+                    console.log('Adding tag to selected images:', ids);
+                    fetch('/api/entries/tags', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ids: ids, tag: tag.name })
+                        })
+                        .then(() => {
+                            fetchImages();
+                            deselectAllImages();
+                        })
+                        .catch(err => console.error('Error adding tag to images:', err));
+                } else {
+                    console.log('No images selected, showing edit modal');
+                    showTagEditModal(tag);
+                }
+            });
+
+            // Add the completed pill to the container
+            container.appendChild(pill);
+            console.log(`Successfully added tag pill for: ${tag.name}`);
+        } catch (error) {
+            console.error(`Error processing tag ${index}:`, error, tag);
+        }
+    });
+
+    console.log(`Rendered ${tags.length} tags in manager`);
+}
+
+// Add modal event listeners when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    // ...existing code...
+
+    // Tag Edit Modal Handlers
+    const tagEditModal = document.getElementById('tagEditModal');
+    const closeTagEditBtn = document.getElementById('closeTagEditBtn');
+    const saveTagEditBtn = document.getElementById('saveTagEditBtn');
+
+    if (tagEditModal) {
+        // Close modal when clicking outside
+        tagEditModal.addEventListener('click', (e) => {
+            if (e.target === tagEditModal) {
+                hideTagEditModal();
+            }
+        });
+    }
+
+    if (closeTagEditBtn) {
+        closeTagEditBtn.addEventListener('click', hideTagEditModal);
+    }
+
+    if (saveTagEditBtn) {
+        saveTagEditBtn.addEventListener('click', () => {
+            const modal = document.getElementById('tagEditModal');
+            const tagId = modal.getAttribute('data-tag-id');
+            const newName = document.getElementById('editTagName').value.trim();
+
+            if (!newName) return;
+
+            fetch(`/api/tags/${tagId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newName })
+                })
+                .then(response => response.json())
+                .then(result => {
+                    hideTagEditModal();
+                    fetchTags(); // Refresh tags display
+                    fetchImages(); // Refresh images to update tag names
+                })
+                .catch(err => console.error('Error updating tag:', err));
+        });
+    }
+});
+
+// ...existing code...
+
+// Add after the tagManagerToggle handler
+if (document.getElementById('playlistManagerToggle')) {
+    const playlistManagerToggle = document.getElementById('playlistManagerToggle');
+    const playlistManagerSection = document.getElementById('playlistManagerSection');
+
+    // Toggle Playlist Manager Visibility
+    playlistManagerToggle.addEventListener('click', function() {
+        // Toggle display between 'none' and 'flex'
+        const isVisible = window.getComputedStyle(playlistManagerSection).display !== 'none';
+        playlistManagerSection.style.display = isVisible ? 'none' : 'flex';
+
+        // Toggle active state of button
+        playlistManagerToggle.classList.toggle('active');
     });
 }
+
+// Add new playlist button handler
+document.addEventListener('DOMContentLoaded', () => {
+    const newPlaylistBtn = document.getElementById('newPlaylistBtn');
+    if (newPlaylistBtn) {
+        newPlaylistBtn.addEventListener('click', () => {
+            // TODO: Implement playlist creation
+            console.log('New playlist button clicked');
+        });
+    }
+});
+
+// ...existing code...
