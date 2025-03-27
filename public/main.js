@@ -1,3 +1,15 @@
+// Initialize socket communication first
+const socket = io();
+
+// Verify socket connection
+socket.on('connect', () => {
+    console.log('Socket connected:', socket.id);
+});
+
+socket.on('connect_error', (error) => {
+    console.error('Socket connection error:', error);
+});
+
 // Move order to global scope
 const order = localStorage.getItem('slideshowOrder') || 'random';
 
@@ -30,6 +42,41 @@ function formatDateAdded(timestamp) {
 // Add this near the top with other global variables
 let selectedImageIds = new Set();
 let imagesData = [];
+
+// Add global sort variables so they are accessible in filterImagesBySelectedTags
+let currentSortKey = null;
+let currentSortDirection = 'asc';
+
+// Add this function definition before it's first used
+function fetchTags() {
+    console.log('Fetching tags...');
+    return fetch('/api/tags')
+        .then(response => {
+            console.log('Tag API response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(tags => {
+            try {
+                // Filter and sort tags before displaying
+                const filteredTags = tags
+                    .filter(tag => tag && tag.name && tag.name.toLowerCase() !== 'all')
+                    .sort((a, b) => a.name.localeCompare(b.name));
+
+                displayTagsInManager(filteredTags);
+                return filteredTags;
+            } catch (err) {
+                console.error('Error processing tags:', err);
+                return [];
+            }
+        })
+        .catch(err => {
+            console.error('Error in fetchTags:', err);
+            return [];
+        });
+}
 
 // ======================
 // SLIDESHOW FUNCTIONALITY (Index Page)
@@ -64,6 +111,10 @@ if (document.getElementById('slide1')) {
         }
     }
 
+    // Add after other global variables
+    let fullImageList = [];
+    let usedRandomImages = new Set();
+
     // ======================
     // Fetch Images and Initialize Slideshow
     // ======================
@@ -71,33 +122,38 @@ if (document.getElementById('slide1')) {
         .then(response => response.json())
         .then(data => {
             console.log('Received images data:', data[0]); // Log first image
-            images = data;
-            window.images = data; // Ensure global assignment
-            window.slideshowImages = data; // global fallback list
-            if (images.length > 0) {
-                if (order === 'alphabetical') {
-                    images.sort((a, b) => a.title.localeCompare(b.title));
-                } else if (order === 'random') {
-                    shuffleArray(images);
-                    currentIndex = Math.floor(Math.random() * images.length);
-                }
+            if (!data || !Array.isArray(data) || data.length === 0) {
+                console.error('No valid images received');
+                return;
+            }
+            
+            images = [...data];
+            fullImageList = [...data];
+            window.images = [...data];
+            window.slideshowImages = [...data];
+            window.selectedSlideshowImages = [...data];
+
+            if (window.slideshowOrder === 'alphabetical') {
+                images.sort((a, b) => a.title.localeCompare(b.title));
+            } else if (window.slideshowOrder === 'random') {
+                shuffleArray(images);
+            }
+
+            if (currentSlideElement && images.length > 0) {
                 currentSlideElement.src = images[currentIndex].url;
                 if (currentTitleOverlay) {
                     currentTitleOverlay.innerText = images[currentIndex].title;
                     currentTitleOverlay.classList.add('active');
                 }
                 if (currentSubtitleOverlay) {
-                    console.log('Setting initial description:', {
-                        imageId: images[currentIndex].id,
-                        description: images[currentIndex].description,
-                        hasDescriptionProperty: 'description' in images[currentIndex]
-                    });
                     currentSubtitleOverlay.innerText = images[currentIndex].description || '';
                     currentSubtitleOverlay.classList.add('active');
-                } else {
-                    console.warn('Subtitle overlay element not found');
                 }
-                startSlideshow();
+                
+                // Only start slideshow if we have more than one image
+                if (images.length > 1) {
+                    startSlideshow();
+                }
             }
         })
         .catch(err => console.error('Error fetching images:', err));
@@ -106,44 +162,41 @@ if (document.getElementById('slide1')) {
     // Crossfade to Next Image
     // ======================
     function crossfadeTo(index, list) {
-        // Add validation checks
-        if (!list || !Array.isArray(list) || list.length === 0) {
-            console.warn('Invalid image list provided to crossfadeTo');
-            return;
-        }
-
-        if (index < 0 || index >= list.length) {
-            console.warn('Invalid index provided to crossfadeTo');
-            return;
-        }
-
-        // Verify the image object has required properties
-        const image = list[index];
-        if (!image || !image.url) {
-            console.warn('Invalid image object at index:', index);
-            return;
-        }
-
         console.log('crossfadeTo called with:', {
             index,
-            listLength: list.length,
-            currentImage: image
+            listLength: list?.length,
+            order: window.slideshowOrder,
+            hasImages: !!list
         });
 
-        const imageList = list || images;
-        console.log('Using image list:', {
-            length: imageList.length,
-            currentImage: imageList[index],
-            hasDescription: imageList[index] ? 'description' in imageList[index] : false
-        });
+        // Use fallback list if provided list is invalid
+        const imageList = (list && Array.isArray(list) && list.length > 0) ? 
+            list : 
+            (window.selectedSlideshowImages || window.images || []);
 
-        nextSlideElement.src = imageList[index].url;
+        if (!imageList || !Array.isArray(imageList) || imageList.length === 0) {
+            console.warn('No valid image list available');
+            return;
+        }
+
+        // Ensure index is within bounds
+        const safeIndex = ((index % imageList.length) + imageList.length) % imageList.length;
+        const image = imageList[safeIndex];
+        
+        if (!image || !image.url) {
+            console.warn('Invalid image object at index:', safeIndex);
+            return;
+        }
+
+        // Proceed with transition
+        nextSlideElement.src = image.url;
         if (nextTitleOverlay) {
-            nextTitleOverlay.innerText = imageList[index].title;
+            nextTitleOverlay.innerText = image.title || '';
         }
         if (nextSubtitleOverlay) {
-            nextSubtitleOverlay.innerText = imageList[index].description || '';
+            nextSubtitleOverlay.innerText = image.description || '';
         }
+
         nextSlideElement.onload = () => {
             nextSlideElement.classList.add('active');
             currentSlideElement.classList.remove('active');
@@ -204,21 +257,37 @@ if (document.getElementById('slide1')) {
 
     // MODIFY nextImage to support 'groups' order
     function nextImage() {
+        // Always use the full image list or selected images if available
         const imageList = (window.selectedSlideshowImages && window.selectedSlideshowImages.length > 0) ?
             window.selectedSlideshowImages :
-            images;
+            fullImageList;
+
+        if (imageList.length === 0) {
+            console.warn('No images available for navigation');
+            return;
+        }
+
         let newList = imageList;
-        if (order === 'alphabetical') {
+
+        if (window.slideshowOrder === 'alphabetical') {
             newList.sort((a, b) => a.title.localeCompare(b.title));
             currentIndex = (currentIndex + 1) % newList.length;
-        } else if (order === 'random') {
-            if (currentIndex < newList.length - 1) {
-                currentIndex++;
-            } else {
+        } else if (window.slideshowOrder === 'random') {
+            // If we've shown all images, reset the tracking
+            if (usedRandomImages.size >= newList.length) {
+                usedRandomImages.clear();
                 shuffleArray(newList);
-                currentIndex = 0;
             }
-        } else if (order === 'groups') {
+
+            // Find next unused image
+            let nextIndex;
+            do {
+                nextIndex = Math.floor(Math.random() * newList.length);
+            } while (usedRandomImages.has(newList[nextIndex].id));
+
+            currentIndex = nextIndex;
+            usedRandomImages.add(newList[currentIndex].id);
+        } else if (window.slideshowOrder === 'groups') {
             const groupedList = groupOrderImages(newList);
             if (!groupedList.length) return; // Alert already thrown in helper
             newList = groupedList;
@@ -234,8 +303,20 @@ if (document.getElementById('slide1')) {
     function prevImage() {
         const imageList = (window.selectedSlideshowImages && window.selectedSlideshowImages.length > 0) ?
             window.selectedSlideshowImages :
-            images;
+            fullImageList;
+
+        if (imageList.length === 0) {
+            console.warn('No images available for navigation');
+            return;
+        }
+
         currentIndex = (currentIndex - 1 + imageList.length) % imageList.length;
+
+        // For random mode, track the previous image
+        if (window.slideshowOrder === 'random') {
+            usedRandomImages.add(imageList[currentIndex].id);
+        }
+
         crossfadeTo(currentIndex, imageList);
         resetSlideshowInterval();
     }
@@ -258,7 +339,8 @@ if (document.getElementById('slide1')) {
             window.slideshowInterval = null;
         }
         if (!window.slideshowPaused) {
-            startSlideshow();
+            const speed = window.transitionTime || parseFloat(localStorage.getItem('transitionTime')) || 3;
+            window.slideshowInterval = setInterval(window.nextImage, speed * 1000);
         }
     }
 
@@ -282,9 +364,18 @@ if (document.getElementById('slide1')) {
     window.addEventListener('storage', function(e) {
         // Update settings when changed
         if (e.key === 'settingsUpdate') {
-            transitionTime = parseFloat(localStorage.getItem('transitionTime')) || 3;
-            clearInterval(window.slideshowInterval);
-            window.slideshowInterval = setInterval(nextImage, transitionTime * 1000);
+            const transitionTime = parseFloat(localStorage.getItem('transitionTime')) || 3;
+            const newOrder = localStorage.getItem('slideshowOrder') || window.slideshowOrder;
+            console.log('Slideshow order changed:', {
+                previousOrder: window.slideshowOrder,
+                newOrder: newOrder
+            });
+            window.slideshowOrder = newOrder;
+            
+            if (window.slideshowInterval) {
+                clearInterval(window.slideshowInterval);
+                window.slideshowInterval = setInterval(window.nextImage, transitionTime * 1000);
+            }
         }
         // Play specific image when triggered
         if (e.key === 'playImage') {
@@ -309,17 +400,17 @@ if (document.getElementById('slide1')) {
             window.selectedSlideshowImages :
             images;
         let newList = imageList;
-        if (order === 'alphabetical') {
+        if (window.slideshowOrder === 'alphabetical') {
             newList.sort((a, b) => a.title.localeCompare(b.title));
             currentIndex = (currentIndex + 1) % newList.length;
-        } else if (order === 'random') {
+        } else if (window.slideshowOrder === 'random') {
             if (currentIndex < newList.length - 1) {
                 currentIndex++;
             } else {
                 shuffleArray(newList);
                 currentIndex = 0;
             }
-        } else if (order === 'groups') {
+        } else if (window.slideshowOrder === 'groups') {
             const groupedList = groupOrderImages(newList);
             if (!groupedList.length) return;
             newList = groupedList;
@@ -512,58 +603,104 @@ if (document.getElementById('settingsSection')) {
     window.imagesData = [];
 
     // ----- PICTURES MANAGEMENT FUNCTIONALITY -----
-    let imagesData = [];
-    let currentSortKey = null;
-    let currentSortDirection = 'asc';
 
-    // UPDATED sortImages: remove pagination dependencies; sort over entire array
     function sortImages(images) {
         if (!currentSortKey) return images;
-        return images.sort((a, b) => {
-            const valA = currentSortKey === 'tags' ? a.tags.join(', ') : a[currentSortKey] || '';
-            const valB = currentSortKey === 'tags' ? b.tags.join(', ') : b[currentSortKey] || '';
+
+        return [...images].sort((a, b) => {
+            let valA = currentSortKey === 'tags' ? a.tags.map(t => t.name).join(', ') : a[currentSortKey] || '';
+            let valB = currentSortKey === 'tags' ? b.tags.map(t => t.name).join(', ') : b[currentSortKey] || '';
+
             if (currentSortKey === 'dateAdded') {
-                return currentSortDirection === 'asc' ?
-                    Number(valA) - Number(valB) :
-                    Number(valB) - Number(valA);
-            } else {
-                const cmp = String(valA).localeCompare(String(valB));
-                return currentSortDirection === 'asc' ? cmp : -cmp;
+                valA = new Date(Number(valA));
+                valB = new Date(Number(valB));
             }
+
+            const comparison = valA < valB ? -1 : valA > valB ? 1 : 0;
+            return currentSortDirection === 'asc' ? comparison : -comparison;
         });
     }
 
-    // Function to update sort indicators
     function updateSortIndicators() {
         document.querySelectorAll('#imageTable th.sortable').forEach(header => {
-            let baseText = header.getAttribute('data-label');
-            if (!baseText) {
-                baseText = header.textContent.replace(/[▲▼]/g, '').trim();
-                header.setAttribute('data-label', baseText);
-            }
-            if (header.getAttribute('data-key') === currentSortKey) {
-                const arrow = currentSortDirection === 'asc' ? ' ▲' : ' ▼';
-                header.innerHTML = baseText + `<span class="sort-arrow">${arrow}</span>`;
+            const key = header.getAttribute('data-key');
+            const baseText = header.getAttribute('data-label') || header.textContent.trim();
+
+            if (key === currentSortKey) {
+                const arrow = currentSortDirection === 'asc' ? '▲' : '▼';
+                header.innerHTML = `${baseText} <span class="sort-arrow">${arrow}</span>`;
             } else {
                 header.innerHTML = baseText;
             }
         });
     }
 
-    // Event listener for sortable headers
+    // Replace all existing sortable header event listeners with this single unified one:
     document.querySelectorAll('#imageTable th.sortable').forEach(header => {
         header.addEventListener('click', () => {
             const key = header.getAttribute('data-key');
+
+            // Toggle direction if same key, otherwise set new key with asc direction
             if (currentSortKey === key) {
                 currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
             } else {
                 currentSortKey = key;
                 currentSortDirection = 'asc';
             }
+
             updateSortIndicators();
-            fetchImages();
+            filterImagesBySelectedTags();
         });
     });
+
+    // // UPDATED sortImages: remove pagination dependencies; sort over entire array
+    // function sortImages(images) {
+    //     if (!currentSortKey) return images;
+    //     return images.sort((a, b) => {
+    //         const valA = currentSortKey === 'tags' ? a.tags.join(', ') : a[currentSortKey] || '';
+    //         const valB = currentSortKey === 'tags' ? b.tags.join(', ') : b[currentSortKey] || '';
+    //         if (currentSortKey === 'dateAdded') {
+    //             return currentSortDirection === 'asc' ?
+    //                 Number(valA) - Number(valB) :
+    //                 Number(valB) - Number(valA);
+    //         } else {
+    //             const cmp = String(valA).localeCompare(String(valB));
+    //             return currentSortDirection === 'asc' ? cmp : -cmp;
+    //         }
+    //     });
+    // }
+
+    // // Function to update sort indicators
+    // function updateSortIndicators() {
+    //     document.querySelectorAll('#imageTable th.sortable').forEach(header => {
+    //         let baseText = header.getAttribute('data-label');
+    //         if (!baseText) {
+    //             baseText = header.textContent.replace(/[▲▼]/g, '').trim();
+    //             header.setAttribute('data-label', baseText);
+    //         }
+    //         if (header.getAttribute('data-key') === currentSortKey) {
+    //             const arrow = currentSortDirection === 'asc' ? ' ▲' : ' ▼';
+    //             header.innerHTML = baseText + `<span class="sort-arrow">${arrow}</span>`;
+    //         } else {
+    //             header.innerHTML = baseText;
+    //         }
+    //     });
+    // }
+
+    // // Event listener for sortable headers
+    // document.querySelectorAll('#imageTable th.sortable').forEach(header => {
+    //     header.addEventListener('click', () => {
+    //         const key = header.getAttribute('data-key');
+    //         if (currentSortKey === key) {
+    //             currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+    //         } else {
+    //             currentSortKey = key;
+    //             currentSortDirection = 'asc';
+    //         }
+    //         updateSortIndicators();
+    //         fetchImages();
+    //     });
+    // });
 
     // ======================
     // FETCH AND DISPLAY IMAGES
@@ -582,9 +719,12 @@ if (document.getElementById('settingsSection')) {
                         description: data[0].description,
                         hasDescriptionProperty: 'description' in data[0]
                     });
+                    const sortedImages = sortImages(data);
+                    displayImages(sortedImages); // or update your table with sortedImages
                 }
                 window.imagesData = data;
                 filterImagesBySelectedTags();
+                updatePagination(window.imagesData.length);
             })
             .catch(err => console.error("Error fetching images:", err));
     }
@@ -797,28 +937,25 @@ if (document.getElementById('settingsSection')) {
 
                 // Stop any existing slideshow
                 clearInterval(window.slideshowInterval);
-                window.slideshowPaused = false; // Set to false to allow new transitions
+                window.slideshowPaused = false;
 
-                // Reset slideshow state with the single image
-                window.selectedSlideshowImages = [image];
-                window.currentIndex = 0;
+                // Create a minimal image object for playback
+                const playImage = {
+                    id: image.id,
+                    url: image.url,
+                    title: image.title,
+                    description: image.description || ''
+                };
 
-                // Update DOM elements directly first for immediate feedback
-                const slide1 = document.getElementById('slide1');
-                const titleOverlay1 = document.getElementById('title-overlay1');
-                const subtitleOverlay1 = document.getElementById('subtitle-overlay1');
-
-                if (slide1) slide1.src = image.url;
-                if (titleOverlay1) titleOverlay1.innerText = image.title;
-                if (subtitleOverlay1) subtitleOverlay1.innerText = image.description || '';
-
-                // Then notify other clients
+                // Send only necessary data, using 'play' action to bypass hidden filter
                 fetch('/api/updateSlideshow', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            action: 'playSelect',
-                            images: [image]
+                            action: 'play',
+                            imageUrl: playImage.url,
+                            title: playImage.title,
+                            description: playImage.description
                         })
                     })
                     .then(response => response.json())
@@ -1038,6 +1175,11 @@ function filterImagesBySelectedTags() {
 
     // Combine selected images with filtered results
     images = [...selectedImages, ...filteredImages];
+
+    // If sorting is active, sort the combined images
+    if (currentSortKey) {
+        images = sortImages(images);
+    }
 
     // Update pagination and display
     totalPages = Math.ceil(images.length / currentLimit) || 1;
@@ -1286,21 +1428,47 @@ function updateSlideshowSettings() {
     const seconds = parseInt(document.getElementById('seconds').value) || 0;
     const totalSeconds = (minutes * 60) + seconds;
 
-    // Find the selected order button
+    // Get the currently active order button
     const selectedOrderBtn = document.querySelector('.bx--btn-set .bx--btn--primary');
-    const order = selectedOrderBtn ? selectedOrderBtn.id.replace('order', '').toLowerCase() : 'random';
+    let newOrder = window.slideshowOrder;  
+    if (selectedOrderBtn) {
+        newOrder = selectedOrderBtn.id.replace('order', '').toLowerCase();
+        window.slideshowOrder = newOrder;
+    }
 
+    // Update local storage and window variable
     localStorage.setItem('transitionTime', totalSeconds);
-    localStorage.setItem('slideshowOrder', order);
+    window.transitionTime = totalSeconds;
 
-    // Notify the server to update the slideshow settings
+    // Update server and emit to all clients
     fetch('/api/updateSlideshow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'updateSettings', speed: totalSeconds, order })
-    }).catch(err => console.error(err));
+        body: JSON.stringify({
+            action: 'updateSettings',
+            speed: totalSeconds,
+            order: newOrder
+        })
+    })
+    .then(() => {
+        // Reset the slideshow interval with new speed
+        if (window.slideshowInterval) {
+            clearInterval(window.slideshowInterval);
+            window.slideshowInterval = setInterval(window.nextImage, totalSeconds * 1000);
+        }
 
-    window.slideshowOrder = order;
+        // Show save confirmation
+        const saveMessage = document.getElementById('saveMessage');
+        if (saveMessage) {
+            saveMessage.innerText = 'Settings saved!';
+            saveMessage.classList.add('visible');
+            setTimeout(() => {
+                saveMessage.classList.add('fade-out');
+                setTimeout(() => saveMessage.classList.remove('visible', 'fade-out'), 500);
+            }, 2000);
+        }
+    })
+    .catch(err => console.error(err));
 }
 
 // Settings form submission
@@ -1327,7 +1495,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize order buttons
     const orderButtons = ['orderAlphabetical', 'orderRandom', 'orderGroups'];
-    const currentOrder = localStorage.getItem('slideshowOrder') || 'alphabetical';
+    const currentOrder = localStorage.getItem('slideshowOrder') || 'random';
 
     // Set initial active state
     orderButtons.forEach(btnId => {
@@ -1373,20 +1541,30 @@ document.addEventListener('DOMContentLoaded', () => {
 if (document.getElementById('tagManagerToggle')) {
     const tagManagerToggle = document.getElementById('tagManagerToggle');
     // Set the innerHTML to the provided SVG
-    tagManagerToggle.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="2"></circle><path d="M20,30a.9967.9967,0,0,1-.707-.293L8.5859,19A2.0126,2.0126,0,0,1,8,17.5859V10a2.002,2.002,0,0,1,2-2h7.5859A1.9864,1.9864,0,0,1,19,8.5859L29.707,19.293a.9994.9994,0,0,1,0,1.414l-9,9A.9967.9967,0,0,1,20,30ZM10,10v7.5859l10,10L27.5859,20l-10-10Z"></path><path d="M12,30H4a2.0021,2.0021,0,0,1-2-2V4A2.0021,2.0021,0,0,1,4,2H28a2.0021,2.0021,0,0,1,2,2v8H28V4H4V28h8Z"></path></svg>`;
+    tagManagerToggle.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="2"></circle><path d="M20,30a.9967.9967,0,0,1-.707-.293L8.5859,19A2.0126,2.0126,0,0,1,8,17.5859V10a2.002,2.002,0,0,1,2-2h7.5859A1.9864,1.9864,0,0,1,19,8.5859L29.707,19.293a.9994.9994,0,0,1,0,1.414l-9,9A.9967.9967,0,0,1,20,30ZM10,10v7.5859l10,10L27.5859,20l-10-10Z"></path><path d="M12,30H4a2.0021,2.0021,0,0,1-2-2V4A2.0021,2.0021,0,0,1,4,2H28a2.0021,2.0021,0,0,1,2,2v8H28V4H4V28h8Z"></path><title>Data definition</title></svg>`;
 
     // Toggle Tag Manager Visibility when clicked
     tagManagerToggle.addEventListener('click', function() {
         const managerSection = document.getElementById('tagManagerSection');
+        const playlistManagerSection = document.getElementById('playlistManagerSection');
+        const playlistManagerToggle = document.getElementById('playlistManagerToggle');
         const newTagForm = document.getElementById('newTagForm');
         const isVisible = window.getComputedStyle(managerSection).display !== 'none';
+
+        // Close playlist manager if open
+        if (playlistManagerSection) {
+            playlistManagerSection.style.display = 'none';
+            playlistManagerToggle.classList.remove('active');
+        }
 
         if (isVisible) {
             managerSection.style.display = 'none';
             newTagForm.style.display = 'none';
+            tagManagerToggle.classList.remove('active');
         } else {
-            managerSection.style.display = 'flex'; // Only set to flex when showing
+            managerSection.style.display = 'flex';
             newTagForm.style.display = 'flex';
+            tagManagerToggle.classList.add('active');
             fetchTags();
         }
     });
@@ -1394,16 +1572,6 @@ if (document.getElementById('tagManagerToggle')) {
 
 /**
  * Fetch all tags (excluding "all")
- */
-function fetchTags() {
-    console.log('Fetching tags...');
-    return fetch('/api/tags')
-        .then(response => {
-            console.log('Tag API response status:', response.status);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
         })
         .then(tags => {
             console.log('Received tags:', tags);
@@ -1601,14 +1769,20 @@ function getContentColorForBackground(bgColor) {
 
 // NEW: Global variable to track the next tag color index for sequential assignment.
 let nextTagColorIndex = 0;
+let nextPlaylistColorIndex = 0; // Add playlist color index
 
-// NEW: Add a global initialization to persist the next tag color index
+// NEW: Add a global initialization to persist both color indices
 nextTagColorIndex = localStorage.getItem('nextTagColorIndex');
+nextPlaylistColorIndex = localStorage.getItem('nextPlaylistColorIndex');
 if (nextTagColorIndex === null) {
     nextTagColorIndex = 0;
     localStorage.setItem('nextTagColorIndex', '0');
+}
+if (nextPlaylistColorIndex === null) {
+    nextPlaylistColorIndex = 0;
+    localStorage.setItem('nextPlaylistColorIndex', '0');
 } else {
-    nextTagColorIndex = parseInt(nextTagColorIndex, 10);
+    nextPlaylistColorIndex = parseInt(nextPlaylistColorIndex, 10);
 }
 
 /**
@@ -1672,6 +1846,9 @@ if (document.getElementById('playSelectBtn')) {
         // "imagesData" is assumed to be the global array of all images fetched earlier
         const selectedIds = Array.from(document.querySelectorAll('.selectImage:checked')).map(cb => cb.value);
         let playImages = [];
+        const transitionTime = parseFloat(localStorage.getItem('transitionTime')) || 3;
+        const order = localStorage.getItem('slideshowOrder') || 'random';
+
         if (selectedIds.length === 0 || selectedIds.length === window.imagesData.length) {
             // If none or all are selected, try to play images tagged "all"; fallback to all images
             playImages = window.imagesData.filter(img =>
@@ -1682,10 +1859,10 @@ if (document.getElementById('playSelectBtn')) {
             }
         } else {
             playImages = window.imagesData.filter(img => selectedIds.includes(String(img.id)));
-            const order = localStorage.getItem('slideshowOrder') || 'alphabetical';
-            if (order === 'alphabetical') {
+            const order = localStorage.getItem('slideshowOrder') || 'random';
+            if (order === 'random') {
                 playImages.sort((a, b) => a.title.localeCompare(b.title));
-            } else if (order === 'random') {
+            } else if (order === 'alphabetical') {
                 playImages.sort(() => Math.random() - 0.5);
             }
         }
@@ -1694,7 +1871,9 @@ if (document.getElementById('playSelectBtn')) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 action: 'playSelect',
-                images: playImages
+                images: playImages,
+                speed: transitionTime,
+                order: order
             })
         }).catch(err => console.error(err));
     });
@@ -1839,28 +2018,32 @@ document.addEventListener('DOMContentLoaded', () => {
         playTagsBtn.addEventListener('click', () => {
             const selectedPills = document.querySelectorAll('#tagSelectionContainer .tag-pill.selected');
             const selectedTagNames = Array.from(selectedPills).map(p => p.textContent.trim().toLowerCase());
-            let playImages = [];
-            if (selectedTagNames.length === 0) {
-                // No tags selected; play all images as normal.
-                playImages = window.imagesData;
-            } else {
-                // Filter images which include at least one selected tag.
-                playImages = window.imagesData.filter(img =>
+            const transitionTime = parseFloat(localStorage.getItem('transitionTime')) || 3;
+            const order = localStorage.getItem('slideshowOrder') || 'random';
+
+            let playImages = selectedTagNames.length === 0 ?
+                window.imagesData :
+                window.imagesData.filter(img =>
                     img.tags.some(t => selectedTagNames.includes(t.name.trim().toLowerCase()))
                 );
-            }
-            // Optionally sort based on order setting.
-            const order = localStorage.getItem('slideshowOrder') || 'random';
-            if (order === 'alphabetical') {
-                playImages.sort((a, b) => a.title.localeCompare(b.title));
-            } else if (order === 'random') {
-                playImages.sort(() => Math.random() - 0.5);
-            }
-            // Broadcast the selected images to update the slideshow.
+
+            // Send only necessary image data
+            const lightImages = playImages.map(img => ({
+                id: img.id,
+                url: img.url,
+                title: img.title,
+                description: img.description
+            }));
+
             fetch('/api/updateSlideshow', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'playSelect', images: playImages })
+                body: JSON.stringify({
+                    action: 'playSelect',
+                    images: lightImages,
+                    speed: transitionTime,
+                    order: order
+                })
             }).catch(err => console.error(err));
         });
     }
@@ -1900,7 +2083,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Switch to play icon when paused
                 pauseBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor"
                     width="24" height="24" viewBox="0 0 32 32" aria-hidden="true">
-                    <path d="M7,28a1,1,0,0,1-1-1V5a1,1,0,0,1,1.4819-.8763l20,11a1,1,0,0,1,0,1.7525l-20,11A1.0005,1.0005,0,0,1,7,28Z"></path>
+                    <path d="M7,28a1,1,0,0,1-1-1V5a1,1,0,0,1,1.4819-.8763l20,11a1,1,0,0,1,0,1.7525l-20,11A1.0005,1.0005,0,0,1,7,28ZM8,6.6909V25.3088L24.9248,16Z"></path>
                   </svg>`;
             } else {
                 window.slideshowPaused = false;
@@ -1916,9 +2099,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Add socket.io initialization
-const socket = io();
-
 // Move navigation functions to be globally available
 window.nextImage = function() {
     // Ensure we have a valid image list
@@ -1931,31 +2111,43 @@ window.nextImage = function() {
         return;
     }
 
-    let newList = imageList;
+    let newCurrentIndex = window.currentIndex;
+
     if (window.slideshowOrder === 'alphabetical') {
-        newList.sort((a, b) => a.title.localeCompare(b.title));
-        currentIndex = (currentIndex + 1) % newList.length;
+        newCurrentIndex = (newCurrentIndex + 1) % imageList.length;
     } else if (window.slideshowOrder === 'random') {
-        if (currentIndex < newList.length - 1) {
-            currentIndex++;
+        if (newCurrentIndex < imageList.length - 1) {
+            newCurrentIndex++;
         } else {
-            shuffleArray(newList);
-            currentIndex = 0;
+            shuffleArray(imageList);
+            newCurrentIndex = 0;
         }
     } else if (window.slideshowOrder === 'groups') {
-        const groupedList = groupOrderImages(newList);
-        if (!groupedList || groupedList.length === 0) return;
-        newList = groupedList;
-        currentIndex = (currentIndex + 1) % newList.length;
+        const groupedList = groupOrderImages(imageList);
+        if (groupedList.length > 0) {
+            window.currentIndex = (window.currentIndex + 1) % groupedList.length;
+            window.selectedSlideshowImages = groupedList;
+        } else {
+            window.currentIndex = (window.currentIndex + 1) % imageList.length;
+        }
     }
+
+    // Update the global current index
+    window.currentIndex = newCurrentIndex;
+
     // Emit navigation event to other clients
-    socket.emit('navigation', { action: 'next', index: currentIndex });
-    crossfadeTo(currentIndex, newList);
+    socket.emit('navigation', {
+        action: 'next',
+        index: window.currentIndex
+    });
+
+    // Perform the transition
+    crossfadeTo(window.currentIndex, window.selectedSlideshowImages);
     resetSlideshowInterval();
 };
 
+// Also update the prevImage function to match this pattern
 window.prevImage = function() {
-    // Ensure we have a valid image list
     const imageList = (window.selectedSlideshowImages && window.selectedSlideshowImages.length > 0) ?
         window.selectedSlideshowImages :
         window.images || [];
@@ -1965,42 +2157,22 @@ window.prevImage = function() {
         return;
     }
 
-    currentIndex = (currentIndex - 1 + imageList.length) % imageList.length;
+    window.currentIndex = (window.currentIndex - 1 + imageList.length) % imageList.length;
+
+    // For random mode, track the previous image
+    if (window.slideshowOrder === 'random') {
+        usedRandomImages.add(imageList[window.currentIndex].id);
+    }
+
     // Emit navigation event to other clients
-    socket.emit('navigation', { action: 'prev', index: currentIndex });
-    crossfadeTo(currentIndex, imageList);
+    socket.emit('navigation', {
+        action: 'prev',
+        index: window.currentIndex
+    });
+
+    crossfadeTo(window.currentIndex, imageList);
     resetSlideshowInterval();
 };
-
-// Add socket event listeners for navigation
-socket.on('navigation', ({ action, index }) => {
-    if (!document.getElementById('slide1')) {
-        console.log('Not on slideshow page, ignoring navigation event');
-        return;
-    }
-
-    const imageList = (window.selectedSlideshowImages && window.selectedSlideshowImages.length > 0) ?
-        window.selectedSlideshowImages :
-        window.images;
-
-    // Validate we have images to work with
-    if (!imageList || !Array.isArray(imageList) || imageList.length === 0) {
-        console.warn('No valid image list available for navigation');
-        return;
-    }
-
-    // Ensure index is valid
-    if (typeof index !== 'number' || index < 0 || index >= imageList.length) {
-        console.warn('Invalid index received:', index);
-        return;
-    }
-
-    if (action === 'next' || action === 'prev') {
-        currentIndex = index;
-        crossfadeTo(currentIndex, imageList);
-        resetSlideshowInterval();
-    }
-});
 
 // Add event listeners for navigation controls
 document.addEventListener('DOMContentLoaded', () => {
@@ -2530,7 +2702,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// ...existing code...
 
 // Add after the tagManagerToggle handler
 if (document.getElementById('playlistManagerToggle')) {
@@ -2539,24 +2710,577 @@ if (document.getElementById('playlistManagerToggle')) {
 
     // Toggle Playlist Manager Visibility
     playlistManagerToggle.addEventListener('click', function() {
-        // Toggle display between 'none' and 'flex'
+        const tagManagerSection = document.getElementById('tagManagerSection');
+        const tagManagerToggle = document.getElementById('tagManagerToggle');
+        const newTagForm = document.getElementById('newTagForm');
         const isVisible = window.getComputedStyle(playlistManagerSection).display !== 'none';
-        playlistManagerSection.style.display = isVisible ? 'none' : 'flex';
 
-        // Toggle active state of button
+        // Close tag manager if open
+        if (tagManagerSection) {
+            tagManagerSection.style.display = 'none';
+            newTagForm.style.display = 'none';
+            if (tagManagerToggle) {
+                tagManagerToggle.classList.remove('active');
+            }
+        }
+
+        // Toggle playlist manager
+        playlistManagerSection.style.display = isVisible ? 'none' : 'flex';
         playlistManagerToggle.classList.toggle('active');
     });
 }
 
-// Add new playlist button handler
+// =====================
+// Playlist Management
+// =====================
+
+// Store playlists in memory
+let playlists = [];
+
+// Fetch playlists from the server on load
+function loadPlaylists() {
+    // Only load playlists on manage page
+    if (!document.getElementById('settingsSection')) {
+        return;
+    }
+
+    fetch('/api/playlists')
+        .then(response => response.json())
+        .then(data => {
+            playlists = data;
+            displayPlaylists();
+        })
+        .catch(err => console.error('Error fetching playlists:', err));
+}
+
+// Save playlists to the server
+function savePlaylists() {
+    fetch('/api/playlists', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ playlists })
+        })
+        .then(response => response.json())
+        .then(result => {
+            console.log(result.message);
+        })
+        .catch(err => console.error('Error saving playlists:', err));
+}
+
+// Create new playlist
+function createPlaylist(name) {
+    const playlist = {
+        id: Date.now(),
+        name: name,
+        color: backgroundColors[nextPlaylistColorIndex], // Assign color
+        hidden: false,
+        createdAt: new Date().toISOString(),
+        imageIds: []
+    };
+
+    // Update the next color index
+    nextPlaylistColorIndex = (nextPlaylistColorIndex + 1) % backgroundColors.length;
+    localStorage.setItem('nextPlaylistColorIndex', nextPlaylistColorIndex);
+
+    // Optionally add any selected images to the new playlist
+    const selectedIds = Array.from(selectedImageIds);
+    if (selectedIds.length > 0) {
+        playlist.imageIds = selectedIds;
+        deselectAllImages();
+    }
+
+    playlists.push(playlist);
+    savePlaylists();
+    displayPlaylists();
+}
+
+// Delete a playlist
+function deletePlaylist(id) {
+    playlists = playlists.filter((p) => p.id !== id);
+    savePlaylists();
+    displayPlaylists();
+}
+
+// Add images to a playlist
+function addToPlaylist(playlistId, imageIds) {
+    const playlist = playlists.find((p) => p.id === playlistId);
+    if (playlist) {
+        const uniqueIds = new Set([...playlist.imageIds, ...imageIds]);
+        playlist.imageIds = Array.from(uniqueIds);
+        savePlaylists();
+        displayPlaylists();
+
+        // Update thumbnails if the playlist is expanded
+        const playlistItem = document.querySelector(`.playlist-item[data-id="${playlistId}"]`);
+        if (playlistItem && playlistItem.querySelector('.playlist-thumbnails').style.display === 'block') {
+            updatePlaylistThumbnails(playlistItem.querySelector('.playlist-thumbnails'), playlist.imageIds);
+        }
+    }
+}
+
+// Remove images from a playlist
+function removeFromPlaylist(playlistId, imageIds) {
+    const playlist = playlists.find((p) => p.id === playlistId);
+    if (playlist) {
+        playlist.imageIds = playlist.imageIds.filter((id) => !imageIds.includes(id));
+        savePlaylists();
+        displayPlaylists();
+
+        // Update thumbnails if the playlist is expanded
+        const playlistItem = document.querySelector(`.playlist-item[data-id="${playlistId}"]`);
+        if (playlistItem) {
+            const thumbnailsContainer = playlistItem.querySelector('.playlist-thumbnails');
+            if (thumbnailsContainer && thumbnailsContainer.style.display === 'grid') {
+                updatePlaylistThumbnails(thumbnailsContainer, playlist.imageIds); // Refresh thumbnails
+            }
+        }
+    }
+}
+
+// Toggle playlist visibility
+function togglePlaylistVisibility(id) {
+    const playlist = playlists.find((p) => p.id === id);
+    if (playlist) {
+        playlist.hidden = !playlist.hidden;
+        savePlaylists();
+        displayPlaylists();
+    }
+}
+
+// Edit playlist name
+function editPlaylistName(id, newName) {
+    const playlist = playlists.find((p) => p.id === id);
+    if (playlist) {
+        playlist.name = newName;
+        savePlaylists();
+        displayPlaylists();
+    }
+}
+
+// Deselect all selected images (used by playlist actions)
+function deselectAllImages() {
+    selectedImageIds.clear();
+    document.querySelectorAll('.selectImage').forEach((cb) => {
+        cb.checked = false;
+        const row = cb.closest('tr');
+        if (row) row.classList.remove('selected');
+    });
+    updateHeaderSelect();
+}
+
+// Display playlists in the UI
+function displayPlaylists() {
+    const container = document.getElementById('playlistList');
+    if (!container) {
+        console.warn('Playlist container not found');
+        return;
+    }
+    container.innerHTML = '';
+
+    if (!Array.isArray(playlists) || playlists.length === 0) { // Ensure playlists is an array
+        // Display empty state message if no playlists exist
+        const emptyState = document.createElement('div');
+        emptyState.className = 'empty-state';
+        emptyState.innerHTML = `
+            <p>No playlists available. Create a new playlist to get started.</p>
+            <button id="createPlaylistBtn">Create Playlist</button>
+        `;
+        container.appendChild(emptyState);
+
+        // Add event listener to the create playlist button
+        const createPlaylistBtn = document.getElementById('createPlaylistBtn');
+        if (createPlaylistBtn) {
+            createPlaylistBtn.addEventListener('click', () => {
+                const name = prompt('Enter playlist name:');
+                if (name && name.trim()) {
+                    createPlaylist(name.trim());
+                }
+            });
+        }
+        return;
+    }
+
+    playlists.forEach((playlist) => {
+        const playlistItem = document.createElement('div');
+        playlistItem.className = `playlist-item${playlist.hidden ? ' hidden' : ''}`;
+        playlistItem.dataset.id = playlist.id;
+
+        // Preserve the current display style of the thumbnails container
+        const existingPlaylistItem = document.querySelector(`.playlist-item[data-id="${playlist.id}"]`);
+        const currentDisplayStyle = existingPlaylistItem ?
+            existingPlaylistItem.querySelector('.playlist-thumbnails').style.display :
+            'none';
+
+        // Create playlist header with controls
+        const header = document.createElement('div');
+        header.className = 'playlist-header';
+        header.innerHTML = `
+            <label class="custom-checkbox">
+                <input type="checkbox" class="selectPlaylist">
+                <span class="checkmark"></span>
+            </label>
+            <span class="playlist-color" style="background-color: ${playlist.color}"></span> <!-- Apply color -->
+            <h4 class="playlist-name">${playlist.name}</h4>
+            <span class="playlist-count">(${playlist.imageIds.length} images)</span>
+            <div class="playlist-actions">
+                <button class="editPlaylistBtn" title="Edit playlist name">
+                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="16" height="16" viewBox="0 0 32 32">
+                        <path d="M2 26H30V28H2zM25.4 9c.8-.8.8-2 0-2.8 0 0 0 0 0 0l-3.6-3.6c-.8-.8-2-.8-2.8 0 0 0 0 0 0 0l-15 15V24h6.4L25.4 9zM20.4 4L24 7.6l-3 3L17.4 7 20.4 4zM6 22v-3.6l10-10 3.6 3.6-10 10H6z"></path>
+                    </svg>
+                </button>
+                <button class="visibilityBtn" title="${playlist.hidden ? 'Show playlist' : 'Hide playlist'}">
+                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="16" height="16" viewBox="0 0 32 32">
+                        <path d="M30.94,15.66A16.69,16.69,0,0,0,16,5,16.69,16.69,0,0,0,1.06,15.66a1,1,0,0,0,0,.68A16.69,16.69,0,0,0,16,27,16.69,16.69,0,0,0,30.94,16.34,1,1,0,0,0,30.94,15.66ZM16,25c-5.3,0-10.9-3.93-12.93-9C5.1,10.93,10.7,7,16,7s10.9,3.93,12.93,9C26.9,21.07,21.3,25,16,25Z"></path>
+                    </svg>
+                </button>
+                <button class="deletePlaylistBtn" title="Delete playlist">
+                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="16" height="16" viewBox="0 0 32 32">
+                        <path d="M12 12H14V24H12zM18 12H20V24H18z"></path>
+                        <path d="M4 6V8H6V28a2 2 0 002 2H24a2 2 0 002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"></path>
+                    </svg>
+                </button>
+                <button class="playPlaylistBtn" title="Play playlist">
+                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="16" height="16" viewBox="0 0 32 32">
+                        <path d="M7 28a1 1 0 01-1-1V5a1 1 0 011.4819-.8763l20 11a1 1 0 010 1.7525l-20 11A1.0005,1.0005,0,0,1,7,28z"></path>
+                    </svg>
+                </button>
+            </div>
+        `;
+
+        // Add event listener for expanding/collapsing thumbnails
+        const playlistCount = header.querySelector('.playlist-count');
+        playlistCount.addEventListener('click', () => togglePlaylistThumbnails(playlistItem, playlist));
+
+        // Attach event listeners for header actions
+        const editBtn = header.querySelector('.editPlaylistBtn');
+        if (editBtn) {
+            editBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                showPlaylistEditModal(playlist);
+            });
+        }
+        const visibilityBtn = header.querySelector('.visibilityBtn');
+        if (visibilityBtn) {
+            visibilityBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                togglePlaylistVisibility(playlist.id);
+            });
+        }
+        const deleteBtn = header.querySelector('.deletePlaylistBtn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (confirm('Are you sure you want to delete this playlist?')) {
+                    deletePlaylist(playlist.id);
+                }
+            });
+        }
+        const playBtn = header.querySelector('.playPlaylistBtn');
+        if (playBtn) {
+            playBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // Implement play playlist functionality
+            });
+        }
+
+        // Add event listener to add selected images to the playlist
+        playlistItem.addEventListener('click', () => {
+            const selectedIds = Array.from(selectedImageIds);
+            if (selectedIds.length > 0) {
+                addToPlaylist(playlist.id, selectedIds);
+                deselectAllImages();
+            }
+        });
+
+        // Append header to playlist item
+        playlistItem.appendChild(header);
+
+        // Create a container for thumbnails (hidden by default)
+        const thumbnailsContainer = document.createElement('div');
+        thumbnailsContainer.className = 'playlist-thumbnails';
+        thumbnailsContainer.style.display = currentDisplayStyle; // Initially hidden
+        playlistItem.appendChild(thumbnailsContainer);
+
+        container.appendChild(playlistItem);
+    });
+}
+
+function togglePlaylistThumbnails(playlistItem, playlist) {
+    const thumbnailsContainer = playlistItem.querySelector('.playlist-thumbnails');
+    const isExpanded = thumbnailsContainer.style.display === 'grid';
+
+    if (isExpanded) {
+        thumbnailsContainer.style.display = 'none';
+        playlistItem.querySelector('.playlist-count').classList.remove('expanded');
+        playlist.expanded = false; // Update playlist state
+    } else {
+        thumbnailsContainer.style.display = 'grid';
+        playlistItem.querySelector('.playlist-count').classList.add('expanded');
+        thumbnailsContainer.dataset.playlistId = playlist.id; // Store playlist ID for reference
+        updatePlaylistThumbnails(thumbnailsContainer, playlist.imageIds);
+        playlist.expanded = true; // Update playlist state
+    }
+}
+
+function updatePlaylistThumbnails(container, imageIds) {
+    container.innerHTML = ''; // Clear existing thumbnails
+    imageIds.forEach((imageId) => {
+        const image = window.images.find((img) => img.id === imageId); // Ensure images are fetched globally
+        if (image) {
+            const thumbnailWrapper = document.createElement('div');
+            thumbnailWrapper.className = 'thumbnail-wrapper';
+
+            const thumbnail = document.createElement('img');
+            thumbnail.src = image.thumbnailUrl || image.url; // Use thumbnail URL if available
+            thumbnail.alt = image.title || 'Image';
+            thumbnail.className = 'playlist-thumbnail';
+
+            // Create delete button
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'delete-thumbnail-btn';
+            deleteButton.innerHTML = '<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="#ffffff" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4l6.6 6.6L8 22.6 9.4 24l6.6-6.6 6.6 6.6 1.4-1.4-6.6-6.6L24 9.4z"></path></svg>'; // Simple "X" icon
+            deleteButton.title = 'Remove from playlist';
+            deleteButton.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent triggering other events
+                const playlistId = container.dataset.playlistId; // Get playlist ID from container
+                if (playlistId) {
+                    removeFromPlaylist(parseInt(playlistId, 10), [imageId]); // Remove image from playlist
+                }
+            });
+
+            thumbnailWrapper.appendChild(thumbnail);
+            thumbnailWrapper.appendChild(deleteButton);
+            container.appendChild(thumbnailWrapper);
+        } else {
+            console.warn(`Image with ID ${imageId} not found in global images.`);
+        }
+    });
+}
+
+// Ensure the container has the playlist ID for removing images
+function togglePlaylistThumbnails(playlistItem, playlist) {
+    const thumbnailsContainer = playlistItem.querySelector('.playlist-thumbnails');
+    const isExpanded = thumbnailsContainer.style.display === 'grid';
+
+    if (isExpanded) {
+        thumbnailsContainer.style.display = 'none';
+        playlistItem.querySelector('.playlist-count').classList.remove('expanded');
+    } else {
+        thumbnailsContainer.style.display = 'grid';
+        playlistItem.querySelector('.playlist-count').classList.add('expanded');
+        thumbnailsContainer.dataset.playlistId = playlist.id; // Store playlist ID for reference
+        updatePlaylistThumbnails(thumbnailsContainer, playlist.imageIds);
+    }
+}
+
+// Ensure images are fetched globally when the page loads
 document.addEventListener('DOMContentLoaded', () => {
+    fetch('/api/images')
+        .then(response => response.json())
+        .then(data => {
+            window.images = data; // Store images globally for easy access
+            console.log('Images loaded globally:', window.images);
+        })
+        .catch(err => console.error('Error fetching images:', err));
+});
+
+// Playlist edit modal functions
+function showPlaylistEditModal(playlist) {
+    const modal = document.getElementById('playlistEditModal');
+    const input = document.getElementById('editPlaylistName');
+    if (!modal || !input) return;
+    input.value = playlist.name || '';
+    modal.setAttribute('data-playlist-id', playlist.id || '');
+    modal.style.display = 'block';
+    input.focus();
+}
+
+function hidePlaylistEditModal() {
+    const modal = document.getElementById('playlistEditModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// Event listeners for playlist management
+document.addEventListener('DOMContentLoaded', () => {
+    // New playlist button via prompt
     const newPlaylistBtn = document.getElementById('newPlaylistBtn');
     if (newPlaylistBtn) {
         newPlaylistBtn.addEventListener('click', () => {
-            // TODO: Implement playlist creation
-            console.log('New playlist button clicked');
+            const name = prompt('Enter playlist name:');
+            if (name && name.trim()) {
+                createPlaylist(name.trim());
+            }
+        });
+    }
+
+    // New playlist form (if available)
+    const newPlaylistForm = document.getElementById('newPlaylistForm');
+    if (newPlaylistForm) {
+        newPlaylistForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const input = document.getElementById('newPlaylistName');
+            const name = input.value.trim();
+            if (name) {
+                createPlaylist(name);
+                input.value = '';
+            }
+        });
+    }
+
+    // Playlist edit modal buttons
+    const closePlaylistEditBtn = document.getElementById('closePlaylistEditBtn');
+    const savePlaylistEditBtn = document.getElementById('savePlaylistEditBtn');
+    if (closePlaylistEditBtn) {
+        closePlaylistEditBtn.addEventListener('click', hidePlaylistEditModal);
+    }
+    if (savePlaylistEditBtn) {
+        savePlaylistEditBtn.addEventListener('click', () => {
+            const modal = document.getElementById('playlistEditModal');
+            const playlistId = modal.getAttribute('data-playlist-id');
+            const newName = document.getElementById('editPlaylistName').value.trim();
+            if (newName) {
+                if (playlistId) {
+                    editPlaylistName(Number(playlistId), newName);
+                } else {
+                    createPlaylist(newName);
+                }
+                hidePlaylistEditModal();
+            }
+        });
+    }
+
+    loadPlaylists();
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const playlistSearch = document.getElementById('playlistSearch');
+    if (playlistSearch) {
+        playlistSearch.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const playlistItems = document.querySelectorAll('.playlist-item');
+            playlistItems.forEach(item => {
+                const name = item.querySelector('.playlist-name').textContent.toLowerCase();
+                item.style.display = name.includes(query) ? '' : 'none';
+            });
         });
     }
 });
+
+const playTagsBtn = document.getElementById('playTagsBtn');
+if (playTagsBtn) {
+    playTagsBtn.addEventListener('click', () => {
+        const selectedPills = document.querySelectorAll('#tagSelectionContainer .tag-pill.selected');
+        const selectedTagNames = Array.from(selectedPills).map(p => p.textContent.trim().toLowerCase());
+        const transitionTime = parseFloat(localStorage.getItem('transitionTime')) || 3;
+        const order = localStorage.getItem('slideshowOrder') || 'random';
+
+        // Filter images based on selected tags
+        let playImages = selectedTagNames.length === 0 ?
+            window.imagesData :
+            window.imagesData.filter(img =>
+                img.tags.some(t => selectedTagNames.includes(t.name.trim().toLowerCase()))
+            );
+
+        // Sort images if needed
+        if (order === 'alphabetical') {
+            playImages.sort((a, b) => a.title.localeCompare(b.title));
+        } else if (order === 'random') {
+            playImages = [...playImages].sort(() => Math.random() - 0.5);
+        }
+
+        // Send only necessary data
+        const lightImages = playImages.map(img => ({
+            id: img.id,
+            url: img.url,
+            title: img.title,
+            description: img.description || ''
+        }));
+
+        fetch('/api/updateSlideshow', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'playSelect',
+                images: lightImages,
+                speed: transitionTime,
+                order: order
+            })
+        }).catch(err => console.error('Error in playSelect:', err));
+    });
+}
+
+// ...existing code...
+
+window.nextImage = function() {
+    // Get current image list
+    const imageList = window.selectedSlideshowImages || window.images || [];
+    const order = window.slideshowOrder || localStorage.getItem('slideshowOrder') || 'random';
+
+    console.log('nextImage called:', {
+        order: order,
+        currentIndex: window.currentIndex,
+        listLength: imageList.length,
+        usedImagesCount: window.usedRandomImages ? window.usedRandomImages.size : 0
+    });
+
+    if (imageList.length === 0) {
+        console.warn('No images available for navigation');
+        return;
+    }
+
+    // Handle different ordering modes
+    switch (order) {
+        case 'random':
+            // Reset tracking if all images have been shown
+            if (!window.usedRandomImages) {
+                window.usedRandomImages = new Set();
+            }
+            
+            if (window.usedRandomImages.size >= imageList.length) {
+                window.usedRandomImages.clear();
+            }
+
+            // Find next unused random image
+            let nextIndex;
+            do {
+                nextIndex = Math.floor(Math.random() * imageList.length);
+            } while (window.usedRandomImages.has(imageList[nextIndex].id));
+
+            window.currentIndex = nextIndex;
+            window.usedRandomImages.add(imageList[nextIndex].id);
+            break;
+
+        case 'groups':
+            // Get grouped images
+            const groupedList = groupOrderImages(imageList);
+            if (groupedList.length > 0) {
+                window.currentIndex = (window.currentIndex + 1) % groupedList.length;
+                window.selectedSlideshowImages = groupedList;
+            } else {
+                window.currentIndex = (window.currentIndex + 1) % imageList.length;
+            }
+            break;
+
+        case 'alphabetical':
+        default:
+            // Sort alphabetically if not already sorted
+            const sortedList = [...imageList].sort((a, b) => a.title.localeCompare(b.title));
+            window.selectedSlideshowImages = sortedList;
+            window.currentIndex = (window.currentIndex + 1) % sortedList.length;
+            break;
+    }
+
+    // Emit navigation event to other clients
+    socket.emit('navigation', {
+        action: 'next',
+        index: window.currentIndex
+    });
+
+    // Perform the transition
+    crossfadeTo(window.currentIndex, window.selectedSlideshowImages);
+    resetSlideshowInterval();
+};
 
 // ...existing code...

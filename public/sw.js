@@ -32,6 +32,12 @@ self.addEventListener('fetch', event => {
     // Don't cache socket.io requests
     if (event.request.url.includes('/socket.io/')) return;
 
+    // Check if the URL scheme is supported (only http/https)
+    const url = new URL(event.request.url);
+    if (!['http:', 'https:'].includes(url.protocol)) {
+        return;
+    }
+
     event.respondWith(
         caches.match(event.request)
         .then(response => {
@@ -50,17 +56,25 @@ self.addEventListener('fetch', event => {
                     return response;
                 }
 
-                // Clone the response because it's a one-time-use stream
-                const responseToCache = response.clone();
+                try {
+                    // Clone the response because it's a one-time-use stream
+                    const responseToCache = response.clone();
 
-                // Add the response to the cache
-                caches.open(CACHE_NAME)
-                    .then(cache => {
-                        cache.put(event.request, responseToCache);
-                    })
-                    .catch(error => {
-                        console.warn('Failed to cache response:', error);
-                    });
+                    // Add the response to the cache
+                    caches.open(CACHE_NAME)
+                        .then(cache => {
+                            try {
+                                cache.put(event.request, responseToCache);
+                            } catch (error) {
+                                console.warn('Failed to cache response:', error);
+                            }
+                        })
+                        .catch(error => {
+                            console.warn('Failed to open cache:', error);
+                        });
+                } catch (error) {
+                    console.warn('Failed to clone response:', error);
+                }
 
                 return response;
             });

@@ -17,6 +17,10 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json()); // to parse JSON bodies
 
+// Increase payload size limits - add this after app initialization but before routes
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
 // ---------------------
 // Database Setup using SQLite
 // ---------------------
@@ -109,7 +113,13 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ storage: storage });
+// Configure multer with size limits
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 50 * 1024 * 1024 // 50MB limit
+    }
+});
 
 // ---------------------
 // Upload Endpoint
@@ -366,7 +376,7 @@ app.delete('/api/tags/:id', (req, res) => {
     const tagId = req.params.id;
     console.log('DELETE /api/tags/:id - Deleting tag:', tagId);
 
-    // First verify the tag exists
+    // First verify the tag exists and isn't protected
     db.get('SELECT * FROM tags WHERE id = ?', [tagId], (err, tag) => {
         if (err) {
             console.error('Error checking tag existence:', err);
@@ -376,6 +386,10 @@ app.delete('/api/tags/:id', (req, res) => {
         if (!tag) {
             console.log('Tag not found:', tagId);
             return res.status(404).json({ message: 'Tag not found.' });
+        }
+
+        if (tag.name === 'Hidden') {
+            return res.status(403).json({ message: 'Cannot delete protected tag.' });
         }
 
         // Begin transaction
@@ -486,23 +500,49 @@ app.post('/api/updateSlideshow', (req, res) => {
         action,
         speed,
         order,
-        hasImages: !!images
+        imagesCount: images ? images.length : 0
     });
 
+    // Increase default payload limit for this route
+    if (images && images.length > 1000) {
+        return res.status(413).json({
+            message: 'Payload too large. Please reduce the number of selected images.'
+        });
+    }
+
     if (action === 'next' || action === 'prev') {
-        console.log('Broadcasting slideAction:', action);
-        // Broadcast to ALL clients, not just others
         io.emit('slideAction', { action });
         return res.json({ message: 'Navigation broadcast sent', success: true });
     }
 
-    // Handle existing cases
     if (action === 'updateSettings') {
         io.emit('settingsUpdate', { speed, order });
     } else if (action === 'play') {
         io.emit('playImage', { imageUrl, title });
     } else if (action === 'playSelect') {
-        io.emit('playSelect', { images });
+        // Get list of hidden image IDs
+        db.all(`
+            SELECT DISTINCT image_id 
+            FROM image_tags 
+            JOIN tags ON tags.id = image_tags.tag_id 
+            WHERE tags.name = 'Hidden'
+        `, [], (err, hiddenImages) => {
+            if (err) {
+                console.error('Error fetching hidden images:', err);
+                return res.status(500).json({ message: 'Database error.' });
+            }
+
+            const hiddenIds = new Set(hiddenImages.map(row => row.image_id));
+            const filteredImages = images.filter(img => !hiddenIds.has(img.id));
+
+            io.emit('playSelect', {
+                images: filteredImages,
+                speed,
+                order
+            });
+            res.json({ message: 'Slideshow updated.' });
+        });
+        return;
     }
     res.json({ message: 'Slideshow updated.' });
 });
@@ -557,6 +597,113 @@ app.put('/api/tags/:id', (req, res) => {
 
             res.json({ message: 'Tag updated successfully.' });
         });
+    });
+});
+
+// ---------------------
+// DATABASE: Create Tables for Playlist Management
+// ---------------------
+db.serialize(() => {
+    // Create the playlists table if it doesn't exist
+    db.run(`CREATE TABLE IF NOT EXISTS playlists (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE,
+        color TEXT, 
+        is_hidden INTEGER DEFAULT 0,
+        created_at TEXT
+    )`);
+
+    // Create the playlist_images table to associate images with playlists
+    db.run(`CREATE TABLE IF NOT EXISTS playlist_images (
+        playlist_id INTEGER,
+        image_id INTEGER,
+        PRIMARY KEY (playlist_id, image_id),
+        FOREIGN KEY (playlist_id) REFERENCES playlists(id),
+        FOREIGN KEY (image_id) REFERENCES images(id)
+    )`);
+});
+
+// After database table creation, add protected tag initialization
+db.serialize(() => {
+    // Initialize protected 'Hidden' tag if it doesn't exist
+    db.get('SELECT id FROM tags WHERE name = ?', ['Hidden'], (err, row) => {
+        if (!row) {
+            db.run('INSERT INTO tags (name, color) VALUES (?, ?)', ['Hidden', '#666666']);
+        }
+    });
+});
+
+// ---------------------
+// Fetch playlists from the database
+// ---------------------
+function loadPlaylists(callback) {
+    const sql = `
+        SELECT playlists.id, playlists.name, playlists.color, playlists.is_hidden, playlists.created_at,
+               group_concat(playlist_images.image_id) as image_ids
+        FROM playlists
+        LEFT JOIN playlist_images ON playlists.id = playlist_images.playlist_id
+        GROUP BY playlists.id
+    `;
+    db.all(sql, (err, rows) => {
+        if (err) {
+            console.error('Database error in loadPlaylists:', err);
+            return callback(err);
+        }
+        const playlists = rows.map(row => ({
+            id: row.id,
+            name: row.name,
+            color: row.color, // Include color in the playlist object
+            hidden: row.is_hidden === 1,
+            createdAt: row.created_at,
+            imageIds: row.image_ids ? row.image_ids.split(',').map(Number) : []
+        }));
+        callback(null, playlists);
+    });
+}
+
+// ---------------------
+// Save playlists to the database
+// ---------------------
+function savePlaylists(playlists, callback) {
+    db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        db.run('DELETE FROM playlists');
+        db.run('DELETE FROM playlist_images');
+        playlists.forEach(playlist => {
+            db.run('INSERT INTO playlists (id, name, color, is_hidden, created_at) VALUES (?, ?, ?, ?, ?)', [playlist.id, playlist.name, playlist.color, playlist.hidden ? 1 : 0, playlist.createdAt]);
+            playlist.imageIds.forEach(imageId => {
+                db.run('INSERT INTO playlist_images (playlist_id, image_id) VALUES (?, ?)', [playlist.id, imageId]);
+            });
+        });
+        db.run('COMMIT', callback);
+    });
+}
+
+// ---------------------
+// API Endpoint to Get Playlists
+// ---------------------
+app.get('/api/playlists', (req, res) => {
+    loadPlaylists((err, playlists) => {
+        if (err) {
+            return res.status(500).json({ message: 'Database error.' });
+        }
+        res.json(Array.isArray(playlists) ? playlists : []); // Ensure playlists is always an array
+    });
+});
+
+// ---------------------
+// API Endpoint to Save Playlists
+// ---------------------
+app.post('/api/playlists', (req, res) => {
+    const playlists = req.body.playlists;
+    if (!Array.isArray(playlists)) {
+        return res.status(400).json({ message: 'Invalid playlists data.' });
+    }
+    savePlaylists(playlists, (err) => {
+        if (err) {
+            return res.status(500).json({ message: 'Database error.' });
+        }
+        res.json({ message: 'Playlists saved successfully.' });
     });
 });
 

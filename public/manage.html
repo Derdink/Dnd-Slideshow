@@ -15,6 +15,21 @@
 </head>
 
 <body class="manage">
+    <!-- Add this inside the <body> tag before any other modals -->
+    <div id="playlistEditModal" class="modal">
+        <div class="modal-content">
+            <button id="closePlaylistEditBtn" class="close-btn">&times;</button>
+            <h3>Edit Playlist</h3>
+            <div id="editPlaylistForm">
+                <label for="editPlaylistName">Name:</label>
+                <input type="text" id="editPlaylistName" required>
+                <div class="modal-buttons">
+                    <button id="savePlaylistEditBtn">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Replace the separate header and details with a single section -->
     <section id="settingsSection">
         <div id="manageHeader">
@@ -155,11 +170,7 @@
         <!-- Wrap the search bar and new filter button in a container -->
         <div id="filterContainer" style="display:flex; align-items:center; gap:0.5rem;">
             <button id="tagManagerToggle" title="Manage Tags">
-                <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32">
-                    <circle cx="14" cy="14" r="2"></circle>
-                    <path d="M20,30a.9967.9967,0,0,1-.707-.293L8.5859,19A2.0126,2.0126,0,0,1,8,17.5859V10a2.002,2.002,0,0,1,2-2h7.5859A1.9864,1.9864,0,0,1,19,8.5859L29.707,19.293a.9994.9994,0,0,1,0,1.414l-9,9A.9967.9967,0,0,1,20,30ZM10,10v7.5859l10,10L27.5859,20l-10-10Z"></path>
-                    <path d="M12,30H4a2.0021,2.0021,0,0,1-2-2V4A2.0021,2.0021,0,0,1,4,2H28a2.0021,2.0021,0,0,1,2,2v8H28V4H4V28h8Z"></path>
-                </svg>
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="2"></circle><path d="M20,30a.9967.9967,0,0,1-.707-.293L8.5859,19A2.0126,2.0126,0,0,1,8,17.5859V10a2.002,2.002,0,0,1,2-2h7.5859A1.9864,1.9864,0,0,1,19,8.5859L29.707,19.293a.9994.9994,0,0,1,0,1.414l-9,9A.9967.9967,0,0,1,20,30ZM10,10v7.5859l10,10L27.5859,20l-10-10Z"></path><path d="M12,30H4a2.0021,2.0021,0,0,1-2-2V4A2.0021,2.0021,0,0,1,4,2H28a2.0021,2.0021,0,0,1,2,2v8H28V4H4V28h8Z"></path><title>Tag manager</title></svg>
             </button>
 
             <button id="playlistManagerToggle" class="settingsToggle" title="Playlist Manager">
@@ -178,17 +189,26 @@
             <button id="bulkDelete" title="Delete selected images">
                 <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32">
                     <path d="M12 12H14V24H12zM18 12H20V24H18z"></path>
-                    <path d="M4 6V8H6V28a2 2 0 002 2H24a2 2,0,002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"></path>
+                    <path d="M4 6V8H6V28a2 2,0,002 2H24a2 2,0,002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"></path>
                 </svg>
             </button>
         </div>
 
         <div id="playlistManagerSection" style="display: none; margin-top: 1rem;">
             <div class="section-header">
-                <h3>Playlists</h3>
-                <button id="newPlaylistBtn" class="bx--btn bx--btn--primary">New Playlist</button>
+                <div class="bx--form-item">
+                    <div class="bx--text-input__field-wrapper">
+                        <input id="playlistSearch" type="text" class="bx--text-input search-CDS" placeholder="Search playlists..." />
+                    </div>
+                </div>
+                <form id="newPlaylistForm" class="playlist-form">
+                    <input type="text" id="newPlaylistName" placeholder="Enter playlist name" required>
+                    <button type="submit">Add</button>
+                </form>
+
+
             </div>
-            <div id="playlistContainer">
+            <div id="playlistList" class="playlist-list">
                 <!-- Playlists will be dynamically added here -->
             </div>
         </div>
@@ -210,7 +230,8 @@
                 <div class="playlist-section">
                     <h3>Playlists</h3>
                     <div id="playlistsContainer">
-                        <p>Playlists feature coming soon!</p>
+                        <!-- Add inside the filter container where the playlist toggle button is -->
+
                     </div>
                 </div>
             </div>
@@ -219,6 +240,8 @@
         <div id="slideFunctionsContainer">
             <button id="playSelectBtn">Play selected</button>
         </div>
+
+
 
         <table id="imageTable">
             <thead>
@@ -240,15 +263,6 @@
         </table>
         <!-- Added pagination container -->
         <div id="pagination"></div>
-        <div id="playlistManagerSection" style="display: none;">
-            <div class="section-header">
-                <h3>Playlists</h3>
-                <button id="newPlaylistBtn">New Playlist</button>
-            </div>
-            <div id="playlistContainer">
-                <!-- Playlists will be dynamically added here -->
-            </div>
-        </div>
     </section>
 
     <!-- Add Socket.IO before other scripts -->
@@ -334,6 +348,21 @@
             </form>
         </div>
     </div>
+    <!-- Add this right after the #editModal element -->
+    <div id="playlistEditModal" class="modal">
+        <div class="modal-content">
+            <button id="closePlaylistEditBtn" class="close-btn">&times;</button>
+            <h3>Edit Playlist</h3>
+            <form id="editPlaylistForm">
+                <label for="editPlaylistName">Name:</label>
+                <input type="text" id="editPlaylistName" required>
+                <div class="modal-buttons">
+                    <button type="button" id="savePlaylistEditBtn">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Add after the existing editModal -->
     <div id="tagEditModal" class="modal">
         <div class="modal-content">
@@ -350,6 +379,5 @@
             </form>
         </div>
     </div>
-</body>
 
 </html>

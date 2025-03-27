@@ -35,8 +35,13 @@
         </div>
     </div>
 
-    <!-- Update Socket.IO script to use specific version and load before other scripts -->
+    <!-- Load Socket.IO first -->
     <script src="/socket.io/socket.io.js"></script>
+    <!-- Then load main.js which depends on socket.io -->
+    <script src="main.js"></script>
+    <script src="sw-register.js"></script>
+
+    <!-- Move socket client configuration after Socket.IO is loaded -->
     <script>
         // Verify Socket.IO is loaded
         if (typeof io === 'undefined') {
@@ -44,17 +49,25 @@
         }
     </script>
     <script src="socket-client.js"></script>
-    <script src="main.js"></script>
-    <script src="sw-register.js"></script>
     <script>
         // Use window.socket from socket-client.js
         window.socket.on('settingsUpdate', ({
             speed,
             order
         }) => {
+            console.log('Received settings update:', { speed, order });
+            
+            // Update both localStorage and window context
             localStorage.setItem('transitionTime', speed);
             localStorage.setItem('slideshowOrder', order);
-            location.reload(); // Reload to apply new settings
+            window.transitionTime = speed;
+            window.slideshowOrder = order;
+            
+            // Reset interval with new speed
+            if (window.slideshowInterval) {
+                clearInterval(window.slideshowInterval);
+                window.slideshowInterval = setInterval(window.nextImage, speed * 1000);
+            }
         });
 
         window.socket.on('playImage', ({
@@ -109,36 +122,66 @@
         });
 
         window.socket.on('playSelect', ({
-            images
+            images,
+            speed,
+            order
         }) => {
-            console.log('Received playSelect event:', images);
+            console.log('Received playSelect event:', {
+                imagesCount: images?.length,
+                speed,
+                order,
+                currentOrder: window.slideshowOrder
+            });
 
-            if (document.getElementById('slide1') && images && images.length > 0) {
-                // Stop any existing slideshow
+            if (!images || !Array.isArray(images) || images.length === 0) {
+                console.error('Invalid images data received');
+                return;
+            }
+
+            // Stop any existing slideshow
+            if (window.slideshowInterval) {
                 clearInterval(window.slideshowInterval);
+                window.slideshowInterval = null;
+            }
 
-                // Reset slideshow state
-                window.slideshowPaused = false;
-                window.selectedSlideshowImages = images;
-                window.currentIndex = 0;
+            // Update settings - ensure speed is set in both localStorage and window context
+            if (speed) {
+                localStorage.setItem('transitionTime', speed);
+                window.transitionTime = speed;
+            }
+            if (order) {
+                localStorage.setItem('slideshowOrder', order);
+                window.slideshowOrder = order;
+            }
 
-                // Always use crossfade for transitions
-                if (typeof window.crossfadeTo === 'function') {
-                    try {
-                        window.crossfadeTo(0, images);
-                        console.log('Crossfade initiated successfully');
-                    } catch (error) {
-                        console.error('Error in crossfadeTo:', error);
-                    }
+            // Reset slideshow state
+            window.slideshowPaused = false;
+            window.currentIndex = 0;
+            window.usedRandomImages = new Set();
+
+            // Store images globally
+            window.selectedSlideshowImages = [...images];
+            window.images = [...images]; // Ensure fallback is also set
+
+            // Initialize first image
+            if (window.selectedSlideshowImages.length > 0) {
+                const firstImage = window.selectedSlideshowImages[0];
+                const slide1 = document.getElementById('slide1');
+                const titleOverlay1 = document.getElementById('title-overlay1');
+                const subtitleOverlay1 = document.getElementById('subtitle-overlay1');
+
+                if (slide1) {
+                    // Set initial image
+                    slide1.src = firstImage.url;
+                    if (titleOverlay1) titleOverlay1.innerText = firstImage.title || '';
+                    if (subtitleOverlay1) subtitleOverlay1.innerText = firstImage.description || '';
                 }
+            }
 
-                // Only start automatic slideshow if there's more than one image
-                if (images.length > 1) {
-                    if (typeof window.startSlideshow === 'function') {
-                        window.startSlideshow();
-                        console.log('Slideshow started');
-                    }
-                }
+            // Start slideshow if there are multiple images
+            if (window.selectedSlideshowImages.length > 1) {
+                const currentSpeed = window.transitionTime || parseFloat(localStorage.getItem('transitionTime')) || 3;
+                window.slideshowInterval = setInterval(window.nextImage, currentSpeed * 1000);
             }
         });
 
