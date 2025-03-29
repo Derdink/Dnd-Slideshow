@@ -42,6 +42,7 @@ function formatDateAdded(timestamp) {
 // Add this near the top with other global variables
 let selectedImageIds = new Set();
 let imagesData = [];
+let selectedPlaylistIds = new Set();
 
 // Add global sort variables so they are accessible in filterImagesBySelectedTags
 let currentSortKey = null;
@@ -77,6 +78,78 @@ function fetchTags() {
             return [];
         });
 }
+
+// Define crossfadeTo globally at the top of the file
+window.crossfadeTo = function(index, list) {
+    console.log('crossfadeTo called with:', {
+        index,
+        listLength: list?.length,
+        order: window.slideshowOrder,
+        hasImages: !!list
+    });
+
+    const imageList = (list && Array.isArray(list) && list.length > 0) ? 
+        list : 
+        (window.selectedSlideshowImages || window.images || []);
+
+    if (!imageList || !Array.isArray(imageList) || imageList.length === 0) {
+        console.warn('No valid image list available');
+        return;
+    }
+
+    const safeIndex = ((index % imageList.length) + imageList.length) % imageList.length;
+    const image = imageList[safeIndex];
+    
+    if (!image || !image.url) {
+        console.warn('Invalid image object at index:', safeIndex);
+        return;
+    }
+
+    const currentSlideElement = document.getElementById('slide1');
+    const nextSlideElement = document.getElementById('slide2');
+    const currentTitleOverlay = document.getElementById('title-overlay1');
+    const nextTitleOverlay = document.getElementById('title-overlay2');
+    const currentSubtitleOverlay = document.getElementById('subtitle-overlay1');
+    const nextSubtitleOverlay = document.getElementById('subtitle-overlay2');
+
+    // Ensure all required elements exist
+    if (!currentSlideElement || !nextSlideElement) {
+        console.warn('Slide elements not found. Ensure #slide1 and #slide2 exist in the DOM.');
+        return;
+    }
+
+    nextSlideElement.src = image.url;
+    if (nextTitleOverlay) {
+        nextTitleOverlay.innerText = image.title || '';
+    }
+    if (nextSubtitleOverlay) {
+        nextSubtitleOverlay.innerText = image.description || '';
+    }
+
+    nextSlideElement.onload = () => {
+        nextSlideElement.classList.add('active');
+        currentSlideElement.classList.remove('active');
+        if (nextTitleOverlay && currentTitleOverlay) {
+            nextTitleOverlay.classList.add('active');
+            currentTitleOverlay.classList.remove('active');
+        }
+        if (nextSubtitleOverlay && currentSubtitleOverlay) {
+            nextSubtitleOverlay.classList.add('active');
+            currentSubtitleOverlay.classList.remove('active');
+        }
+        setTimeout(() => {
+            let tempImg = currentSlideElement;
+            currentSlideElement = nextSlideElement;
+            nextSlideElement = tempImg;
+            if (nextTitleOverlay && currentTitleOverlay) {
+                nextTitleOverlay.classList.remove('active');
+            }
+            if (nextSubtitleOverlay && currentSubtitleOverlay) {
+                nextSubtitleOverlay.classList.remove('active');
+            }
+        }, 1000);
+    };
+};
 
 // ======================
 // SLIDESHOW FUNCTIONALITY (Index Page)
@@ -161,25 +234,23 @@ if (document.getElementById('slide1')) {
     // ======================
     // Crossfade to Next Image
     // ======================
-    function crossfadeTo(index, list) {
+    window.crossfadeTo = function(index, list) {
         console.log('crossfadeTo called with:', {
             index,
             listLength: list?.length,
             order: window.slideshowOrder,
             hasImages: !!list
         });
-
-        // Use fallback list if provided list is invalid
+    
         const imageList = (list && Array.isArray(list) && list.length > 0) ? 
             list : 
             (window.selectedSlideshowImages || window.images || []);
-
+    
         if (!imageList || !Array.isArray(imageList) || imageList.length === 0) {
             console.warn('No valid image list available');
             return;
         }
-
-        // Ensure index is within bounds
+    
         const safeIndex = ((index % imageList.length) + imageList.length) % imageList.length;
         const image = imageList[safeIndex];
         
@@ -187,8 +258,7 @@ if (document.getElementById('slide1')) {
             console.warn('Invalid image object at index:', safeIndex);
             return;
         }
-
-        // Proceed with transition
+    
         nextSlideElement.src = image.url;
         if (nextTitleOverlay) {
             nextTitleOverlay.innerText = image.title || '';
@@ -196,7 +266,7 @@ if (document.getElementById('slide1')) {
         if (nextSubtitleOverlay) {
             nextSubtitleOverlay.innerText = image.description || '';
         }
-
+    
         nextSlideElement.onload = () => {
             nextSlideElement.classList.add('active');
             currentSlideElement.classList.remove('active');
@@ -933,11 +1003,29 @@ if (document.getElementById('settingsSection')) {
             playBtn.classList.add('playBtn');
             playBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                console.log('Play button clicked for image:', image);
+    console.log('Play button clicked for image:', image);
 
-                // Stop any existing slideshow
-                clearInterval(window.slideshowInterval);
-                window.slideshowPaused = false;
+    clearInterval(window.slideshowInterval);
+    window.slideshowPaused = true;
+    console.log('crossfadeTo is defined globally:', typeof window.crossfadeTo === 'function');
+console.log('crossfadeTo is defined locally:', typeof crossfadeTo === 'function');
+
+    const imageIndex = window.images.findIndex(img => img.id === image.id);
+    if (imageIndex === -1) {
+        console.error('Image not found in global image list:', image);
+        return;
+    }
+
+    // Ensure crossfadeTo is available
+    if (typeof window.crossfadeTo !== 'function') {
+        console.error('crossfadeTo is not defined');
+        return;
+    }
+
+    window.crossfadeTo(imageIndex, window.images);
+    window.currentIndex = imageIndex;
+
+    socket.emit('navigation', { action: 'play', index: imageIndex });
 
                 // Create a minimal image object for playback
                 const playImage = {
@@ -2027,12 +2115,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     img.tags.some(t => selectedTagNames.includes(t.name.trim().toLowerCase()))
                 );
 
-            // Send only necessary image data
+            // Send only necessary data
             const lightImages = playImages.map(img => ({
                 id: img.id,
                 url: img.url,
                 title: img.title,
-                description: img.description
+                description: img.description || ''
             }));
 
             fetch('/api/updateSlideshow', {
@@ -2749,6 +2837,7 @@ function loadPlaylists() {
         .then(data => {
             playlists = data;
             displayPlaylists();
+            displayPlaylistFilters(); // Add this line to update the filter display
         })
         .catch(err => console.error('Error fetching playlists:', err));
 }
@@ -2792,6 +2881,7 @@ function createPlaylist(name) {
     playlists.push(playlist);
     savePlaylists();
     displayPlaylists();
+    displayPlaylistFilters(); // Refresh the filter list
 }
 
 // Delete a playlist
@@ -2875,9 +2965,20 @@ function displayPlaylists() {
         console.warn('Playlist container not found');
         return;
     }
+
+    // Store current expanded states before clearing container
+    const expandedStates = {};
+    document.querySelectorAll('.playlist-item').forEach(item => {
+        const id = item.dataset.id;
+        const thumbnailsContainer = item.querySelector('.playlist-thumbnails');
+        if (thumbnailsContainer) {
+            expandedStates[id] = thumbnailsContainer.style.display === 'grid';
+        }
+    });
+
     container.innerHTML = '';
 
-    if (!Array.isArray(playlists) || playlists.length === 0) { // Ensure playlists is an array
+    if (!Array.isArray(playlists) || playlists.length === 0) {
         // Display empty state message if no playlists exist
         const emptyState = document.createElement('div');
         emptyState.className = 'empty-state';
@@ -2905,11 +3006,8 @@ function displayPlaylists() {
         playlistItem.className = `playlist-item${playlist.hidden ? ' hidden' : ''}`;
         playlistItem.dataset.id = playlist.id;
 
-        // Preserve the current display style of the thumbnails container
-        const existingPlaylistItem = document.querySelector(`.playlist-item[data-id="${playlist.id}"]`);
-        const currentDisplayStyle = existingPlaylistItem ?
-            existingPlaylistItem.querySelector('.playlist-thumbnails').style.display :
-            'none';
+        // Use stored expanded state if available, otherwise default to 'none'
+        const wasExpanded = expandedStates[playlist.id] || false;
 
         // Create playlist header with controls
         const header = document.createElement('div');
@@ -2998,8 +3096,18 @@ function displayPlaylists() {
         // Create a container for thumbnails (hidden by default)
         const thumbnailsContainer = document.createElement('div');
         thumbnailsContainer.className = 'playlist-thumbnails';
-        thumbnailsContainer.style.display = currentDisplayStyle; // Initially hidden
+        thumbnailsContainer.style.display = wasExpanded ? 'grid' : 'none';
         playlistItem.appendChild(thumbnailsContainer);
+
+        // If expanded, immediately update the thumbnails
+        if (wasExpanded) {
+            updatePlaylistThumbnails(thumbnailsContainer, playlist.imageIds);
+            // Update the arrow state in the count element
+            const countElement = playlistItem.querySelector('.playlist-count');
+            if (countElement) {
+                countElement.classList.add('expanded');
+            }
+        }
 
         container.appendChild(playlistItem);
     });
@@ -3283,4 +3391,447 @@ window.nextImage = function() {
     resetSlideshowInterval();
 };
 
+
+
+function filterImagesByPlaylists() {
+    let images = window.imagesData || [];
+    if (!images.length) return;
+
+    const queryEl = document.getElementById('search');
+    const query = queryEl ? queryEl.value.trim().toLowerCase() : '';
+
+    // If no playlists are selected, reset to normal filtering
+    if (selectedPlaylistIds.size === 0) {
+        filterImagesBySelectedTags();
+        return;
+    }
+
+    // Get selected images first
+    const selectedImages = images.filter(img => selectedImageIds.has(img.id));
+
+    // Filter remaining unselected images
+    let filteredImages = images.filter(img => {
+        // Skip if already in selected images
+        if (selectedImageIds.has(img.id)) return false;
+
+        // Apply search filter
+        if (query && !img.title.toLowerCase().includes(query)) return false;
+
+        // Check if image is in any selected playlist
+        return Array.from(selectedPlaylistIds).some(playlistId => {
+            const playlist = playlists.find(p => p.id === playlistId);
+            return playlist && playlist.imageIds.includes(img.id);
+        });
+    });
+
+    // Combine selected images with filtered results
+    images = [...selectedImages, ...filteredImages];
+
+    // Apply sorting if active
+    if (currentSortKey) {
+        images = sortImages(images);
+    }
+
+    // Update pagination and display
+    totalPages = Math.ceil(images.length / currentLimit) || 1;
+    if (currentPage > totalPages) currentPage = totalPages;
+    const pageEntries = images.slice((currentPage - 1) * currentLimit, currentPage * currentLimit);
+    displayImages(pageEntries);
+    updatePagination(images.length);
+}
+
+function displayPlaylistFilters() {
+    const container = document.querySelector('.filter-grid .playlist-section .playlistsContainer');
+    if (!container) return;
+
+    // Clear the container first
+    container.innerHTML = '';
+
+    // Create and append the filter header
+    const header = document.createElement('div');
+    header.className = 'playlist-filter-header';
+    
+    // Create search container and input
+    const searchContainer = document.createElement('div');
+    searchContainer.className = 'playlist-search-container';
+    
+    const searchInput = document.createElement('div');
+    searchInput.className = 'bx--search bx--search--sm';
+    searchInput.innerHTML = `
+        <input type="text" class="bx--search-input" 
+               placeholder="Search playlists" 
+               aria-label="Search playlists">
+        <svg class="bx--search-magnifier" width="16" height="16" viewBox="0 0 16 16">
+            <path d="M15 14.3L10.7 10c1.9-2.3 1.6-5.8-.7-7.7S4.2.7 2.3 3 .7 8.8 3 10.7c2 1.7 5 1.7 7 0l4.3 4.3.7-.7zM2 6.5C2 4 4 2 6.5 2S11 4 11 6.5 9 11 6.5 11 2 9 2 6.5z"></path>
+        </svg>
+    `;
+
+    // Create deselect button
+    const deselectBtn = document.createElement('button');
+    deselectBtn.className = 'playlist-deselect-btn';
+    deselectBtn.title = 'Deselect all playlists';
+    deselectBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 32 32">
+            <path d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4l6.6 6.6L8 22.6 9.4 24l6.6-6.6 6.6 6.6 1.4-1.4-6.6-6.6L24 9.4z"></path>
+        </svg>
+    `;
+
+    searchContainer.appendChild(searchInput);
+    header.appendChild(searchContainer);
+    header.appendChild(deselectBtn);
+    container.appendChild(header);
+
+    // Create scrollable playlists container
+    const scrollContainer = document.createElement('div');
+    scrollContainer.className = 'playlists-scroll-container';
+    container.appendChild(scrollContainer);
+
+    // Filter and display playlists function
+    function filterAndDisplayPlaylists(searchTerm = '') {
+        const filteredPlaylists = playlists
+        .filter(playlist => playlist.imageIds && playlist.imageIds.length > 0) // Only playlists with images
+        .filter(playlist => playlist.name.toLowerCase().includes(searchTerm.toLowerCase())); // Apply search filter
+
+    const scrollContainer = document.querySelector('.playlists-scroll-container');
+    if (!scrollContainer) return;
+
+        scrollContainer.innerHTML = '';
+        filteredPlaylists.forEach(playlist => {
+            const item = document.createElement('div');
+            item.className = `playlist-filter-item${selectedPlaylistIds.has(playlist.id) ? ' selected' : ''}`;
+            item.innerHTML = `
+                <span class="playlist-filter-color" style="background-color: ${playlist.color}"></span>
+                <div class="playlist-filter-info">
+                    <span class="playlist-filter-name">${playlist.name}</span>
+                    <span class="playlist-filter-count">${playlist.imageIds.length} images</span>
+                </div>
+            `;
+
+            item.addEventListener('click', () => {
+                if (selectedPlaylistIds.has(playlist.id)) {
+                    selectedPlaylistIds.delete(playlist.id);
+                    item.classList.remove('selected');
+                } else {
+                    selectedPlaylistIds.add(playlist.id);
+                    item.classList.add('selected');
+                }
+                filterImagesByPlaylists();
+            });
+
+            scrollContainer.appendChild(item);
+        });
+    }
+
+    // Add search handler
+    const searchInputElement = searchInput.querySelector('input');
+    searchInputElement.addEventListener('input', (e) => {
+        filterAndDisplayPlaylists(e.target.value);
+    });
+
+    // Add deselect handler
+    deselectBtn.addEventListener('click', () => {
+        selectedPlaylistIds.clear();
+        filterAndDisplayPlaylists(searchInputElement.value);
+        filterImagesByPlaylists();
+    });
+
+    // Initial display with all playlists
+    filterAndDisplayPlaylists('');
+}
+
+// Modify the loadPlaylists function to call displayPlaylistFilters after loading
+function loadPlaylists() {
+    // Only load playlists on manage page
+    if (!document.getElementById('settingsSection')) {
+        return;
+    }
+
+    fetch('/api/playlists')
+        .then(response => response.json())
+        .then(data => {
+            playlists = data;
+            displayPlaylists();
+            displayPlaylistFilters(); // Add this line to update the filter display
+        })
+        .catch(err => console.error('Error fetching playlists:', err));
+}
+
 // ...existing code...
+// Global variable to store selected settings playlist IDs
+let selectedSettingsPlaylistIds = new Set();
+
+// Function to display playlists in the Settings view
+function displaySettingsPlaylists(playlists) {
+    const container = document.getElementById('settingsPlaylistList');
+    if (!container) return;
+    // Only show playlists that have images
+    const playlistsWithImages = playlists.filter(p => p.imageIds && p.imageIds.length > 0);
+    container.innerHTML = playlistsWithImages.length
+        ? ''
+        : '<div class="bx--tile">No playlists with images found.</div>';
+
+    playlistsWithImages.forEach(playlist => {
+        const item = document.createElement('div');
+        item.className = `settings-playlist-item${selectedSettingsPlaylistIds.has(playlist.id) ? ' selected' : ''}`;
+        item.dataset.id = playlist.id;
+        item.innerHTML = `
+            <span class="settings-playlist-color" style="background-color: ${playlist.color}"></span>
+            <div class="settings-playlist-info">
+                <span class="settings-playlist-name">${playlist.name}</span>
+                <span class="settings-playlist-count">${playlist.imageIds.length} images</span>
+            </div>
+        `;
+        // Toggle selection on click
+        item.addEventListener('click', () => {
+            if (item.classList.toggle('selected')) {
+                selectedSettingsPlaylistIds.add(playlist.id);
+            } else {
+                selectedSettingsPlaylistIds.delete(playlist.id);
+            }
+        });
+        container.appendChild(item);
+    });
+}
+
+// Consolidated loadPlaylists function that updates all playlist views
+function loadPlaylists() {
+    // Only run on the management page
+    if (!document.getElementById('settingsSection')) return;
+    fetch('/api/playlists')
+        .then(response => response.json())
+        .then(data => {
+            playlists = data;
+            displayPlaylists();
+            displayPlaylistFilters();
+            displaySettingsPlaylists(data);
+        })
+        .catch(err => console.error('Error fetching playlists:', err));
+}
+
+// Settings view event listeners for playlist search and controls
+document.addEventListener('DOMContentLoaded', () => {
+    const playlistSearchInput = document.getElementById('playlistSearchInput');
+    if (playlistSearchInput) {
+        playlistSearchInput.addEventListener('input', e => {
+            const query = e.target.value.trim().toLowerCase();
+            const items = document.querySelectorAll('#settingsPlaylistList .settings-playlist-item');
+            items.forEach(item => {
+                const nameEl = item.querySelector('.settings-playlist-name');
+                item.style.display = nameEl && nameEl.textContent.toLowerCase().includes(query)
+                    ? ''
+                    : 'none';
+            });
+        });
+    }
+
+    const selectAllBtn = document.getElementById('selectAllPlaylists');
+    const deselectAllBtn = document.getElementById('deselectAllPlaylists');
+    const playSelectedBtn = document.getElementById('playSelectedPlaylists');
+
+  
+    if (selectAllBtn) {
+        console.log('Select All button found');
+        selectAllBtn.addEventListener('click', () => {
+            console.log('Select All button clicked');
+            const playlistItems = document.querySelectorAll('#settingsPlaylistList .settings-playlist-item');
+            playlistItems.forEach(item => {
+                item.classList.add('selected');
+                selectedSettingsPlaylistIds.add(parseInt(item.dataset.id));
+            });
+            console.log('Selected playlist IDs:', Array.from(selectedSettingsPlaylistIds));
+        });
+    } else {
+        console.error('Select All button not found');
+    }
+
+    if (deselectAllBtn) {
+        console.log('Deselect All button found');
+        deselectAllBtn.addEventListener('click', () => {
+            console.log('Deselect All button clicked');
+            const playlistItems = document.querySelectorAll('#settingsPlaylistList .settings-playlist-item');
+            playlistItems.forEach(item => {
+                item.classList.remove('selected');
+            });
+            selectedSettingsPlaylistIds.clear();
+            console.log('Selected playlist IDs after clearing:', Array.from(selectedSettingsPlaylistIds));
+        });
+    } else {
+        console.error('Deselect All button not found');
+    }
+
+    if (playSelectedBtn) {
+        playSelectedBtn.addEventListener('click', () => {
+            const selectedPlaylists = Array.from(selectedSettingsPlaylistIds)
+                .map(id => playlists.find(p => p.id === id))
+                .filter(Boolean);
+            if (selectedPlaylists.length === 0) {
+                alert('Please select at least one playlist');
+                return;
+            }
+            // Combine unique image IDs from selected playlists
+            const imageIds = new Set();
+            selectedPlaylists.forEach(playlist => {
+                playlist.imageIds.forEach(id => imageIds.add(id));
+            });
+            const playImages = Array.from(imageIds)
+                .map(id => window.images.find(img => img.id === id))
+                .filter(Boolean);
+            if (playImages.length === 0) {
+                alert('No images found in selected playlists');
+                return;
+            }
+            const lightImages = playImages.map(img => ({
+                id: img.id,
+                url: img.url,
+                title: img.title,
+                description: img.description || ''
+            }));
+            // Trigger the slideshow using current settings
+            const transitionTime = parseFloat(localStorage.getItem('transitionTime')) || 3;
+            const order = localStorage.getItem('slideshowOrder') || 'random';
+            fetch('/api/updateSlideshow', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'playSelect',
+                    images: lightImages,
+                    speed: transitionTime,
+                    order: order
+                })
+            }).catch(err => console.error('Error playing playlists:', err));
+        });
+    }
+});
+
+// Consolidated initialization for playlist manager components
+function initPlaylistComponents() {
+    const playlistSection = document.getElementById('playlistSection');
+    if (!playlistSection) {
+        console.error('Could not find #playlistSection');
+        return;
+    }
+    let sectionHeader = playlistSection.querySelector('.section-header');
+    if (!sectionHeader) {
+        sectionHeader = document.createElement('div');
+        sectionHeader.className = 'section-header';
+        playlistSection.insertBefore(sectionHeader, playlistSection.firstChild);
+    }
+    // Only add the search wrapper if it doesn’t already exist
+    if (!sectionHeader.querySelector('.playlist-search-wrapper')) {
+        const searchWrapper = document.createElement('div');
+        searchWrapper.className = 'playlist-search-wrapper';
+        searchWrapper.style.display = 'flex';
+        searchWrapper.style.alignItems = 'center';
+        searchWrapper.style.gap = '8px';
+        searchWrapper.style.width = '100%';
+        searchWrapper.innerHTML = `
+            <div class="bx--search bx--search--sm" role="search" style="flex: 1;">
+                <svg class="bx--search-magnifier" width="16" height="16" viewBox="0 0 16 16">
+                    <path d="M6.5 12a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zm4.936-1.27l4.563 4.557-.707.708-4.563-4.558a6.5 6.5 0 1 1 .707-.707z" fill="currentColor"></path>
+                </svg>
+                <input type="text" class="bx--search-input" placeholder="Search playlists" id="playlistSelectSearch" aria-label="Search playlists">
+            </div>
+            <button id="selectAllPlaylists" class="bx--btn bx--btn--sm bx--btn--primary">Select All</button>
+            <button id="deselectAllPlaylists" class="bx--btn bx--btn--sm bx--btn--secondary">Deselect All</button>
+        `;
+        sectionHeader.insertBefore(searchWrapper, sectionHeader.firstChild);
+
+        // Attach event listeners for Select All and Deselect All buttons
+        const selectAllBtn = document.getElementById('selectAllPlaylists');
+        const deselectAllBtn = document.getElementById('deselectAllPlaylists');
+
+        if (selectAllBtn) {
+            console.log('Select All button found');
+            selectAllBtn.addEventListener('click', () => {
+                console.log('Select All button clicked');
+                const playlistItems = document.querySelectorAll('#settingsPlaylistList .settings-playlist-item');
+                playlistItems.forEach(item => {
+                    item.classList.add('selected');
+                    selectedSettingsPlaylistIds.add(parseInt(item.dataset.id));
+                });
+                console.log('Selected playlist IDs:', Array.from(selectedSettingsPlaylistIds));
+            });
+        } else {
+            console.error('Select All button not found');
+        }
+
+        if (deselectAllBtn) {
+            console.log('Deselect All button found');
+            deselectAllBtn.addEventListener('click', () => {
+                console.log('Deselect All button clicked');
+                const playlistItems = document.querySelectorAll('#settingsPlaylistList .settings-playlist-item');
+                playlistItems.forEach(item => {
+                    item.classList.remove('selected');
+                });
+                selectedSettingsPlaylistIds.clear();
+                console.log('Selected playlist IDs after clearing:', Array.from(selectedSettingsPlaylistIds));
+            });
+        } else {
+            console.error('Deselect All button not found');
+        }
+        // Add search handler
+        const searchInput = searchWrapper.querySelector('.bx--search-input');
+        searchInput.addEventListener('input', e => {
+            console.log('Search input triggered:', e.target.value);
+            const query = e.target.value.trim().toLowerCase();
+            document.querySelectorAll('.settings-playlist-item').forEach(item => {
+                const name = item.querySelector('.settings-playlist-name');
+                item.style.display = name && name.textContent.toLowerCase().includes(query)
+                    ? ''
+                    : 'none';
+            });
+        });
+        sectionHeader.insertBefore(searchWrapper, sectionHeader.firstChild);
+    }
+    loadPlaylists();
+}
+
+// Initialize playlist manager when its toggle is opened or when the playlist tab is selected
+document.addEventListener('DOMContentLoaded', () => {
+    const playlistManagerToggle = document.getElementById('playlistManagerToggle');
+    if (playlistManagerToggle) {
+        playlistManagerToggle.addEventListener('click', function () {
+            setTimeout(() => {
+                const playlistManagerSection = document.getElementById('playlistManagerSection');
+                if (playlistManagerSection && window.getComputedStyle(playlistManagerSection).display !== 'none') {
+                    initPlaylistComponents();
+                }
+            }, 100);
+        });
+    }
+    // Also initialize when a tab containing the playlistSection is selected
+    const tabList = document.querySelector('.bx--tabs__nav');
+    if (tabList) {
+        const tabs = tabList.querySelectorAll('.bx--tabs__nav-item');
+        const panels = document.querySelectorAll('.bx--tab-panel');
+        tabs.forEach((tab, index) => {
+            tab.addEventListener('click', () => {
+                panels.forEach(panel => {
+                    panel.hidden = true;
+                    panel.setAttribute('aria-hidden', 'true');
+                });
+                panels[index].hidden = false;
+                panels[index].setAttribute('aria-hidden', 'false');
+                if (panels[index].id === 'tab-panel-3' || panels[index].querySelector('#playlistSection')) {
+                    setTimeout(initPlaylistComponents, 100);
+                }
+            });
+        });
+    }
+    const playlistSelectSearch = document.getElementById('playlistSelectSearch');
+    if (playlistSelectSearch) {
+        playlistSelectSearch.addEventListener('input', (e) => {
+            const query = e.target.value.trim().toLowerCase();
+            const playlistItems = document.querySelectorAll('#settingsPlaylistList .settings-playlist-item');
+
+            playlistItems.forEach((item) => {
+                const playlistName = item.querySelector('.settings-playlist-name');
+                if (playlistName && playlistName.textContent) {
+                    const matchesSearch = !query || playlistName.textContent.toLowerCase().includes(query);
+                    item.style.display = matchesSearch ? '' : 'none';
+                }
+            });
+        });
+    }
+});
+

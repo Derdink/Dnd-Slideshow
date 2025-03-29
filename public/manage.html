@@ -142,10 +142,9 @@
 
                 <!-- Playlist tab panel -->
                 <div id="tab-panel-3" class="bx--tab-panel" role="tabpanel" aria-labelledby="tab-link-3" aria-hidden="true">
-                    <div id="playlistSection">
-                        <!-- Playlist content will go here -->
-                        <h3>Playlists</h3>
-                        <p>Coming soon...</p>
+                    <div id="playlistSection" class="bx--section">
+                        <!-- Add playlist controls -->
+                        <div id="settingsPlaylistList" class="bx--list"></div>
                     </div>
                 </div>
 
@@ -227,11 +226,12 @@
                     <h3>Filter by Tags</h3>
                     <div id="tagFilterDropdown"></div>
                 </div>
-                <div class="playlist-section">
-                    <h3>Playlists</h3>
-                    <div id="playlistsContainer">
-                        <!-- Add inside the filter container where the playlist toggle button is -->
-
+                <div class="filter-grid">
+                    <div class="playlist-section">
+                        <h3>Filter by Playlists</h3>
+                        <div class="playlistsContainer">
+                            <!-- Content will be populated by JavaScript -->
+                        </div>
                     </div>
                 </div>
             </div>
