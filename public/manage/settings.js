@@ -14,11 +14,16 @@ import { state, updateState } from '../state.js';
 import { updateSlideshowSettings, playSelectedTags, playSelectedPlaylist } from '../api.js';
 import '../socket-client.js'; // Import socket-client.js which exposes socket as window.socket
 import { STORAGE_KEYS, DEFAULTS, UI } from '../config.js';
+import { getContentColorForBackground } from './utils.js'; // Need this
+const DEFAULT_TAG_COLOR = '#cccccc'; // Define if not already present
 
 // DOM elements cached by parent manage.js module
 let dom = {};
 // Get the socket from the global window object
 const socket = window.socket;
+
+// Temporary state for tag selection within the settings panel
+let settingSelectedTagNames = new Set();
 
 export function setSettingsDOMCache(cachedDom) {
     dom = cachedDom;
@@ -158,77 +163,117 @@ function showSaveConfirmation() {
 }
 
 /**
- * Displays available tags for selection
- * Implements Slideshow Management User Story 3:
- * - Show all tags
- * - Allow multiple tag selection
+ * Displays available tags for selection as pills.
  */
-function displayTagsForSelection() {
+export function displayTagsForSelection() {
     if (!dom.tagSelectionContainer) {
         console.warn('Tag selection container not found in DOM cache for settings.');
         return;
     }
     dom.tagSelectionContainer.innerHTML = ''; // Clear existing
-    const allTags = state.tags || []; // Get tags from global state
+    settingSelectedTagNames.clear(); // Clear selection state on redraw
+    const allTags = state.tags || [];
 
     if (allTags.length === 0) {
         dom.tagSelectionContainer.innerHTML = '<p class="bx--type-body-short-01">No tags available.</p>';
         return;
     }
 
+    // --- Add Select/Deselect All Buttons --- 
+    const selectAllBtn = createSettingsActionButton('Select All', true, () => { // True for primary
+        dom.tagSelectionContainer.querySelectorAll('.settings-tag-pill').forEach(pill => {
+            pill.classList.add('selected');
+            settingSelectedTagNames.add(pill.dataset.tagName);
+        });
+    });
+    dom.tagSelectionContainer.appendChild(selectAllBtn);
+
+    const deselectAllBtn = createSettingsActionButton('Deselect All', false, () => { // False for secondary
+        dom.tagSelectionContainer.querySelectorAll('.settings-tag-pill.selected').forEach(pill => {
+            pill.classList.remove('selected');
+        });
+        settingSelectedTagNames.clear();
+    });
+    dom.tagSelectionContainer.appendChild(deselectAllBtn);
+
+    // Add separator or spacing if needed
+    const separator = document.createElement('hr');
+    separator.style.width = '100%';
+    separator.style.borderTop = '1px solid var(--cds-border-subtle-01)';
+    separator.style.margin = 'var(--cds-spacing-03) 0';
+    dom.tagSelectionContainer.appendChild(separator);
+    // --- --------------------------- ---
+
     allTags.forEach(tag => {
-        // Using Carbon components structure for checkboxes
-        const div = document.createElement('div');
-        div.className = 'bx--form-item bx--checkbox-wrapper';
+        const tagName = tag.name;
+        const tagColor = tag.color || DEFAULT_TAG_COLOR;
+        const contrastColor = getContentColorForBackground(tagColor);
 
-        const input = document.createElement('input');
-        input.type = 'checkbox';
-        input.className = 'bx--checkbox';
-        input.id = `settings-tag-${tag.id || tag.name.replace(/\s+/g, '-')}`; // Use ID or sanitized name
-        input.value = tag.name;
-        input.name = 'settingSelectedTags';
+        const pill = document.createElement('div');
+        pill.className = 'bx--tag bx--tag--filter settings-tag-pill'; // Use filter style tag
+        pill.style.backgroundColor = tagColor;
+        pill.style.color = contrastColor;
+        pill.style.cursor = 'pointer';
+        pill.dataset.tagName = tagName; // Store name for retrieval
 
-        const label = document.createElement('label');
-        label.htmlFor = input.id;
-        label.className = 'bx--checkbox-label';
-        // Add the checkbox icon structure for Carbon
-        label.innerHTML = `<span class="bx--checkbox-label-text">${tag.name}</span>`;
+        const tagNameElem = document.createElement('span');
+        tagNameElem.textContent = tagName;
+        pill.appendChild(tagNameElem);
 
-        div.appendChild(input);
-        div.appendChild(label);
-        dom.tagSelectionContainer.appendChild(div);
+        // Click listener to toggle selection
+        pill.addEventListener('click', () => {
+            const isSelected = pill.classList.toggle('selected');
+            if (isSelected) {
+                settingSelectedTagNames.add(tagName);
+            } else {
+                settingSelectedTagNames.delete(tagName);
+            }
+        });
+
+        dom.tagSelectionContainer.appendChild(pill);
     });
 }
 
 /**
- * Handles play tags button click
- * Implements Slideshow Management User Story 3:
- * - Play selected tags
- * - Validate tag selection
+ * Helper to create settings action buttons (Select/Deselect All)
+ * @param {string} text - Button text
+ * @param {boolean} isPrimary - True for primary style, false for secondary
+ * @param {function} onClick - Click handler
+ * @returns {HTMLButtonElement}
+ */
+function createSettingsActionButton(text, isPrimary, onClick) { 
+    const btn = document.createElement('button');
+    // Use standard Carbon button classes
+    btn.className = `bx--btn bx--btn--sm ${isPrimary ? 'bx--btn--primary' : 'bx--btn--secondary'}`;
+    btn.type = 'button'; // Explicitly set type
+    btn.textContent = text;
+    btn.addEventListener('click', onClick);
+    return btn;
+}
+
+/**
+ * Handles play tags button click - Reads selection from pills.
  */
 async function handlePlayTagsClick() {
     if (!dom.tagSelectionContainer || !dom.playTagsBtn) return;
 
-    const selectedCheckboxes = dom.tagSelectionContainer.querySelectorAll('input[name="settingSelectedTags"]:checked');
-    const selectedTagNames = Array.from(selectedCheckboxes).map(cb => cb.value);
+    // Get selected tags from the temporary set
+    const selectedTagNames = Array.from(settingSelectedTagNames);
 
     if (selectedTagNames.length === 0) {
-        // Maybe use a Carbon notification instead of alert
         alert('Please select at least one tag to play.');
         return;
     }
 
     console.log(`Settings: Playing tags: ${selectedTagNames.join(', ')}`);
-    dom.playTagsBtn.classList.add('bx--btn--disabled'); // Disable button during API call
+    dom.playTagsBtn.classList.add('bx--btn--disabled');
     dom.playTagsBtn.setAttribute('disabled', true);
     try {
-        await playSelectedTags(selectedTagNames);
-        // Optionally provide user feedback (e.g., Carbon notification)
+        await playSelectedTags(selectedTagNames); // API call
         console.log(`Request sent to play tags: ${selectedTagNames.join(', ')}`);
-        // alert(`Starting slideshow with tags: ${selectedTagNames.join(', ')}`);
     } catch (error) {
         console.error('Error starting slideshow with selected tags:', error);
-        alert('Failed to start slideshow with selected tags. Check console.'); // Basic feedback
+        alert('Failed to start slideshow with selected tags. Check console.');
     } finally {
         dom.playTagsBtn.classList.remove('bx--btn--disabled');
         dom.playTagsBtn.removeAttribute('disabled');
@@ -283,7 +328,7 @@ export function initSettingsTab() {
     console.log('Initializing Settings Tab...');
 
     loadSettingsValues();
-    displayTagsForSelection(); // Populate tags checkbox list
+    // REMOVE Initial call: displayTagsForSelection(); // Let refreshManageData handle population
     // displayPlaylistsForSelection is now handled by playlistManager.js
     attachSettingsEventListeners();
 

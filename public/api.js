@@ -37,6 +37,9 @@ export async function fetchImages({
   if (filters.tags && filters.tags.length) queryParams.append('tags', filters.tags.join(','));
   if (filters.playlistId) queryParams.append('playlistId', filters.playlistId);
   if (filters.includeHidden) queryParams.append('includeHidden', 'true');
+  if (filters.ids && Array.isArray(filters.ids) && filters.ids.length > 0) {
+    queryParams.append('ids', filters.ids.join(','));
+  }
 
   console.log('API URL being called:', `/api/images?${queryParams.toString()}`);
   

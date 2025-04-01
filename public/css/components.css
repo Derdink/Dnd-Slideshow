@@ -26,7 +26,49 @@
     border-top: 1px solid var(--cds-ui-03, var(--border-color));
 }
 
-/* Modal */
+/* Explicit Carbon Modal Base Styles (Ensure they apply) */
+.bx--modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: var(--cds-z-index-overlay, 8000); /* Use Carbon z-index */
+  display: flex; /* Use flex for centering */
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  visibility: hidden; /* Initially hidden */
+  opacity: 0;
+  background-color: var(--cds-overlay-01, rgba(22, 22, 22, 0.5));
+  transition: opacity var(--cds-motion-moderate-01, 150ms) var(--cds-motion-easing-productive) 0s,
+              visibility var(--cds-motion-moderate-01, 150ms) var(--cds-motion-easing-productive) 0s;
+}
+
+.bx--modal.is-visible {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Ensure modal container doesn't inherit strange styles */
+.bx--modal-container {
+  width: auto; /* Let content determine width */
+  max-width: 90%; /* Prevent overly wide modals */
+  max-height: 90vh; /* Prevent overly tall modals */
+  display: flex;
+  flex-direction: column;
+  background-color: var(--cds-ui-background, #ffffff); /* Use Carbon background */
+  border-radius: 0; /* Carbon modals typically don't have rounded corners */
+  box-shadow: var(--cds-shadow-md); /* Use Carbon shadow */
+  overflow: hidden; /* Prevent content bleed */
+}
+
+.bx--modal-content {
+    overflow-y: auto; /* Allow content scrolling */
+    padding: var(--cds-spacing-05); /* Carbon padding */
+}
+
+/* OLD Modal Styles - REMOVE or COMMENT OUT */
+/*
 .modal {
     position: fixed;
     top: 0;
@@ -34,7 +76,7 @@
     width: 100%;
     height: 100%;
     background-color: var(--cds-overlay-01, rgba(0, 0, 0, 0.5));
-    display: flex;
+    display: none;
     align-items: center;
     justify-content: center;
     z-index: var(--cds-z-index-modal, var(--z-index-modal));
@@ -71,6 +113,8 @@
 .modal-close:hover {
     color: var(--cds-text-01, var(--text-primary));
 }
+*/
+/* End OLD Modal Styles */
 
 /* Toast */
 .toast {
@@ -201,4 +245,823 @@
     to {
         transform: rotate(360deg);
     }
-} 
+}
+
+/* --- Settings Section --- */
+#settingsSection {
+    background-color: var(--cds-ui-02, var(--bg-secondary)); /* Light gray background */
+    padding: var(--cds-spacing-05, 1.5rem);
+    border-bottom: 1px solid var(--cds-ui-03, var(--border-color));
+}
+
+#manageHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Push controls to the right */
+    
+}
+
+#manageTitle {
+    /* Use Carbon heading styles */
+    font-size: var(--cds-heading-02, 1.25rem); /* Adjust as needed */
+    font-weight: 600;
+    line-height: var(--cds-heading-compact-02, 1.25rem);
+    margin: 0; /* Remove default heading margin */
+    flex-grow: 1; /* Allow title to take up space */
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--cds-spacing-03, 0.5rem); /* Spacing between buttons */
+}
+
+.header-controls .bx--btn--icon-only svg {
+    width: 1rem; /* 16px */
+    height: 1rem;
+    fill: var(--cds-icon-primary, #161616);
+}
+
+/* Change toggle background when settings are open */
+#settingsToggle.active {
+    background-color: var(--cds-ui-01, var(--bg-primary)); /* Match settings-details background */
+    /* Optionally, adjust border or other styles if needed for seamless look */
+}
+
+/* Styling for the collapsible settings details area */
+#settings-details {
+    padding: var(--cds-spacing-05, 1.5rem);
+    background-color: var(--cds-ui-01, var(--bg-primary)); /* White background */
+    border-radius: var(--cds-radius-md, 0.375rem);
+    border: 1px solid var(--cds-ui-03, var(--border-color));
+    /* display: none; is set inline initially, controlled by JS */
+}
+
+/* Style adjustments for elements within settings details if needed */
+.settings-group {
+    margin-bottom: var(--cds-spacing-06, 2rem);
+}
+
+.settings-row {
+    display: flex;
+    align-items: flex-end; /* Align items to bottom for button alignment */
+    gap: var(--cds-spacing-05, 1.5rem);
+    flex-wrap: wrap;
+}
+
+.time-inputs {
+    display: flex;
+    gap: var(--cds-spacing-03, 0.5rem);
+}
+
+#timeInputs {
+    width: auto;
+}
+
+#orderContainer .bx--btn-set {
+    display: flex; /* Ensure button set displays inline */
+}
+
+#saveSettingsBtn span {
+    margin-left: var(--cds-spacing-03, 0.5rem);
+}
+
+#saveMessage {
+    margin-left: var(--cds-spacing-05, 1.5rem);
+}
+
+/* Carbon Tab Content Visibility */
+.bx--tab-content > .bx--tab-panel[aria-hidden="true"] {
+    display: none;
+}
+
+.bx--tab-content > .bx--tab-panel[aria-hidden="false"] {
+    display: block;
+}
+
+/* --- Upload Section --- */
+#uploadSection {
+    padding: var(--cds-spacing-05, 1.5rem); /* Add some padding */
+}
+
+#dropArea {
+    border: 2px dashed var(--cds-border-subtle-01, #ccc);
+    border-radius: var(--cds-radius-md, 0.375rem);
+    padding: var(--cds-spacing-07, 3rem) var(--cds-spacing-05, 1.5rem);
+    text-align: center;
+    margin-bottom: var(--cds-spacing-05, 1.5rem);
+    background-color: var(--cds-ui-01, #ffffff);
+    transition: background-color var(--cds-motion-fast-01, 150ms ease), border-color var(--cds-motion-fast-01, 150ms ease);
+}
+
+#dropArea.highlight {
+    border-color: var(--cds-interactive-01, #0f62fe);
+    background-color: var(--cds-hover-ui, #e5e5e5); /* Subtle hover background */
+}
+
+#dropArea p {
+    color: var(--cds-text-secondary, #525252);
+    margin-bottom: var(--cds-spacing-04, 1rem);
+}
+
+/* #selectFiles button is now styled via Carbon classes added in HTML */
+
+#uploadStatus {
+    margin-top: var(--cds-spacing-05, 1.5rem);
+    background-color: var(--cds-ui-01, #ffffff);
+    padding: var(--cds-spacing-04, 1rem);
+    border-radius: var(--cds-radius-md, 0.375rem);
+    border: 1px solid var(--cds-ui-03, #e0e0e0);
+    font-size: var(--cds-label-01, 0.875rem);
+    min-height: 50px; /* Give it some initial height */
+}
+
+#uploadStatus div {
+    padding: var(--cds-spacing-02, 0.25rem) 0;
+    border-bottom: 1px solid var(--cds-border-subtle-00, #f4f4f4);
+}
+
+#uploadStatus div:last-child {
+    border-bottom: none;
+}
+
+/* --- Filter Container --- */
+#filterContainer {
+    display: flex;
+    align-items: center;
+    gap: var(--cds-spacing-03, 0.5rem); /* Consistent gap */
+    padding: var(--cds-spacing-04, 1rem) 1.5rem; /* Add vertical padding */
+    border-bottom: 1px solid var(--cds-border-subtle-01, #e0e0e0);
+}
+
+
+
+#filterContainer .bx--btn--icon-only svg {
+    width: 1rem; /* 16px */
+    height: 1rem;
+    fill: var(--cds-icon-primary, #161616);
+}
+
+/* Make search input expand */
+#filterContainer .search-wrapper {
+    flex-grow: 1; /* Apply flex-grow to the wrapper */
+    /* Optionally add min-width if needed */
+    /* min-width: 200px; */
+}
+
+/* Remove flex-grow from the search component itself if previously added */
+#filterContainer .bx--search-input {
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='16'%20height='16'%20viewBox='0%200%2016%2016'%3E%3Cpath%20d='M15,14.3L10.7,10c0.9-1.2,1.4-2.6,1.4-4c0-3.3-2.7-6-6-6S0,2.7,0,6s2.7,6,6,6c1.4,0,2.8-0.5,4-1.4l4.3,4.3c0.2,0.2,0.5,0.3,0.7,0.3s0.5-0.1,0.7-0.3C15.5,15.3,15.5,14.7,15,14.3z%20M6,10.5c-2.5,0-4.5-2-4.5-4.5s2-4.5,4.5-4.5s4.5,2,4.5,4.5S8.5,10.5,6,10.5z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 16px 50%;
+}
+
+/* --- Tag Manager Specific Styles --- */
+#tagManagerContainer {
+    padding: var(--cds-spacing-05, 1.5rem);
+    background-color: var(--cds-ui-01, #ffffff);
+    border-top: 1px solid var(--cds-border-subtle-01, #e0e0e0);
+    
+}
+
+#newTagForm {
+    display: flex;
+    gap: var(--cds-spacing-03, 0.5rem);
+    margin-bottom: var(--cds-spacing-05, 1.5rem);
+}
+
+#newTagForm #newTagName {
+    flex-grow: 1;
+    /* Use Carbon Text Input styles */
+    padding: var(--cds-spacing-03, 0.5rem) var(--cds-spacing-04, 1rem);
+    border: 1px solid var(--cds-border-subtle-01, #ccc);
+    border-radius: var(--cds-radius-md, 0);
+    font-size: var(--cds-body-compact-01, 0.875rem);
+    line-height: var(--cds-line-height-md, 1.5);
+    background-color: var(--cds-field-01, #f4f4f4);
+    color: var(--cds-text-primary, #161616);
+}
+
+#newTagForm #newTagName:focus {
+    outline: 2px solid var(--cds-focus, #0f62fe);
+    outline-offset: -2px;
+    border-color: transparent;
+}
+
+#newTagForm button {
+    /* Use Carbon Button styles */
+    border: 1px solid var(--cds-button-primary, #0f62fe);
+    background-color: var(--cds-button-primary, #0f62fe);
+    color: var(--cds-text-on-color, #ffffff);
+    cursor: pointer;
+    font-size: var(--cds-body-compact-01, 0.875rem);
+    border-radius: var(--cds-radius-md, 0);
+    transition: background-color var(--cds-motion-fast-01, 110ms), border-color var(--cds-motion-fast-01, 110ms), box-shadow var(--cds-motion-fast-01, 110ms);
+}
+
+#newTagForm button:hover {
+    background-color: var(--cds-button-primary-hover, #0353e9);
+    border-color: var(--cds-button-primary-hover, #0353e9);
+}
+
+#tagManagerList {
+    display: flex;
+    flex-wrap: wrap;
+    /* gap: var(--cds-spacing-03, 0.5rem); */
+}
+
+/* NEW: Custom Carbon Tag Styling */
+.bx--tag.bx--tag--custom {
+    /* Override Carbon background and text color using our CSS variables */
+    /* We set these variables inline in JS, but define defaults/fallbacks here */
+    background-color: var(--tag-background-color, var(--cds-tag-background-gray, #e0e0e0));
+    color: var(--tag-text-color, var(--cds-tag-color-gray, #161616));
+    border: none; /* Remove default Carbon border if any */
+    max-width: 350px; /* Optional: Prevent tags from becoming too wide */
+    overflow: hidden; /* Hide overflow */
+    padding: 0px;
+    text-overflow: ellipsis; /* Add ellipsis */
+    white-space: nowrap;
+    transition: filter var(--cds-motion-fast-01, 110ms), background-color var(--cds-motion-fast-01, 110ms); /* Add transition */
+}
+.bx--tag span{
+padding: 0rem 0.5rem;
+}
+
+.bx--tag{
+    padding: 0em;
+}
+
+/* Add hover effect for interactive tags */
+.bx--tag.bx--tag--custom:not(.hidden-tag):hover {
+    filter: brightness(90%); /* Slightly darken the background */
+    cursor: pointer; /* Reinforce clickable appearance for editable/addable tags */
+}
+
+/* Style the close icon within our custom tags */
+.bx--tag.bx--tag--custom .bx--tag__close-icon {
+    /* Ensure the icon inherits the correct contrast color */
+    fill: currentColor;
+    color: inherit; /* Inherit from parent tag's text color */
+    margin: 0px;
+}
+
+.bx--tag.bx--tag--custom .bx--tag__close-icon:hover {
+     /* Slightly darken or change background on hover? */
+     background-color: rgba(0, 0, 0, 0.1); /* Subtle hover effect */
+}
+
+/* Special styling for the 'Hidden' tag using Carbon's gray */
+.bx--tag.bx--tag--custom.hidden-tag {
+    background-color: var(--cds-tag-background-gray, #e0e0e0);
+    color: var(--cds-tag-color-gray, #161616);
+    cursor: default; /* No interactions */
+}
+
+/* Prevent hover effect on the static hidden tag */
+.bx--tag.bx--tag--custom.hidden-tag:hover {
+    filter: none; /* Ensure no brightness change */
+    cursor: default;
+}
+
+/* --- Playlist Manager Styles --- */
+#playlistManagerSection {
+    padding: var(--cds-spacing-05) var(--cds-spacing-06); /* Add some horizontal padding */
+    background-color: var(--cds-ui-01); /* Lighter background if needed */
+}
+
+.playlist-manager-controls.bx--row {
+    align-items: flex-end; /* Align items to the bottom */
+}
+
+#playlistSearch {
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='16'%20height='16'%20viewBox='0%200%2016%2016'%3E%3Cpath%20d='M15,14.3L10.7,10c0.9-1.2,1.4-2.6,1.4-4c0-3.3-2.7-6-6-6S0,2.7,0,6s2.7,6,6,6c1.4,0,2.8-0.5,4-1.4l4.3,4.3c0.2,0.2,0.5,0.3,0.7,0.3s0.5-0.1,0.7-0.3C15.5,15.3,15.5,14.7,15,14.3z%20M6,10.5c-2.5,0-4.5-2-4.5-4.5s2-4.5,4.5-4.5s4.5,2,4.5,4.5S8.5,10.5,6,10.5z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 16px 50%;
+}
+
+/* Ensure inline form elements align and input grows */
+#newPlaylistForm.bx--form-inline {
+    display: flex;
+    width: 100%;
+}
+
+#newPlaylistForm .bx--form-item {
+    flex-grow: 1; /* Allow the input container to grow */
+    margin-right: var(--cds-spacing-03); /* Space before button */
+}
+
+/* Playlist Table Styles */
+.bx--data-table-container {
+    border-left: none; /* Remove left border */
+    border-right: none; /* Remove right border */
+    border-top: none; /* Remove top border */
+    /* Keep bottom border for the container if needed, or remove */
+    /* border-bottom: 1px solid var(--cds-ui-03); */
+    border-radius: 0; /* Remove border radius */
+}
+
+.bx--data-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.bx--data-table tr {
+    border-bottom: 1px solid var(--cds-ui-03);
+}
+
+/* Remove bottom border from the last row */
+.bx--data-table tr:last-child {
+    border-bottom: none;
+}
+
+.bx--data-table tr.hidden {
+    opacity: 0.6;
+    background-color: var(--cds-layer-disabled-01);
+}
+
+.bx--data-table .bx--table-cell {
+    padding: var(--cds-spacing-03) var(--cds-spacing-04);
+}
+
+/* Carbon-styled scrollbar */
+.bx--data-table-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.bx--data-table-container::-webkit-scrollbar-track {
+    background: var(--cds-ui-02);
+}
+
+.bx--data-table-container::-webkit-scrollbar-thumb {
+    background: var(--cds-ui-04);
+    border-radius: 4px;
+}
+
+.bx--data-table-container::-webkit-scrollbar-thumb:hover {
+    background: var(--cds-ui-05);
+}
+
+/* Playlist Table Action Buttons */
+#playlistList .bx--table-cell:last-child {
+    text-align: right;
+}
+
+/* Container for actions including toggle */
+.playlist-actions-container {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+}
+
+/* Clickable toggle for count/arrow */
+.playlist-count-toggle {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    color: var(--cds-text-02);
+    margin-right: var(--cds-spacing-05); /* Space between toggle and buttons */
+}
+
+.playlist-count-toggle:hover {
+    color: var(--cds-text-01);
+}
+
+.playlist-count-toggle .playlist-toggle-arrow {
+    margin-right: var(--cds-spacing-02);
+    fill: currentColor;
+    transition: transform var(--cds-motion-fast-01);
+}
+
+/* Specific button spacing */
+#playlistList .bx--btn--icon-only {
+    margin-left: var(--cds-spacing-02);
+}
+
+/* Set icon color */
+#playlistList .bx--btn--icon-only svg {
+    fill: var(--cds-icon-01);
+}
+
+/* Change background on hover */
+#playlistList .bx--btn--ghost.bx--btn--icon-only:hover {
+    background-color: var(--cds-ui-background); /* Use Carbon background color variable */
+}
+
+/* Playlist count text styling (already part of toggle) */
+.playlist-count {
+    font-size: var(--cds-type-scale-02);
+}
+
+/* Details Row and Thumbnail Grid */
+.playlist-details-row {
+    /* Styles for the hidden row itself */
+    background-color: var(--cds-layer-01); /* Slightly different background */
+}
+
+.playlist-details-row td {
+    padding: 0 !important; /* Remove default cell padding */
+}
+
+.playlist-thumbnail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); /* Responsive grid */
+    gap: var(--cds-spacing-03);
+    padding: var(--cds-spacing-05);
+    background-color: var(--cds-ui-01); /* Match card backgrounds? */
+}
+
+.playlist-thumbnail-item {
+    position: relative;
+    aspect-ratio: 1.6; /* Keep aspect ratio, adjust if needed */
+    overflow: hidden;
+    border-radius: var(--cds-radius-sm);
+}
+
+.playlist-thumbnail-item img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: filter var(--cds-motion-fast-01); /* Add transition for hover */
+}
+
+/* Style the delete button */
+#playlistList .delete-thumbnail-btn {
+    position: absolute;
+    top: var(--cds-spacing-01);
+    right: var(--cds-spacing-01);
+    width: 24px; /* Smaller size */
+    height: 24px;
+    padding: 0;
+    color: #ffffff;
+    background-color: rgba(0, 0, 0, 0.8); /* Semi-transparent background */
+    border-radius: 50%;
+    border: none;
+    opacity: 0; /* Hidden by default */
+    transition: opacity var(--cds-motion-fast-01);
+    cursor: pointer;
+    display: flex; /* Center icon */
+    align-items: center;
+    justify-content: center;
+    z-index: 1; /* Ensure it's above the image */
+    min-height: 24px;
+}
+
+#playlistList .delete-thumbnail-btn svg {
+    fill: #ffffff; /* White icon */
+    width: 12px; /* Smaller icon */
+    height: 12px;
+}
+
+/* Show delete button and slightly dim image on item hover */
+#playlistList .playlist-thumbnail-item:hover .delete-thumbnail-btn {
+    opacity: 1;
+}
+
+.playlist-thumbnail-item:hover img {
+    filter: brightness(0.8); /* Dim image */
+}
+
+/* --- Filter Tabs Wrapper --- */
+#filterTabsWrapper {
+    display: none; /* Hidden by default, JS toggles to flex */
+    /* Use simple flexbox instead of grid */
+    display: flex; 
+    flex-wrap: wrap; /* Allow wrapping on smaller screens if needed */
+    background-color: var(--cds-layer-01); 
+    padding: var(--cds-spacing-04, 1rem) 1.5rem;
+    border-top: 1px solid var(--cds-border-subtle-01);
+    border-bottom: 1px solid var(--cds-border-subtle-01);
+    gap: var(--cds-spacing-06); 
+}
+
+/* Remove the complex filter-grid rule */
+/* #filterTabsWrapper .filter-grid { ... } */
+
+/* Style the direct children (sections) */
+#filterTabsWrapper > div { /* Target .tags-section and .playlists-section */
+    flex: 1 1 45%; /* Allow sections to grow/shrink, aim for roughly half width */
+    min-width: 300px; /* Prevent sections becoming too small */
+}
+
+#filterTabsWrapper h3 {
+    font-size: var(--cds-heading-01); 
+    font-weight: 600;
+    line-height: var(--cds-heading-compact-01);
+    margin-bottom: var(--cds-spacing-04); 
+    padding-bottom: var(--cds-spacing-03);
+    border-bottom: 1px solid var(--cds-border-subtle-01);
+    color: var(--cds-text-primary);
+}
+
+/* Style tag filter container */
+#tagFilterDropdown {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cds-spacing-02);
+    /* Styles for individual filter-tag-pill should apply */
+}
+
+.filter-tag-pill {
+    /* Ensure base bx--tag styles apply */
+    /* Add specific filter styles if needed */
+    cursor: pointer;
+    transition: opacity var(--cds-motion-fast-01);
+}
+
+
+
+.filter-tag-pill.unavailable {
+    /* opacity: 0.3; */ /* Already handled by JS */
+    cursor: not-allowed;
+}
+
+
+/* Style playlist filter container */
+.playlistsContainer {
+    display: flex;
+    flex-direction: column;
+    height: 100%; /* Try to fill parent grid cell */
+}
+
+.playlist-filter-header {
+    display: flex;
+    align-items: center;
+    gap: var(--cds-spacing-03);
+    margin-bottom: var(--cds-spacing-04); /* More space below header */
+    padding-bottom: var(--cds-spacing-03); /* Space for border */
+    border-bottom: 1px solid var(--cds-border-subtle-01);
+}
+
+#playlist-filter-search-input {
+    background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='16'%20height='16'%20viewBox='0%200%2016%2016'%3E%3Cpath%20d='M15,14.3L10.7,10c0.9-1.2,1.4-2.6,1.4-4c0-3.3-2.7-6-6-6S0,2.7,0,6s2.7,6,6,6c1.4,0,2.8-0.5,4-1.4l4.3,4.3c0.2,0.2,0.5,0.3,0.7,0.3s0.5-0.1,0.7-0.3C15.5,15.3,15.5,14.7,15,14.3z%20M6,10.5c-2.5,0-4.5-2-4.5-4.5s2-4.5,4.5-4.5s4.5,2,4.5,4.5S8.5,10.5,6,10.5z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 10px 50%;
+}
+
+/* Ensure header search takes available space */
+.playlist-filter-header .bx--search {
+    flex-grow: 1;
+}
+
+.playlist-deselect-btn {
+    /* Uses bx--btn, bx--btn--ghost, bx--btn--sm */
+    flex-shrink: 0; /* Prevent button from shrinking */
+}
+
+.playlists-scroll-container {
+    max-height: 300px; /* Limit height */
+    overflow-y: auto;
+    padding-right: var(--cds-spacing-02); /* Space for scrollbar */
+    flex-grow: 1; /* Allow scroll area to fill remaining space */
+}
+
+/* Style individual playlist item */
+.playlist-filter-item {
+    display: flex;
+    align-items: center;
+    padding: var(--cds-spacing-03);
+    margin-bottom: var(--cds-spacing-01); /* Smaller gap between items */
+    border-radius: var(--cds-radius-md);
+    cursor: pointer;
+    transition: background-color var(--cds-motion-fast-01);
+    border: 1px solid transparent; /* Placeholder for selection border */
+}
+
+.playlist-filter-item:hover {
+    background-color: var(--cds-layer-hover-01);
+}
+
+/* Selected state */
+.playlist-filter-item.selected {
+    background-color: var(--cds-layer-selected-01);
+    border-left: 3px solid var(--cds-interactive-01); /* Use border highlight */
+    padding-left: calc(var(--cds-spacing-03) - 3px); /* Adjust padding for border */
+}
+
+/* Color indicator */
+.playlist-filter-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: var(--cds-spacing-04); /* More space after color */
+    flex-shrink: 0;
+}
+
+/* Container for name and count */
+.playlist-filter-info {
+    display: flex;
+    justify-content: space-between; /* Push count to the right */
+    align-items: center;
+    flex-grow: 1;
+    overflow: hidden; /* Prevent long names breaking layout */
+}
+
+/* Playlist name styling */
+.playlist-filter-name {
+    font-size: var(--cds-body-compact-01); /* Use compact size */
+    color: var(--cds-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-right: var(--cds-spacing-03); /* Space before count */
+}
+
+/* Image count styling */
+.playlist-filter-count {
+    font-size: var(--cds-caption-01); /* Use caption size */
+    color: var(--cds-text-secondary);
+    white-space: nowrap;
+    flex-shrink: 0; /* Prevent count from shrinking */
+}
+
+/* Carbon-styled scrollbar for playlist filter */
+.playlists-scroll-container::-webkit-scrollbar {
+    width: 8px;
+}
+.playlists-scroll-container::-webkit-scrollbar-track {
+    background: var(--cds-ui-02);
+}
+.playlists-scroll-container::-webkit-scrollbar-thumb {
+    background: var(--cds-ui-04);
+    border-radius: 4px;
+}
+.playlists-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: var(--cds-ui-05);
+}
+
+/* --- Image Table Specific Styles (Within Carbon Structure) --- */
+
+#imageTableContainer {
+    margin-top: var(--cds-spacing-05);
+    background-color: var(--cds-layer-01); /* ADDED: White background */
+    padding: var(--cds-spacing-04, 1rem) 1.5rem; /* REMOVED padding, let table handle it */
+}
+
+#imageTable {
+    table-layout: fixed;
+}
+
+/* REMOVE explicit checkbox styling - Carbon base styles handle this */
+/* #imageTable .bx--checkbox-wrapper ... */
+/* #imageTable .bx--checkbox ... */
+/* #imageTable .bx--checkbox-label ... */
+
+/* Specific Column Widths & Alignment (Adjusted for gaps and alignment) */
+#imageTable .bx--table-header[data-sort-key="thumbnail"],
+#imageTable .bx--table-cell:nth-child(2) { /* Thumbnail is 2nd visible cell */
+    width: 100px; 
+    padding-right: var(--cds-spacing-03); /* REDUCED gap after thumbnail */
+}
+
+#imageTable .bx--table-header[data-sort-key="title"],
+#imageTable .bx--table-cell:nth-child(3) { /* Title is 3rd cell */
+    width: 25%; 
+    padding-left: var(--cds-spacing-03); /* REDUCED gap before title */
+}
+
+/* Description column removed */
+
+#imageTable .bx--table-header[data-sort-key="tags"],
+#imageTable .bx--table-cell:nth-child(4) { /* Tags is now 4th cell */
+    width: 35%; 
+}
+
+#imageTable .bx--table-header[data-sort-key="dateAdded"],
+#imageTable .bx--table-cell:nth-child(5) { /* Date is now 5th cell */
+    width: 14%; /* Slightly reduced width */
+    padding-right: var(--cds-spacing-01); /* REDUCED gap after date */
+}
+
+#imageTable .bx--table-header:last-child, /* Actions Header */
+#imageTable .bx--table-cell:last-child { /* Actions Cell is now 6th cell */
+    width: 120px; 
+    text-align: left; /* CHANGED alignment for header */
+    padding-left: var(--cds-spacing-03); /* REDUCED gap before actions */
+}
+
+/* Thumbnail Styling */
+#imageTable .image-thumbnail {
+    max-width: 80px;  /* INCREASED size */
+    max-height: 80px; /* INCREASED size */
+    height: auto;
+    display: block; 
+    object-fit: cover; 
+    border-radius: var(--cds-radius-sm);
+}
+#imageTable .thumbnail-error {
+     width: 40px; /* INCREASED size for error icon */
+     height: 40px;
+     object-fit: contain;
+}
+
+/* REMOVED Description Truncation rules */
+/* #imageTable .description-cell ... */
+
+/* Tags Container within Table */
+#imageTable .tags-cell .tag-container-in-table {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cds-spacing-02);
+    max-height: 5em; /* Limit height to show ~2 rows */
+    overflow: hidden; /* Hide overflow - Keep hidden */
+}
+/* REMOVED hover rule for tags container */
+/* #imageTable tr:hover .tags-cell .tag-container-in-table ... */
+
+/* Action Buttons Container */
+#imageTable .actions-cell .actions-container-in-table {
+    display: flex;
+    justify-content: flex-end; /* Keep buttons right-aligned within the cell */
+    gap: var(--cds-spacing-01); 
+}
+
+/* ADD specific hover style for consistency with Playlist Manager */
+#imageTable .actions-cell .bx--btn--ghost.bx--btn--icon-only:hover {
+  background-color: var(--cds-layer-hover-01);
+}
+
+/* Ensure danger button hover is correct */
+#imageTable .actions-cell .bx--btn--danger.bx--btn--icon-only:hover {
+     background-color: var(--cds-layer-hover-01); /* Match normal hover */
+}
+
+/* --- Settings Tab Specific Styles --- */
+
+#settingsSection {
+    /* ... existing ... */
+}
+
+#settings-details {
+    /* ... existing ... */
+}
+
+/* Styles for Tag Selection in Settings */
+#tagSelectionWrapper {
+  /* Add padding/margin if needed */
+}
+
+#tagSelectionContainer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cds-spacing-01);
+}
+
+.settings-tag-pill {
+    /* Inherits from .bx--tag.bx--tag--filter */
+    cursor: pointer;
+    border: 2px solid transparent; /* Add border for selection indicator */
+    opacity: 0.7; /* Dim unselected tags slightly */
+    transition: border-color var(--transition-fast), opacity var(--transition-fast);
+}
+
+.settings-tag-pill:hover {
+    opacity: 1;
+}
+
+.settings-tag-pill.selected {
+    border-color: var(--cds-interactive-01); /* Use interactive color for border */
+    opacity: 1; /* Full opacity when selected */
+}
+
+#playTagsBtn {
+    /* Style the main play button if needed */
+    margin-bottom: var(--cds-spacing-05);
+}
+
+/* Styles for Playlist Selection in Settings */
+.settings-playlist-controls {
+    display: flex;
+    gap: var(--cds-spacing-03);
+    align-items: flex-end; /* Align button baseline with input */
+    margin-bottom: var(--cds-spacing-05);
+}
+
+.settings-playlist-controls .bx--form-item {
+    flex-grow: 1; /* Allow search to take space */
+}
+
+.settings-playlist-controls .bx--btn-set {
+    flex-shrink: 0; /* Prevent buttons shrinking */
+}
+
+.settings-playlist-list-container {
+    /* Container for the list items */
+    max-height: 300px; /* Match filter panel height */
+    overflow-y: auto;
+    /* Add Carbon scrollbar styles if desired */
+}
+
+.settings-playlist-item {
+    /* Use the same styles as the filter items */
+    /* .playlist-filter-item styles should apply if class is added */
+}
+
+.settings-playlist-item.selected {
+    /* Use the same selection style as filter items */
+    /* .playlist-filter-item.selected styles should apply */
+}
+
+
+

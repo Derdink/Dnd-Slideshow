@@ -22,28 +22,37 @@ export function setModalsDOMCache(cachedDom) {
 // --- General Modal Functions ---
 
 /**
- * Opens a specified modal.
+ * Opens a specified modal using Carbon's recommended class.
  * @param {HTMLElement} modalElement - The modal element to show.
  */
 function openModal(modalElement) {
     if (modalElement) {
-        modalElement.style.display = 'block';
-        // Optional: Add class for transitions or background overlay management
-        // document.body.classList.add('modal-open');
+        // Use Carbon's visibility class
+        modalElement.classList.add('is-visible');
+        // Optional: Focus on the primary button or container for accessibility
+        const primaryButton = modalElement.querySelector('[data-modal-primary-focus]');
+        if (primaryButton) {
+            primaryButton.focus();
+        } else {
+            // Focus container or first focusable element as fallback
+            const focusable = modalElement.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+             if (focusable) focusable.focus();
+             else modalElement.focus();
+        }
     }
 }
 
 /**
- * Closes a specified modal.
+ * Closes a specified modal using Carbon's recommended class.
  * @param {HTMLElement} modalElement - The modal element to hide.
  */
 function closeModal(modalElement) {
     if (modalElement) {
-        modalElement.style.display = 'none';
-        // Optional: Remove class for transitions
-        // document.body.classList.remove('modal-open');
+        // Use Carbon's visibility class
+        modalElement.classList.remove('is-visible');
     }
 }
+
 
 // --- Image Edit Modal ---
 
@@ -116,8 +125,8 @@ export function showTagEditModal(tag) {
         nameInput.value = tag.name;
     }
 
-    // Show the modal
-    modal.style.display = 'block';
+    // Show the modal using the standard function
+    openModal(modal);
 }
 
 /**
@@ -211,29 +220,42 @@ async function handleSavePlaylistEdit() {
  */
 export function attachModalEventListeners() {
     // Image Edit Modal
-    if (dom.editModal && dom.closeEditBtn && dom.saveEditBtn) {
-        dom.closeEditBtn.addEventListener('click', () => closeModal(dom.editModal));
-        dom.saveEditBtn.addEventListener('click', handleSaveImageEdit);
+    if (dom.editModal) {
+        const closeBtn = dom.editModal.querySelector('#closeEditBtn');
+        const cancelBtn = dom.editModal.querySelector('#cancelEditBtn');
+        const saveBtn = dom.editModal.querySelector('#saveEditBtn');
+        if (closeBtn) closeBtn.addEventListener('click', () => closeModal(dom.editModal));
+        if (cancelBtn) cancelBtn.addEventListener('click', () => closeModal(dom.editModal));
+        if (saveBtn) saveBtn.addEventListener('click', handleSaveImageEdit);
     }
 
     // Tag Edit Modal
-    if (dom.tagEditModal && dom.closeTagEditBtn && dom.saveTagEditBtn) {
-        dom.closeTagEditBtn.addEventListener('click', () => closeModal(dom.tagEditModal));
-        dom.saveTagEditBtn.addEventListener('click', handleSaveTagEdit);
+    if (dom.tagEditModal) {
+        const closeBtn = dom.tagEditModal.querySelector('#closeTagEditBtn');
+        const cancelBtn = dom.tagEditModal.querySelector('#cancelTagEditBtn');
+        const saveBtn = dom.tagEditModal.querySelector('#saveTagEditBtn');
+        if (closeBtn) closeBtn.addEventListener('click', () => closeModal(dom.tagEditModal));
+        if (cancelBtn) cancelBtn.addEventListener('click', () => closeModal(dom.tagEditModal));
+        if (saveBtn) saveBtn.addEventListener('click', handleSaveTagEdit);
     }
 
     // Playlist Edit Modal
-    if (dom.playlistEditModal && dom.closePlaylistEditBtn && dom.savePlaylistEditBtn) {
-        dom.closePlaylistEditBtn.addEventListener('click', () => closeModal(dom.playlistEditModal));
-        dom.savePlaylistEditBtn.addEventListener('click', handleSavePlaylistEdit);
+    if (dom.playlistEditModal) {
+        const closeBtn = dom.playlistEditModal.querySelector('#closePlaylistEditBtn');
+        const cancelBtn = dom.playlistEditModal.querySelector('#cancelPlaylistEditBtn');
+        const saveBtn = dom.playlistEditModal.querySelector('#savePlaylistEditBtn');
+        if (closeBtn) closeBtn.addEventListener('click', () => closeModal(dom.playlistEditModal));
+        if (cancelBtn) cancelBtn.addEventListener('click', () => closeModal(dom.playlistEditModal));
+        if (saveBtn) saveBtn.addEventListener('click', handleSavePlaylistEdit);
     }
 
-    // Close modal if backdrop is clicked (optional)
+    // Close modal if backdrop is clicked (optional - Might interfere with Carbon structure)
     /*
     [dom.editModal, dom.tagEditModal, dom.playlistEditModal].forEach(modal => {
         if (modal) {
             modal.addEventListener('click', (event) => {
-                if (event.target === modal) { // Check if click is on the backdrop itself
+                 // Check if the click is on the modal overlay itself, not the container
+                if (event.target === modal) {
                     closeModal(modal);
                 }
             });

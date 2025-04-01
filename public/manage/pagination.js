@@ -18,40 +18,79 @@ export function setPaginationDOMCache(cachedDom) {
 export function updatePaginationControls(paginationData) {
     if (!dom.paginationContainer || !paginationData) return;
     dom.paginationContainer.innerHTML = ''; // Clear existing controls
+    // ADD Carbon class to the main container
+    dom.paginationContainer.className = 'bx--pagination';
 
     const { currentPage, totalPages, totalItems, itemsPerPage } = paginationData;
 
-    if (totalPages <= 1 && totalItems <= itemsPerPage) return; // Don't show controls if only one page or fewer items than limit
+    if (totalPages <= 1 && totalItems <= itemsPerPage) {
+        dom.paginationContainer.style.display = 'none'; // Hide container if no pagination needed
+        return;
+    } else {
+        dom.paginationContainer.style.display = ''; // Ensure it's visible otherwise
+    }
 
     const createButton = (label, title, svgPath, onClick, disabled = false) => {
         const btn = document.createElement('button');
-        btn.classList.add('bx--btn', 'bx--btn--ghost', 'bx--btn--icon-only', 'bx--pagination__button');
+        // Use correct Carbon button classes for pagination
+        btn.className = `bx--btn bx--btn--ghost bx--btn--icon-only bx--pagination__button bx--pagination__button--${label.toLowerCase()}`;
         btn.title = title;
         btn.disabled = disabled;
-        btn.innerHTML = svgPath + `<span class="bx--assistive-text">${label}</span>`;
+        btn.innerHTML = svgPath;
+        // Add aria-label for accessibility
+        btn.setAttribute('aria-label', label);
         btn.addEventListener('click', onClick);
         return btn;
     };
 
-    // SVGs remain the same
-    const svgFirst = '<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M19 24H21V8H19zM11 24L13 24 13 8 11 8z"></path></svg>';
-    const svgPrev = '<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M18 24l-8-8 8-8 1.4 1.4L12.8 16l6.6 6.6z"></path></svg>';
-    const svgNext = '<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M14 24l1.4-1.4L8.8 16l6.6-6.6L14 8l-8 8z"></path></svg>';
-    const svgLast = '<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M11 24H13V8H11zM19 8v16h2V8z"></path></svg>';
+    // Updated Carbon v11 SVGs
+    const svgPrev = '<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-label="Previous page" width="16" height="16" viewBox="0 0 16 16" role="img"><path d="M10 11.8L5.2 7.9 10 4 10.7 4.7 6.7 7.9 10.7 11.1z"></path></svg>';
+    const svgNext = '<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-label="Next page" width="16" height="16" viewBox="0 0 16 16" role="img"><path d="M6 4.7L10.8 7.9 6 11.1 5.3 10.4 9.3 7.9 5.3 5.4z"></path></svg>';
+    // RE-ADDED: Use Prev/Next SVGs for First/Last for simplicity
+    const svgFirst = svgPrev; 
+    const svgLast = svgNext;
 
-
+    // Buttons - Re-enabled First/Last
     const firstBtn = createButton('First', 'First Page', svgFirst, () => goToPage(1), currentPage === 1);
     const prevBtn = createButton('Previous', 'Previous Page', svgPrev, () => goToPage(currentPage - 1), currentPage === 1);
     const nextBtn = createButton('Next', 'Next Page', svgNext, () => goToPage(currentPage + 1), currentPage === totalPages);
     const lastBtn = createButton('Last', 'Last Page', svgLast, () => goToPage(totalPages), currentPage === totalPages);
 
-    // Page Select Dropdown
+    // Items per page Select (Left side)
+    const limitSelectContainer = document.createElement('div');
+    limitSelectContainer.classList.add('bx--select', 'bx--select--inline', 'bx--pagination__select'); // Removed size class, inherited
+    limitSelectContainer.innerHTML = `
+        <label class="bx--label" for="limit-select">Items per page:</label>
+        <select class="bx--select-input" id="limit-select" title="Items per page"></select>
+        <svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bx--select__arrow" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"></path></svg>
+    `;
+    const limitSelect = limitSelectContainer.querySelector('#limit-select');
+    [20, 50, 100, 200].forEach(limit => {
+        const opt = document.createElement('option');
+        opt.value = limit;
+        opt.textContent = limit;
+        if (limit === itemsPerPage) opt.selected = true;
+        limitSelect.appendChild(opt);
+    });
+    limitSelect.addEventListener('change', (e) => {
+        updateState('management', { currentLimit: parseInt(e.target.value), currentPage: 1 });
+        refreshManageData();
+    });
+
+    // Item Range Info (Left side)
+    const itemRangeInfo = document.createElement('span');
+    itemRangeInfo.classList.add('bx--pagination__text');
+    const startEntry = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+    const endEntry = Math.min(currentPage * itemsPerPage, totalItems);
+    itemRangeInfo.textContent = `${startEntry}–${endEntry} of ${totalItems} items`; // Use en dash
+
+    // Page Select (Right side)
     const pageSelectContainer = document.createElement('div');
-    pageSelectContainer.classList.add('bx--select', 'bx--select--inline', 'bx--select--sm', 'bx--pagination__select'); // Added pagination class
+    pageSelectContainer.classList.add('bx--select', 'bx--select--inline', 'bx--pagination__select');
     pageSelectContainer.innerHTML = `
-        <label class="bx--label bx--visually-hidden" for="page-select">Current page number</label>
-        <select class="bx--select-input" id="page-select" title="Go to page"></select>
-        <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" class="bx--select__arrow" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"></path></svg>
+        <label class="bx--label" for="page-select">Page number:</label>
+        <select class="bx--select-input" id="page-select" title="Page number"></select>
+        <svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bx--select__arrow" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"></path></svg>
     `;
     const pageSelect = pageSelectContainer.querySelector('#page-select');
     for (let i = 1; i <= totalPages; i++) {
@@ -63,53 +102,27 @@ export function updatePaginationControls(paginationData) {
     }
     pageSelect.addEventListener('change', (e) => goToPage(parseInt(e.target.value)));
 
-    // Page Info Span
+    // Page Info Span (Right side)
     const pageInfo = document.createElement('span');
     pageInfo.classList.add('bx--pagination__text');
-    const startEntry = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
-    const endEntry = Math.min(currentPage * itemsPerPage, totalItems);
-    pageInfo.textContent = totalPages > 1 ? `Page ${currentPage} of ${totalPages}` : ''; // Hide page x of y if only 1 page
-    const itemRangeInfo = document.createElement('span');
-    itemRangeInfo.classList.add('bx--pagination__text');
-    itemRangeInfo.textContent = ` | ${startEntry}–${endEntry} of ${totalItems} items`;
-
-
-    // Limit Select Dropdown
-    const limitSelectContainer = document.createElement('div');
-    limitSelectContainer.classList.add('bx--select', 'bx--select--inline', 'bx--select--sm', 'bx--pagination__select'); // Added pagination class
-    limitSelectContainer.innerHTML = `
-        <label class="bx--label" for="limit-select">Items per page:</label>
-        <select class="bx--select-input" id="limit-select" title="Images per page"></select>
-        <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" class="bx--select__arrow" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 11L3 6 3.7 5.3 8 9.6 12.3 5.3 13 6z"></path></svg>
-    `;
-    const limitSelect = limitSelectContainer.querySelector('#limit-select');
-    [20, 50, 100, 200].forEach(limit => {
-        const opt = document.createElement('option');
-        opt.value = limit;
-        opt.textContent = limit;
-        if (limit === itemsPerPage) opt.selected = true; // Use itemsPerPage from server
-        limitSelect.appendChild(opt);
-    });
-    limitSelect.addEventListener('change', (e) => {
-        updateState('management', { currentLimit: parseInt(e.target.value), currentPage: 1 }); // Reset to page 1
-        refreshManageData(); // Fetch data with new limit
-    });
+    pageInfo.textContent = `of ${totalPages} pages`; // Carbon format
 
     // Assemble Pagination Controls
     const controlsLeft = document.createElement('div');
     controlsLeft.classList.add('bx--pagination__left');
     controlsLeft.appendChild(limitSelectContainer);
-    controlsLeft.appendChild(itemRangeInfo); // Show item range here
+    controlsLeft.appendChild(itemRangeInfo); 
 
     const controlsRight = document.createElement('div');
     controlsRight.classList.add('bx--pagination__right');
-    controlsRight.appendChild(pageInfo); // Show 'Page x of y' here
     controlsRight.appendChild(pageSelectContainer);
+    controlsRight.appendChild(pageInfo); 
     if (totalPages > 1) { // Only show nav buttons if multiple pages
+        // RE-ADD First/Last buttons
         controlsRight.appendChild(firstBtn);
         controlsRight.appendChild(prevBtn);
         controlsRight.appendChild(nextBtn);
-        controlsRight.appendChild(lastBtn);
+        controlsRight.appendChild(lastBtn); 
     }
 
     dom.paginationContainer.appendChild(controlsLeft);

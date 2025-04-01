@@ -15,20 +15,6 @@
 </head>
 
 <body class="manage">
-    <!-- Add this inside the <body> tag before any other modals -->
-    <div id="playlistEditModal" class="modal">
-        <div class="modal-content">
-            <button id="closePlaylistEditBtn" class="close-btn">&times;</button>
-            <h3>Edit Playlist</h3>
-            <div id="editPlaylistForm">
-                <label for="editPlaylistName">Name:</label>
-                <input type="text" id="editPlaylistName" required>
-                <div class="modal-buttons">
-                    <button id="savePlaylistEditBtn">Save Changes</button>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Replace the separate header and details with a single section -->
     <section id="settingsSection">
@@ -36,25 +22,25 @@
             <h2 id="manageTitle">Settings</h2>
             <div class="header-controls">
                 <!-- Previous button -->
-                <button id="headerPrevBtn" class="nav-btn" title="Previous">
-                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M14 26L15.41 24.59 7.83 17 28 17 28 15 7.83 15 15.41 7.41 14 6 4 16 14 26z"></path><title>Prev image</title></svg>
+                <button id="headerPrevBtn" class="bx--btn bx--btn--ghost bx--btn--icon-only" title="Previous">
+                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M14 26L15.41 24.59 7.83 17 28 17 28 15 7.83 15 15.41 7.41 14 6 4 16 14 26z"></path><title>Prev image</title></svg>
                 </button>
-                <!-- Play button - Changed to pause icon initially -->
-                <button id="headerPlayBtn" class="nav-btn" title="Pause">
-                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M12 8V24H8V8h4m0-2H8A2 2 0 006 8V24a2 2 0 002 2h4a2 2 0 002-2V8a2 2 0 00-2-2zM24 8V24H20V8h4m0-2H20a2 2 0 00-2 2V24a2 2 0 002 2h4a2 2 0 002-2V8a2 2 0 00-2-2z"></path><title>Pause</title></svg>
+                <!-- Play button -->
+                <button id="headerPlayBtn" class="bx--btn bx--btn--ghost bx--btn--icon-only" title="Pause">
+                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M12 8V24H8V8h4m0-2H8A2 2 0 006 8V24a2 2 0 002 2h4a2 2 0 002-2V8a2 2 0 00-2-2zM24 8V24H20V8h4m0-2H20a2 2 0 00-2 2V24a2 2 0 002 2h4a2 2 0 002-2V8a2 2 0 00-2-2z"></path><title>Pause</title></svg>
                 </button>
                 <!-- Reset button -->
-                <button id="headerResetBtn" class="nav-btn" title="Reset">
-                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32">
+                <button id="headerResetBtn" class="bx--btn bx--btn--ghost bx--btn--icon-only" title="Reset">
+                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="16" height="16" viewBox="0 0 32 32">
                         <path d="M26,18A10,10,0,1,1,16,8h6.18L19.5,10.59,20.91,12l5-5L20.91,2,19.5,3.41,22.18,6H16A12,12,0,1,0,28,18Z"></path>
                     </svg>
                 </button>
                 <!-- Next button -->
-                <button id="headerNextBtn" class="nav-btn" title="Next">
-                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M18 6L16.57 7.393 24.15 15 4 15 4 17 24.15 17 16.57 24.573 18 26 28 16 18 6z"></path><title>Next image</title></svg>
+                <button id="headerNextBtn" class="bx--btn bx--btn--ghost bx--btn--icon-only" title="Next">
+                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M18 6L16.57 7.393 24.15 15 4 15 4 17 24.15 17 16.57 24.573 18 26 28 16 18 6z"></path><title>Next image</title></svg>
                 </button>
-                <button id="settingsToggle" class="settingsToggle">
-                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path d="M27,16.76c0-.25,0-.5,0-.76s0-.51,0-.77l1.92-1.68A2,2,0,0,0,29.3,11L26.94,7a2,2,0,0,0-1.73-1,2,2,0,0,0-.64.1l-2.43.82a11.35,11.35,0,0,0-1.31-.75l-.51-2.52a2,2,0,0,0-2-1.61H13.64a2,2,0,0,0-2,1.61l-.51,2.52a11.48,11.48,0,0,0-1.32.75L7.43,6.06A2,2,0,0,0,6.79,6,2,2,0,0,0,5.06,7L2.7,11a2,2,0,0,0,.41,2.51L5,15.24c0,.25,0,.5,0,.76s0,.51,0,.77L3.11,18.45A2,2,0,0,0,2.7,21L5.06,25a2,2,0,0,0,1.73,1,2,2,0,0,0,.64-.1l2.43-.82a11.35,11.35,0,0,0,1.31.75l.51,2.52a2,2,0,0,0,2,1.61h4.72a2,2,0,0,0,2-1.61l.51-2.52a11.48,11.48,0,0,0,1.32-.75l2.42.82a2,2,0,0,0,.64.1,2,2,0,0,0,1.73-1L29.3,21a2,2,0,0,0-.41-2.51ZM25.21,24l-3.43-1.16a8.86,8.86,0,0,1-2.71,1.57L18.36,28H13.64l-.71-3.55a9.36,9.36,0,0,1-2.7-1.57L6.79,24,4.43,20l2.72-2.4a8.9,8.9,0,0,1,0-3.13L4.43,12,6.79,8l3.43,1.16a8.86,8.86,0,0,1,2.71-1.57L13.64,4h4.72l.71,3.55a9.36,9.36,0,0,1,2.7,1.57L25.21,8,27.57,12l-2.72,2.4a8.9,8.9,0,0,1,0,3.13L27.57,20Z"></path><path d="M16,22a6,6,0,1,1,6-6A5.94,5.94,0,0,1,16,22Zm0-10a3.91,3.91,0,0,0-4,4,3.91,3.91,0,0,0,4,4,3.91,3.91,0,0,0,4-4A3.91,3.91,0,0,0,16,12Z"></path><title>Settings</title></svg>
+                <button id="settingsToggle" class="bx--btn bx--btn--ghost bx--btn--icon-only" title="Settings">
+                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M27,16.76c0-.25,0-.5,0-.76s0-.51,0-.77l1.92-1.68A2,2,0,0,0,29.3,11L26.94,7a2,2,0,0,0-1.73-1,2,2,0,0,0-.64.1l-2.43.82a11.35,11.35,0,0,0-1.31-.75l-.51-2.52a2,2,0,0,0-2-1.61H13.64a2,2,0,0,0-2,1.61l-.51,2.52a11.48,11.48,0,0,0-1.32.75L7.43,6.06A2,2,0,0,0,6.79,6,2,2,0,0,0,5.06,7L2.7,11a2,2,0,0,0,.41,2.51L5,15.24c0,.25,0,.5,0,.76s0,.51,0,.77L3.11,18.45A2,2,0,0,0,2.7,21L5.06,25a2,2,0,0,0,1.73,1,2,2,0,0,0,.64-.1l2.43-.82a11.35,11.35,0,0,0,1.31.75l.51,2.52a2,2,0,0,0,2,1.61h4.72a2,2,0,0,0,2-1.61l.51-2.52a11.48,11.48,0,0,0,1.32-.75l2.42.82a2,2,0,0,0,.64.1,2,2,0,0,0,1.73-1L29.3,21a2,2,0,0,0-.41-2.51ZM25.21,24l-3.43-1.16a8.86,8.86,0,0,1-2.71,1.57L18.36,28H13.64l-.71-3.55a9.36,9.36,0,0,1-2.7-1.57L6.79,24,4.43,20l2.72-2.4a8.9,8.9,0,0,1,0-3.13L4.43,12,6.79,8l3.43,1.16a8.86,8.86,0,0,1,2.71-1.57L13.64,4h4.72l.71,3.55a9.36,9.36,0,0,1,2.7,1.57L25.21,8,27.57,12l-2.72,2.4a8.9,8.9,0,0,1,0,3.13L27.57,20Z"></path><path d="M16,22a6,6,0,1,1,6-6A5.94,5.94,0,0,1,16,22Zm0-10a3.91,3.91,0,0,0-4,4,3.91,3.91,0,0,0,4,4,3.91,3.91,0,0,0,4-4A3.91,3.91,0,0,0,16,12Z"></path><title>Settings</title></svg>
                 </button>
             </div>
         </div>
@@ -90,7 +76,7 @@
                         <div class="settings-row">
 
                             <!-- Time inputs using Carbon Number Input -->
-                            <div class="bx--form-item bx--number">
+                            <div class="bx--form-item bx--number" id="timeInputs">
                                 <div class="time-inputs">
                                     <div class="bx--form-item">
                                         <label for="minutes" class="bx--label">Minutes</label>
@@ -134,17 +120,36 @@
                 <!-- Tag Select tab panel -->
                 <div id="tab-panel-2" class="bx--tab-panel" role="tabpanel" aria-labelledby="tab-link-2" aria-hidden="true">
                     <div id="tagSelectionWrapper">
-
-                        <button id="playTagsBtn" class="play-button">Play tags</button>
-                        <div id="tagSelectionContainer" style="display:flex; flex-wrap: wrap; gap: 0.3em;"></div>
+                        <div id="tagSelectionContainer" style="display:flex; flex-wrap: wrap;"></div>
                     </div>
                 </div>
 
                 <!-- Playlist tab panel -->
                 <div id="tab-panel-3" class="bx--tab-panel" role="tabpanel" aria-labelledby="tab-link-3" aria-hidden="true">
                     <div id="playlistSection" class="bx--section">
-                        <!-- Add playlist controls -->
-                        <div id="settingsPlaylistList" class="bx--list"></div>
+                        <!-- ADDED: Controls container -->
+                        <div class="settings-playlist-controls" style="margin-bottom: var(--cds-spacing-05); display: flex; gap: var(--cds-spacing-03); align-items: flex-end;">
+                            <!-- Search Input -->
+                            <div class="bx--form-item" style="flex-grow: 1;">
+                                <label for="settingsPlaylistSearch" class="bx--label">Search Playlists</label>
+                                <div class="bx--search bx--search--sm">
+                                     <label class="bx--label bx--visually-hidden" for="settingsPlaylistSearch">Search Playlists</label>
+                                     <input type="text" class="bx--search-input" id="settingsPlaylistSearch" placeholder="Filter playlists...">
+                                    <button class="bx--search-close bx--search-close--hidden" title="Clear search" aria-label="Clear search">
+                                         <svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4l6.6 6.6L8 22.6 9.4 24l6.6-6.6 6.6 6.6 1.4-1.4-6.6-6.6L24 9.4z"></path></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- Select/Deselect Buttons (will be added by JS if preferred, or placed here) -->
+                             <div class="bx--btn-set" id="settingsPlaylistSelectionBtns">
+                                <!-- Buttons added by JS -->
+                            </div>
+                        </div>
+                        
+                        <!-- Playlist list container (keep as div) -->
+                        <div id="settingsPlaylistList" class="settings-playlist-list-container">
+                            <!-- Playlist items will be added here by JS -->
+                        </div>
                     </div>
                 </div>
 
@@ -154,7 +159,7 @@
 
                         <div id="dropArea">
                             <p>Drag & Drop Files Here</p>
-                            <button id="selectFiles">Select Files</button>
+                            <button id="selectFiles" class="bx--btn bx--btn--secondary">Select Files</button>
                         </div>
                         <input type="file" id="fileInput" multiple style="display:none;" />
                         <div id="uploadStatus"></div>
@@ -167,107 +172,216 @@
     <!-- Pictures Management Section -->
     <section id="management">
         <!-- Wrap the search bar and new filter button in a container -->
-        <div id="filterContainer" style="display:flex; align-items:center; gap:0.5rem;">
-            <button id="tagManagerToggle" title="Manage Tags">
-                <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><circle cx="14" cy="14" r="2"></circle><path d="M20,30a.9967.9967,0,0,1-.707-.293L8.5859,19A2.0126,2.0126,0,0,1,8,17.5859V10a2.002,2.002,0,0,1,2-2h7.5859A1.9864,1.9864,0,0,1,19,8.5859L29.707,19.293a.9994.9994,0,0,1,0,1.414l-9,9A.9967.9967,0,0,1,20,30ZM10,10v7.5859l10,10L27.5859,20l-10-10Z"></path><path d="M12,30H4a2.0021,2.0021,0,0,1-2-2V4A2.0021,2.0021,0,0,1,4,2H28a2.0021,2.0021,0,0,1,2,2v8H28V4H4V28h8Z"></path><title>Tag manager</title></svg>
+        <div id="filterContainer">
+            <button id="tagManagerToggle" class="bx--btn bx--btn--ghost bx--btn--icon-only" title="Manage Tags">
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><circle cx="14" cy="14" r="2"></circle><path d="M20,30a.9967.9967,0,0,1-.707-.293L8.5859,19A2.0126,2.0126,0,0,1,8,17.5859V10a2.002,2.002,0,0,1,2-2h7.5859A1.9864,1.9864,0,0,1,19,8.5859L29.707,19.293a.9994.9994,0,0,1,0,1.414l-9,9A.9967.9967,0,0,1,20,30ZM10,10v7.5859l10,10L27.5859,20l-10-10Z"></path><path d="M12,30H4a2.0021,2.0021,0,0,1-2-2V4A2.0021,2.0021,0,0,1,4,2H28a2.0021,2.0021,0,0,1,2,2v8H28V4H4V28h8Z"></path><title>Tag manager</title></svg>
             </button>
 
-            <button id="playlistManagerToggle" class="settingsToggle" title="Playlist Manager">
-                <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32" aria-hidden="true">
+            <button id="playlistManagerToggle" class="bx--btn bx--btn--ghost bx--btn--icon-only" title="Playlist Manager">
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true">
                     <path d="M4 6H28V8H4zM4 13H28V15H4zM4 20H28V22H4zM4 27H28V29H4z"></path>
                 </svg>
             </button>
-            <input type="text" id="search" placeholder="Search pictures..." />
+            
+            <!-- ADDED: Wrapper for search to handle flex-grow -->
+            <div class="search-wrapper">
+                <!-- Carbon Search Component -->
+                <div class="bx--search bx--search--lg" role="search">
+                    <label id="search-label" class="bx--label" for="search">Search</label>
+                    <input type="text" class="bx--search-input" id="search" placeholder="Search pictures..." role="searchbox" aria-labelledby="search-label" />
+                    <button class="bx--search-close bx--search-close--hidden" title="Clear search input" aria-label="Clear search input">
+                         <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" class="bx--search-close__icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M12 4.7l-.7-.7L8 7.3 4.7 4l-.7.7L7.3 8 4 11.3l.7.7L8 8.7l3.3 3.3.7-.7L8.7 8z"></path></svg>
+                    </button>
+                </div>
+            </div>
+            
             <!-- Filter button -->
-            <button id="filterBtn" title="Filter images">
-                <svg width="24" height="24" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+            <button id="filterBtn" class="bx--btn bx--btn--ghost bx--btn--icon-only" title="Filter images">
+                <svg width="16" height="16" viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
                     <path d="M4 6h24v2H4zm4 8h16v2H8zm6 8h4v2h-4z"></path>
                 </svg>
             </button>
-            <!-- NEW: Bulk delete button as icon -->
-            <button id="bulkDelete" title="Delete selected images">
-                <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="24" height="24" viewBox="0 0 32 32">
+            <!-- Bulk delete button -->
+            <button id="bulkDelete" class="bx--btn bx--btn--ghost bx--btn--icon-only" title="Delete selected images">
+                <svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="16" height="16" viewBox="0 0 32 32">
                     <path d="M12 12H14V24H12zM18 12H20V24H18z"></path>
                     <path d="M4 6V8H6V28a2 2,0,002 2H24a2 2,0,002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"></path>
                 </svg>
             </button>
         </div>
 
-        <div id="playlistManagerSection" style="display: none; margin-top: 1rem;">
-            <div class="section-header">
-                <div class="bx--form-item">
-                    <div class="bx--text-input__field-wrapper">
-                        <input id="playlistSearch" type="text" class="bx--text-input search-CDS" placeholder="Search playlists..." />
+        <div id="playlistManagerSection" style="display: none; margin-top: 1rem;" class="bx--section">
+            <div class="playlist-manager-controls bx--row" style="margin-bottom: var(--cds-spacing-05);">
+                <div class="bx--col-sm-4 bx--col-md-4 bx--col-lg-6">
+                    <div class="bx--search bx--search--lg" role="search">
+                         <label id="playlist-search-label" class="bx--label" for="playlistSearch">Search Playlists</label>
+                         <input type="text" class="bx--search-input" id="playlistSearch" placeholder="Search playlists..." role="searchbox" aria-labelledby="playlist-search-label"/>
+                         <button class="bx--search-close bx--search-close--hidden" title="Clear search input" aria-label="Clear search input">
+                            <svg focusable="false" preserveAspectRatio="xMidYMid meet" style="will-change: transform;" xmlns="http://www.w3.org/2000/svg" class="bx--search-close__icon" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M12 4.7l-.7-.7L8 7.3 4.7 4l-.7.7L7.3 8 4 11.3l.7.7L8 8.7l3.3 3.3.7-.7L8.7 8z"></path></svg>
+                         </button>
                     </div>
                 </div>
-                <form id="newPlaylistForm" class="playlist-form">
-                    <input type="text" id="newPlaylistName" placeholder="Enter playlist name" required>
-                    <button type="submit">Add</button>
-                </form>
-
-
+                <div class="bx--col-sm-4 bx--col-md-4 bx--col-lg-6">
+                    <form id="newPlaylistForm" class="bx--form-inline">
+                        <div class="bx--form-item">
+                            <label for="newPlaylistName" class="bx--label bx--visually-hidden">New Playlist Name</label>
+                            <input id="newPlaylistName" type="text" class="bx--text-input bx--text-input--xl" placeholder="Enter playlist name" required>
+                        </div>
+                        <button class="bx--btn bx--btn--primary" type="submit">Add Playlist</button>
+                    </form>
+                </div>
             </div>
-            <div id="playlistList" class="playlist-list">
-                <!-- Playlists will be dynamically added here -->
+            <div class="bx--data-table-container" style="max-height: 400px; overflow-y: auto;">
+                <table class="bx--data-table">
+                    <tbody id="playlistList">
+                        <!-- Playlist rows will be dynamically added here by JS -->
+                    </tbody>
+                </table>
             </div>
         </div>
 
         <!-- NEW: Move tag management forms outside filterContainer but keep them in management section -->
-        <form id="newTagForm" style="display: none;">
-            <input type="text" id="newTagName" placeholder="New tag name" required />
-            <button type="submit">Add</button>
-        </form>
-        <div id="tagManagerSection" style="display: none;">
-            <div id="tagManagerList">
-                <!-- Tags will be dynamically added here -->
+        <div id="tagManagerContainer" style="display: none;">
+            <form id="newTagForm" class="add-tag-form">
+                <input type="text" id="newTagName" placeholder="New tag name" required />
+                <button type="submit" class="bx--btn bx--btn--primary">Add</button>
+            </form>
+            <div id="tagManagerSection">
+                <div id="tagManagerList">
+                    <!-- Tags will be dynamically added here -->
+                </div>
             </div>
         </div>
 
-        <!-- Replace the existing filterTabsWrapper div -->
-        <div id="filterTabsWrapper">
-            <div class="filter-grid">
-                <div class="tags-section">
+        <!-- Filter Tabs Wrapper (Contains Tags/Playlist Filters) -->
+        <div id="filterTabsWrapper" style="display: none;" class="bx--grid bx--grid--condensed">
+            <div class="bx--row">
+                <div class="bx--col-lg-9 tags-section">
                     <h3>Filter by Tags</h3>
-                    <div id="tagFilterDropdown"></div>
+                    <div id="tagFilterDropdown" class="filter-grid"></div>
                 </div>
-                <div class="filter-grid">
-                    <div class="playlist-section">
-                        <h3>Filter by Playlists</h3>
-                        <div class="playlistsContainer">
-                            <!-- Content will be populated by JavaScript -->
-                        </div>
-                    </div>
+                <div class="bx--col-lg-3 playlists-section">
+                    <h3>Filter by Playlist</h3>
+                    <div id="playlistFilterContainer" class="playlistsContainer filter-grid"></div>
                 </div>
             </div>
         </div>
 
-        <div id="slideFunctionsContainer">
-            <button id="playSelectBtn">Play selected</button>
+        <!-- NEW: Carbon Data Table Container -->
+        <div id="imageTableContainer" class="bx--data-table-container" data-table>
+            <table id="imageTable" class="bx--data-table">
+                <thead>
+                    <tr>
+                        <!-- Carbon Checkbox Header -->
+                        <th scope="col" class="bx--table-header bx--table-column-checkbox">
+                            <div class="bx--checkbox-wrapper">
+                                <input id="imageSelectAll" class="bx--checkbox" type="checkbox" value="all" name="selectAll">
+                                <label for="imageSelectAll" class="bx--checkbox-label" aria-label="Select all rows">
+                                    <!-- Visual checkbox representation -->
+                                </label>
+                            </div>
+                        </th>
+                        <!-- Existing Headers - Add bx--table-header -->
+                        <th scope="col" class="bx--table-header" data-sort-key="thumbnail"></th>
+                        <th scope="col" class="bx--table-header" data-sort-key="title">Title</th>
+                        <th scope="col" class="bx--table-header" data-sort-key="tags">Tags</th>
+                        <th scope="col" class="bx--table-header" data-sort-key="dateAdded">Date</th>
+                        <th scope="col" class="bx--table-header">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="imageTableBody">
+                    <!-- Rows will be generated by JS -->
+                </tbody>
+            </table>
         </div>
 
-
-
-        <table id="imageTable">
-            <thead>
-                <tr>
-                    <th class="col-select" data-key="select">
-                        <label class="custom-checkbox">
-                            <input type="checkbox" id="headerSelect" />
-                            <span class="checkmark"></span>
-                        </label>
-                    </th>
-                    <th class="col-thumb"></th>
-                    <th class="sortable col-name" data-key="title" data-label="Name">Name</th>
-                    <th class="sortable col-tags" data-key="tags" data-label="Tags">Tags</th>
-                    <th class="sortable col-date" data-key="dateAdded" data-label="Date">Date</th>
-                    <th class="col-actions">Actions</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
         <!-- Added pagination container -->
         <div id="pagination"></div>
     </section>
+     <!-- Image Edit Modal -->
+     <div id="editModal" class="bx--modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title" aria-describedby="edit-modal-body">
+        <div class="bx--modal-container">
+            <div class="bx--modal-header">
+                <p class="bx--modal-header__label">Image ID: <span id="edit-modal-image-id"></span></p>
+                <p class="bx--modal-header__heading" id="edit-modal-title">Edit Image Entry</p>
+                <button id="closeEditBtn" class="bx--modal-close" type="button" data-modal-close aria-label="close modal">
+                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bx--modal-close__icon" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4l6.6 6.6L8 22.6 9.4 24l6.6-6.6 6.6 6.6 1.4-1.4-6.6-6.6L24 9.4z"></path></svg>
+                </button>
+            </div>
+            <div class="bx--modal-content" id="edit-modal-body">
+                <form id="editForm">
+                    <!-- Carbon Text Input for Title -->
+                    <div class="bx--form-item">
+                        <label for="editTitle" class="bx--label">Title <span class="bx--label--required">*</span></label>
+                        <input id="editTitle" type="text" class="bx--text-input" placeholder="Enter image title" required>
+                    </div>
+                    <!-- Carbon Text Area for Description -->
+                    <div class="bx--form-item">
+                        <label for="editDescription" class="bx--label">Description</label>
+                        <textarea id="editDescription" class="bx--text-area" rows="4" cols="50" placeholder="Enter image description"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="bx--modal-footer">
+                <button id="cancelEditBtn" class="bx--btn bx--btn--secondary" type="button" data-modal-close>Cancel</button>
+                <button id="saveEditBtn" class="bx--btn bx--btn--primary" type="button" data-modal-primary-focus>Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Playlist Edit Modal -->
+    <div id="playlistEditModal" class="bx--modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="playlist-edit-modal-title">
+        <div class="bx--modal-container">
+            <div class="bx--modal-header">
+                <p class="bx--modal-header__heading" id="playlist-edit-modal-title">Edit Playlist</p>
+                <button id="closePlaylistEditBtn" class="bx--modal-close" type="button" data-modal-close aria-label="close modal">
+                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bx--modal-close__icon" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4l6.6 6.6L8 22.6 9.4 24l6.6-6.6 6.6 6.6 1.4-1.4-6.6-6.6L24 9.4z"></path></svg>
+                </button>
+            </div>
+            <div class="bx--modal-content">
+                <form id="editPlaylistForm">
+                    <!-- Carbon Text Input for Playlist Name -->
+                    <div class="bx--form-item">
+                        <label for="editPlaylistName" class="bx--label">Name <span class="bx--label--required">*</span></label>
+                        <input id="editPlaylistName" type="text" class="bx--text-input" placeholder="Enter playlist name" required>
+                         <!-- Add Color Picker/Hidden Toggle here if needed -->
+                    </div>
+                </form>
+            </div>
+            <div class="bx--modal-footer">
+                <button id="cancelPlaylistEditBtn" class="bx--btn bx--btn--secondary" type="button" data-modal-close>Cancel</button>
+                <button id="savePlaylistEditBtn" class="bx--btn bx--btn--primary" type="button" data-modal-primary-focus>Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tag Edit Modal -->
+    <div id="tagEditModal" class="bx--modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="tag-edit-modal-title">
+        <div class="bx--modal-container">
+            <div class="bx--modal-header">
+                <p class="bx--modal-header__heading" id="tag-edit-modal-title">Edit Tag</p>
+                <button id="closeTagEditBtn" class="bx--modal-close" type="button" data-modal-close aria-label="close modal">
+                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bx--modal-close__icon" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4l6.6 6.6L8 22.6 9.4 24l6.6-6.6 6.6 6.6 1.4-1.4-6.6-6.6L24 9.4z"></path></svg>
+                </button>
+            </div>
+            <div class="bx--modal-content">
+                <form id="tagEditForm">
+                    <!-- Carbon Text Input for Tag Name -->
+                    <div class="bx--form-item">
+                        <label for="editTagName" class="bx--label">Tag Name <span class="bx--label--required">*</span></label>
+                        <input id="editTagName" type="text" class="bx--text-input" placeholder="Enter tag name" required>
+                        <!-- Add Color Picker here if needed -->
+                    </div>
+                </form>
+            </div>
+            <div class="bx--modal-footer">
+                <button id="cancelTagEditBtn" class="bx--btn bx--btn--secondary" type="button" data-modal-close>Cancel</button>
+                <button id="saveTagEditBtn" class="bx--btn bx--btn--primary" type="button" data-modal-primary-focus>Save Changes</button>
+            </div>
+        </div>
+    </div>
+    </body>
+
 
     <!-- Add Socket.IO before other scripts -->
     <script src="/socket.io/socket.io.js"></script>
@@ -287,51 +401,6 @@
         document.addEventListener('DOMContentLoaded', initManage);
     </script>
 
-    <div id="editModal" class="modal" style="display:none;">
-        <div class="modal-content">
-            <h3>Edit Image Entry</h3>
-            <form id="editForm">
-                <label for="editTitle">Title:</label>
-                <input type="text" id="editTitle" name="editTitle" required>
-                <label for="editDescription">Description:</label>
-                <textarea id="editDescription" name="editDescription"></textarea>
-                <div class="modal-buttons">
-                    <button type="button" id="saveEditBtn">Save</button>
-                    <button type="button" id="closeEditBtn"></button>
-                </div>
-            </form>
-        </div>
-    </div>
-    <!-- Add this right after the #editModal element -->
-    <div id="playlistEditModal" class="modal">
-        <div class="modal-content">
-            <button id="closePlaylistEditBtn" class="close-btn">&times;</button>
-            <h3>Edit Playlist</h3>
-            <form id="editPlaylistForm">
-                <label for="editPlaylistName">Name:</label>
-                <input type="text" id="editPlaylistName" required>
-                <div class="modal-buttons">
-                    <button type="button" id="savePlaylistEditBtn">Save Changes</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Add after the existing editModal -->
-    <div id="tagEditModal" class="modal">
-        <div class="modal-content">
-            <button id="closeTagEditBtn" class="close-btn">&times;</button>
-            <h3>Edit Tag</h3>
-            <form id="tagEditForm">
-                <div class="form-group">
-                    <label for="editTagName">Tag Name:</label>
-                    <input type="text" id="editTagName" required>
-                </div>
-                <div class="modal-buttons">
-                    <button type="button" id="saveTagEditBtn">Save Changes</button>
-                </div>
-            </form>
-        </div>
-    </div>
+   
 
 </html>

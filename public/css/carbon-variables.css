@@ -1,0 +1,171 @@
+/* public/css/carbon-variables.css */
+/* Core IBM Carbon Design System CSS Variables */
+/* Based on usage in project and common Carbon values */
+/* Note: This might not be exhaustive. Add more as needed. */
+
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap"); /* Import IBM Plex Sans */
+
+:root {
+  /* Typeface */
+  --cds-font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
+
+  /* Interaction Colors */
+  --cds-interactive-01: #0f62fe; /* Blue 60 */
+  --cds-interactive-02: #0353e9; /* Blue 70 */
+  --cds-interactive-03: #393939; /* Gray 80 */
+  --cds-interactive-04: #0f62fe; /* Blue 60 */
+  --cds-interactive-danger: #da1e28; /* Red 60 */
+
+
+  /* Background Colors */
+  --cds-ui-background: #ffffff;    /* White */
+  --cds-ui-01: #f4f4f4;          /* Gray 10 */
+  --cds-ui-02: #ffffff;          /* White */
+  --cds-ui-03: #e0e0e0;          /* Gray 30 */
+  --cds-ui-04: #8d8d8d;          /* Gray 60 */
+  --cds-ui-05: #161616;          /* Gray 100 */
+
+  /* Layer Colors (similar to UI but for layered components) */
+  --cds-layer-01: #f4f4f4;       /* Gray 10 */
+  --cds-layer-02: #ffffff;       /* White */
+  --cds-layer-03: #e0e0e0;       /* Gray 30 */
+
+  /* Field Colors */
+  --cds-field-01: #f4f4f4;       /* Gray 10 */
+  --cds-field-02: #ffffff;       /* White */
+
+  /* Text Colors */
+  --cds-text-01: #161616;          /* Gray 100 */
+  --cds-text-02: #525252;          /* Gray 70 */
+  --cds-text-03: #a8a8a8;          /* Gray 50 */
+  --cds-text-04: #ffffff;          /* White */
+  --cds-text-05: #6f6f6f;          /* Gray 60 */
+  --cds-text-error: #da1e28;      /* Red 60 */
+  --cds-text-on-color: #ffffff;   /* White */
+
+  /* Icon Colors */
+  --cds-icon-01: #161616;          /* Gray 100 */
+  --cds-icon-02: #525252;          /* Gray 70 */
+  --cds-icon-03: #ffffff;          /* White */
+  --cds-icon-on-color: #ffffff;   /* White */
+
+  /* Border Colors */
+  --cds-border-subtle-00: #e0e0e0;  /* Gray 30 */
+  --cds-border-subtle-01: #c6c6c6;  /* Gray 40 */
+  --cds-border-subtle-02: #e0e0e0;  /* Gray 30 */
+  --cds-border-strong-01: #8d8d8d;  /* Gray 60 */
+  --cds-border-inverse: #161616;    /* Gray 100 */
+  --cds-border-interactive: #0f62fe; /* Blue 60 */
+
+  /* Focus */
+  --cds-focus: #0f62fe;            /* Blue 60 */
+  --cds-focus-inset: #ffffff;       /* White */
+  --cds-focus-inverse: #ffffff;     /* White */
+
+  /* Skeleton */
+  --cds-skeleton-01: #e0e0e0;       /* Gray 30 */
+  --cds-skeleton-02: #c6c6c6;       /* Gray 40 */
+
+  /* Support Colors */
+  --cds-support-error: #da1e28;      /* Red 60 */
+  --cds-support-success: #198038;    /* Green 60 */
+  --cds-support-warning: #f1c21b;    /* Yellow 30 */
+  --cds-support-info: #0043ce;       /* Blue 70 */
+  --cds-support-error-inverse: #fa4d56; /* Red 50 */
+  --cds-support-success-inverse: #24a148; /* Green 50 */
+  --cds-support-warning-inverse: #f1c21b; /* Yellow 30 */
+  --cds-support-info-inverse: #4589ff; /* Blue 50 */
+
+  /* Spacing */
+  --cds-spacing-01: 0.125rem; /* 2px */
+  --cds-spacing-02: 0.25rem;  /* 4px */
+  --cds-spacing-03: 0.5rem;   /* 8px */
+  --cds-spacing-04: 0.75rem;  /* 12px */
+  --cds-spacing-05: 1rem;     /* 16px */
+  --cds-spacing-06: 1.5rem;   /* 24px */
+  --cds-spacing-07: 2rem;     /* 32px */
+  --cds-spacing-08: 2.5rem;   /* 40px */
+  --cds-spacing-09: 3rem;     /* 48px */
+  --cds-spacing-10: 4rem;     /* 64px */
+  --cds-spacing-11: 5rem;     /* 80px */
+  --cds-spacing-12: 6rem;     /* 96px */
+  --cds-spacing-13: 10rem;    /* 160px */
+
+  /* Fluid Spacing */
+  --cds-fluid-spacing-01: 0;
+  --cds-fluid-spacing-02: 2vw;
+  --cds-fluid-spacing-03: 5vw;
+  --cds-fluid-spacing-04: 10vw;
+
+  /* Layout */
+  --cds-layout-01: 1rem; /* 16px */
+  --cds-layout-02: 1.5rem; /* 24px */
+  --cds-layout-03: 2rem; /* 32px */
+  --cds-layout-04: 3rem; /* 48px */
+  --cds-layout-05: 4rem; /* 64px */
+  --cds-layout-06: 6rem; /* 96px */
+  --cds-layout-07: 10rem; /* 160px */
+  --cds-container-sm: 32rem;  /* 512px */
+  --cds-container-md: 48rem;  /* 768px */
+  --cds-container-lg: 66rem;  /* 1056px */
+  --cds-container-xl: 82rem;  /* 1312px */
+  --cds-icon-size-01: 1rem; /* 16px */
+  --cds-icon-size-02: 1.25rem; /* 20px */
+
+  /* Typography */
+  /* Font scale tokens */
+  --cds-type-scale-01: 0.75rem; /* 12px */
+  --cds-type-scale-02: 0.875rem; /* 14px */
+  --cds-type-scale-03: 1rem; /* 16px */
+  --cds-type-scale-04: 1.125rem; /* 18px */
+  --cds-type-scale-05: 1.25rem; /* 20px */
+  --cds-type-scale-06: 1.5rem; /* 24px */
+  --cds-type-scale-07: 1.75rem; /* 28px */
+  --cds-type-scale-08: 2rem; /* 32px */
+  /* Font family tokens */
+  --cds-font-family-1: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
+  --cds-font-family-2: 'IBM Plex Mono', Menlo, Consolas, monospace;
+  /* Font weight tokens */
+  --cds-font-weight-light: 300;
+  --cds-font-weight-regular: 400;
+  --cds-font-weight-semibold: 600;
+  --cds-font-weight-bold: 700; /* Assuming bold exists in your imported font */
+  /* Line height tokens */
+  --cds-line-height-01: 1.25;
+  --cds-line-height-02: 1.5;
+  --cds-line-height-03: 1.75;
+
+  /* Z-index */
+  --cds-z-index-overlay: 8000;
+  --cds-z-index-modal: 9000;
+  --cds-z-index-notification: 10000; /* Adjust based on Carbon hierarchy */
+  --cds-z-index-tooltip: 11000; /* Adjust based on Carbon hierarchy */
+  --cds-z-index-dropdown: 7000; /* Added from variables.css */
+  --cds-z-index-sticky: 1020; /* Added from variables.css */
+  --cds-z-index-fixed: 1030; /* Added from variables.css */
+  --cds-z-index-modal-backdrop: 1040; /* Added from variables.css */
+  --cds-z-index-popover: 1060; /* Added from variables.css */
+
+
+  /* Motion */
+  --cds-motion-easing-productive: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --cds-motion-easing-expressive: cubic-bezier(0.4, 0.14, 0.3, 1);
+  --cds-motion-duration-fast-01: 70ms;
+  --cds-motion-duration-fast-02: 110ms;
+  --cds-motion-duration-moderate-01: 150ms;
+  --cds-motion-duration-moderate-02: 240ms;
+  --cds-motion-duration-slow-01: 400ms;
+  --cds-motion-duration-slow-02: 700ms;
+
+  /* Radius */
+  --cds-radius-sm: 5px; /* Carbon often uses 0 radius */
+  --cds-radius-md: 0; /* Carbon often uses 0 radius */
+  --cds-radius-lg: 0; /* Carbon often uses 0 radius */
+  --cds-radius-round: 50%;
+
+  /* Container Widths (from variables.css, may differ from Carbon standard) */
+    --cds-container-sm: 540px;
+    --cds-container-md: 720px;
+    --cds-container-lg: 960px;
+    --cds-container-xl: 1140px;
+}

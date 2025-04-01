@@ -50,7 +50,8 @@ import {
 } from './manage/playlistManager.js';
 import {
     setSettingsDOMCache,
-    initSettingsTab
+    initSettingsTab,
+    displayTagsForSelection
 } from './manage/settings.js';
 import {
     setUploadDOMCache,
@@ -97,14 +98,18 @@ function cacheDOMElements() {
     dom.imageTable = document.getElementById('imageTable');
     dom.imageTableHead = document.querySelector('#imageTable thead');
     dom.imageTableBody = document.querySelector('#imageTable tbody');
-    dom.headerSelectCheckbox = document.getElementById('headerSelect');
+    console.log('Caching imageTableBody:', dom.imageTableBody); // DEBUG LOG
+    dom.headerSelectCheckbox = document.getElementById('imageSelectAll'); // CORRECTED ID
     dom.paginationContainer = document.getElementById('pagination');
     dom.bulkDeleteBtn = document.getElementById('bulkDelete');
-    dom.playSelectBtn = document.getElementById('playSelectBtn'); // Play selected button
+    console.log('Caching bulkDeleteBtn:', dom.bulkDeleteBtn); // DEBUG LOG
+    dom.playSelectBtn = document.getElementById('playSelectBtn');
+    console.log('Caching playSelectBtn:', dom.playSelectBtn); // DEBUG LOG
 
     // Tag Manager
     dom.tagManagerToggle = document.getElementById('tagManagerToggle');
     dom.tagManagerSection = document.getElementById('tagManagerSection');
+    dom.tagManagerContainer = document.getElementById('tagManagerContainer');
     dom.tagManagerList = document.getElementById('tagManagerList'); // Assuming this ID exists or is created
     dom.newTagForm = document.getElementById('newTagForm');
     dom.newTagNameInput = document.getElementById('newTagName');
@@ -173,7 +178,9 @@ function cacheDOMElements() {
  */
 export async function initManage() {
     console.log('Initializing Management Page...');
-    cacheDOMElements();
+    // REMOVED document.readyState check - rely on DOMContentLoaded listener in HTML
+    
+    cacheDOMElements(); // Cache elements first
 
     // Pass cached DOM elements to modules
     setFiltersDOMCache(dom);
@@ -184,21 +191,20 @@ export async function initManage() {
     setUploadDOMCache(dom);
     setModalsDOMCache(dom);
     setImageTableDOMCache(dom);
-    setImageManagerDOMCache(dom);
+    setImageManagerDOMCache(dom); // Pass the cached dom
 
-    // Initialize modules
+    // Initialize modules (These should now have the cached DOM)
     initFilters();
-    initImageManager(); // Initialize the image manager
+    initImageManager(); 
     initTagManager();
     initPlaylistManager();
-    attachTagManagerEventListeners();
-    attachPlaylistManagerEventListeners();
+    attachTagManagerEventListeners(); 
     initSettingsTab();
     initUploadTab();
     initModals();
     initImageTable();
-    initializeCarbonTabs(); // Initialize Carbon tabs
-    attachMainEventListeners(); // Attach listeners for main page elements (like header controls)
+    initializeCarbonTabs(); 
+    attachMainEventListeners(); 
 
     // Initial data fetch
     await refreshManageData();
@@ -230,8 +236,8 @@ export async function refreshManageData() {
         displayTagsInManager(tags);
         displayPlaylistsInManager(); // Uses state.playlists internally
         displayPlaylistsForSelection();
-        // NOTE: displayTagsForSelection & displayPlaylistsForSelection in settings.js
-        // should also be updated if the settings panel is open, or on initSettingsTab
+        displayTagsForSelection(); // ADDED: Call to update settings tag selection
+        // NOTE: The comment about updating on initSettingsTab is now less relevant
 
         console.log('Non-image data refresh complete. Triggering image refresh...');
 

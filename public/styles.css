@@ -4,10 +4,12 @@
 @import 'css/base.css';
 @import 'css/layout.css';
 @import 'css/components.css';
+@import 'css/slideshow.css';
 
 /* Global font settings */
 body {
     font-family: 'TestFoundersGrotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: var(--cds-ui-background);
 }
 
 /* Slideshow-specific styles */

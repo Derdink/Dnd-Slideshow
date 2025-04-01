@@ -45,112 +45,105 @@ export function displayImagesInTable(images) {
 }
 
 /**
- * Creates a single table row (<tr>) for an image.
- * @param {object} image - The image object.
+ * Creates a table row element (<tr>) for a given image object, styled with Carbon classes.
+ * @param {object} image - The image object with properties like id, thumbnailUrl, title, description, tags, dateAdded.
  * @returns {HTMLTableRowElement} The created table row element.
  */
 function createImageRow(image) {
     const row = document.createElement('tr');
-    row.setAttribute('data-image-id', image.id);
-    row.setAttribute('draggable', true); // Make row draggable
+    row.className = 'bx--table-row bx--parent-row'; // Add Carbon row class
+    row.setAttribute('data-image-id', image.id); // Keep data attribute for identification
+    // Add selection state if needed (based on global state)
     if (state.management.selectedImageIds.has(image.id)) {
-        row.classList.add('selected');
+        row.classList.add('bx--data-table--selected');
+        row.setAttribute('data-selected', 'true');
     }
 
-    // --- Create Cells ---
-
-    // 1. Select Checkbox
+    // 1. Selection Checkbox Cell
     const cellSelect = document.createElement('td');
-    cellSelect.classList.add('col-select');
-    const label = document.createElement('label');
-    label.classList.add('custom-checkbox');
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = state.management.selectedImageIds.has(image.id);
-    checkbox.addEventListener('change', () => handleRowSelectionChange(image.id, checkbox.checked));
-    const checkmark = document.createElement('span');
-    checkmark.classList.add('checkmark');
-    label.appendChild(checkbox);
-    label.appendChild(checkmark);
-    cellSelect.appendChild(label);
-
-    // 2. Thumbnail
-    const cellThumb = document.createElement('td');
-    cellThumb.classList.add('col-thumb');
-    const img = document.createElement('img');
-    img.classList.add('thumbnail');
-    img.src = image.thumbnailUrl;
-    img.alt = image.title;
-    img.loading = 'lazy'; // Lazy load thumbnails
-    // Optional: Add placeholder/skeleton and load event handler
-    img.addEventListener('load', () => img.classList.add('loaded'));
-    img.addEventListener('error', () => { img.alt = 'Error loading thumb'; img.src=''; }); // Handle broken thumbs
-    cellThumb.appendChild(img);
-
-    // 3. Name
-    const cellName = createCell('col-name', image.title);
-    // Add click listener to Name cell for editing
-    cellName.addEventListener('click', () => showImageEditModal(image));
-    cellName.style.cursor = 'pointer';
-    cellName.title = 'Click to edit title/description';
-
-    // 4. Tags
-    const cellTags = createCell('col-tags', ''); // Create empty cell first
-    if (image.tags && image.tags.length > 0) {
-        image.tags.forEach(tag => {
-            cellTags.appendChild(createTagPill(tag, image.id, true));
-        });
-    }
-
-    // 5. Date Added
-    const cellDate = createCell('col-date', formatDateAdded(image.dateAdded));
-
-    // 6. Actions
-    const cellActions = createCell('col-actions', ''); // Create empty cell
-    cellActions.style.textAlign = 'right'; // Keep alignment
-
-    const deleteBtn = createActionButton('deleteBtn', 'Delete', () => handleDeleteImage(image.id, image.title));
-    const playBtn = createActionButton('playBtn', 'Play', () => handlePlayImage(image));
-    const editBtn = createActionButton('editBtn', 'Edit', () => showImageEditModal(image));
-
-    cellActions.appendChild(deleteBtn);
-    cellActions.appendChild(playBtn); // Add Play button
-    cellActions.appendChild(editBtn); // Add Edit button
-
-    // --- Append Cells to Row ---
+    cellSelect.className = 'bx--table-cell bx--table-cell-checkbox';
+    cellSelect.innerHTML = `
+        <div class="bx--checkbox-wrapper">
+            <input id="checkbox-${image.id}" class="bx--checkbox row-select-checkbox" type="checkbox" value="${image.id}" name="selectRow" ${state.management.selectedImageIds.has(image.id) ? 'checked' : ''}>
+            <label for="checkbox-${image.id}" class="bx--checkbox-label" aria-label="Select row ${image.id}">
+                <!-- Visual checkbox representation -->
+            </label>
+        </div>
+    `;
     row.appendChild(cellSelect);
+
+    // 2. Thumbnail Cell
+    const cellThumb = createCell('bx--table-cell'); // Use helper, add base class
+    const thumbImg = document.createElement('img');
+    thumbImg.src = image.thumbnailUrl || 'placeholder.png'; // Handle missing thumbnail
+    thumbImg.alt = image.title;
+    thumbImg.classList.add('image-thumbnail');
+    thumbImg.loading = 'lazy'; // Lazy load thumbnails
+    thumbImg.onerror = (e) => { 
+        e.target.onerror = null; // Prevent infinite loops
+        e.target.src='icons/error_file.svg'; // Display fallback icon
+        e.target.classList.add('thumbnail-error');
+    };
+    cellThumb.appendChild(thumbImg);
     row.appendChild(cellThumb);
-    row.appendChild(cellName);
+
+    // 3. Title Cell
+    const cellTitle = createCell('bx--table-cell', image.title);
+    row.appendChild(cellTitle);
+
+    // 4. Tags Cell
+    const cellTags = createCell('bx--table-cell tags-cell'); // Add class for styling tags
+    const tagContainer = document.createElement('div');
+    tagContainer.className = 'tag-container-in-table';
+    (image.tags || []).forEach(tag => {
+        const pill = createTagPill(tag, image.id, true); // Use existing tagManager helper
+        tagContainer.appendChild(pill);
+    });
+    cellTags.appendChild(tagContainer);
     row.appendChild(cellTags);
+
+    // 5. Date Added Cell
+    const cellDate = createCell('bx--table-cell', formatDateAdded(image.dateAdded));
     row.appendChild(cellDate);
+
+    // 6. Actions Cell
+    const cellActions = createCell('bx--table-cell actions-cell');
+    const actionsContainer = document.createElement('div');
+    actionsContainer.className = 'actions-container-in-table'; // For potential flex layout
+
+    // Edit Button (Carbon Ghost Icon Button)
+    const editBtn = createActionButton(
+        'bx--btn--ghost bx--btn--icon-only image-edit-btn',
+        'Edit Image',
+        () => showImageEditModal(image), // Assumes showImageEditModal is imported/available
+        // Carbon Edit SVG
+        '<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M2 26H30V28H2zM25.4 9c.8-.8.8-2 0-2.8l-3.6-3.6c-.8-.8-2-.8-2.8 0l-15 15V24h6.4L25.4 9zm-3.6 0L25.4 12l-15 15H6.4v-4z"></path></svg>'
+    );
+
+    // Delete Button (Carbon Ghost Icon Button - Danger)
+    const deleteBtn = createActionButton(
+        'bx--btn--ghost bx--btn--icon-only bx--btn--danger image-delete-btn', // Added danger class
+        'Delete Image',
+        () => handleDeleteImage(image.id, image.title),
+        // Carbon Delete SVG
+        '<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M12 12H14V24H12zM18 12H20V24H18z"></path><path d="M4 6V8H6V28a2 2 0 002 2H24a2 2 0 002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"></path></svg>'
+    );
+    
+    // Play Button (Carbon Ghost Icon Button)
+    const playBtn = createActionButton(
+        'bx--btn--ghost bx--btn--icon-only image-play-btn',
+        'Play Image',
+        () => handlePlayImage(image),
+        // Carbon Play SVG
+        '<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M7,28a1,1,0,0,1-1-1V5a1,1,0,0,1,1.4819-.8763l20,11a1,1,0,0,1,0,1.7527l-20,11A.998.998,0,0,1,7,28ZM8,6.6909V25.3091L24.926,16Z"></path></svg>'
+    );
+
+
+    actionsContainer.appendChild(editBtn);
+    actionsContainer.appendChild(deleteBtn);
+    actionsContainer.appendChild(playBtn);
+    cellActions.appendChild(actionsContainer);
     row.appendChild(cellActions);
-
-    // --- Drag and Drop Source --- 
-    row.addEventListener('dragstart', (e) => {
-        // Only allow dragging if rows are selected, and drag all selected rows
-        const selectedIds = Array.from(state.management.selectedImageIds);
-        if (selectedIds.length === 0) {
-             e.preventDefault(); // Prevent drag if nothing selected
-             return;
-        }
-        // If the dragged row itself isn't selected, maybe select it first?
-        // Or only drag the currently selected set.
-        // Current approach: Drag *all* currently selected images, regardless of which row started the drag
-        e.dataTransfer.setData('application/json', JSON.stringify({ imageIds: selectedIds }));
-        e.dataTransfer.effectAllowed = 'copy';
-
-        // Add dragging class to all selected rows for visual feedback
-         selectedIds.forEach(id => {
-            const selectedRow = dom.imageTableBody?.querySelector(`tr[data-image-id="${id}"]`);
-            selectedRow?.classList.add('dragging');
-         });
-    });
-
-    row.addEventListener('dragend', () => {
-         // Remove dragging class from all rows
-        const draggingRows = dom.imageTableBody?.querySelectorAll('tr.dragging');
-        draggingRows?.forEach(r => r.classList.remove('dragging'));
-    });
 
     return row;
 }
@@ -386,15 +379,16 @@ export function updateRowSelectionVisuals() {
     updateHeaderCheckboxState();
 }
 
-// --- Functions moved from utils.js ---
-
 /**
- * Creates a table cell.
+ * Helper function to create a table cell (<td>).
+ * @param {string} className - CSS class(es) to add.
+ * @param {string|Node} [content] - Text content or HTML Node to append.
+ * @returns {HTMLTableCellElement}
  */
-function createCell(className, content) {
+function createCell(className, content = '') {
     const cell = document.createElement('td');
-    cell.classList.add(className);
-    if (typeof content === 'string' || typeof content === 'number') {
+    cell.className = className; // Set full class string
+    if (typeof content === 'string') {
         cell.textContent = content;
     } else if (content instanceof Node) {
         cell.appendChild(content);
@@ -403,36 +397,25 @@ function createCell(className, content) {
 }
 
 /**
- * Creates an action button for the image table.
+ * Helper function to create an action button (using Carbon styles).
+ * @param {string} className - Additional CSS class(es) for the button.
+ * @param {string} title - Tooltip/title text.
+ * @param {function} onClick - Click handler function.
+ * @param {string} svgHTML - Inner HTML string for the SVG icon.
+ * @returns {HTMLButtonElement}
  */
-function createActionButton(className, title, onClick) {
-    const btn = document.createElement('button');
-    btn.classList.add('bx--btn', 'bx--btn--ghost', 'bx--btn--icon-only', 'action-button', className);
-    btn.title = title;
-    // Add appropriate SVG icon based on className
-    let svgPath = '';
-    if (className === 'deleteBtn') {
-        // Keep existing delete SVG
-        svgPath = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true">
-            <path d="M12 12H14V24H12zM18 12H20V24H18z"></path>
-            <path d="M4 6V8H6V28a2 2 0 002 2H24a2 2 0 002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"></path>
-        </svg>`;
-    } else if (className === 'playBtn') { // Added Play Button SVG
-        svgPath = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="16" height="16" viewBox="0 0 32 32">
-            <path d="M7,28a1,1,0,0,1-1-1V5a1,1,0,0,1,1.4819-.8763l20,11a1,1,0,0,1,0,1.7525l-20,11A1.0005,1.0005,0,0,1,7,28Z"></path>
-        </svg>`;
-    } else if (className === 'editBtn') { // Added Edit Button SVG
-        svgPath = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 32 32">
-            <path d="M2 26H30V28H2zM25.4 9c.8-.8.8-2 0-2.8l-3.6-3.6c-.8-.8-2-.8-2.8 0l-15 15V24h6.4L25.4 9zm-3.6-2L24 8.6 12.6 20H10v-2.6L21.8 7z"></path>
-        </svg>`;
-    }
-    btn.innerHTML = svgPath + `<span class="bx--assistive-text">${title}</span>`;
-
-    btn.addEventListener('click', (e) => {
-        e.stopPropagation(); // Prevent row click
-        onClick(); // The specific handler will be passed in
+function createActionButton(className, title, onClick, svgHTML) {
+    const button = document.createElement('button');
+    // Add base Carbon classes and specific classes
+    button.className = `bx--btn ${className}`; 
+    button.type = 'button';
+    button.title = title;
+    button.innerHTML = svgHTML; // Insert the SVG HTML
+    button.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent row click if button is clicked
+        onClick();
     });
-    return btn;
+    return button;
 }
 
 /**

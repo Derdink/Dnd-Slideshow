@@ -31,121 +31,160 @@ export function setTagManagerDOMCache(cachedDom) {
  */
 
 /**
- * Creates a tag pill element
- * Implements Image Management User Story 11:
- * - Display tag with color
- * - Add remove button for images
- * - Add delete button for database
- * - Support double-click to add to selected images
- * - Support click to edit tag name
+ * Creates a tag pill element aligned with Carbon Design System, with custom colors.
+ * Implements Image Management User Story 11 & 8.
+ * @param {object} tag - The tag object { id, name, color }.
+ * @param {number|null} [imageId=null] - The ID of the image this tag belongs to (if displayed in table). Null if in manager.
+ * @param {boolean} [isRemovable=false] - True if the tag is displayed on an image and can be removed from it.
+ * @returns {HTMLElement|null} The created tag pill element (span.bx--tag), or null on error.
  */
 export function createTagPill(tag, imageId = null, isRemovable = false) {
-    const tagPill = document.createElement('div');
-    tagPill.classList.add('tag-pill');
-    if (imageId) tagPill.classList.add('image-tag');
-    if (isRemovable) tagPill.classList.add('removable');
-    
-    // Add special styling for Hidden tag
-    if (tag.name.toLowerCase() === HIDDEN_TAG_NAME.toLowerCase()) {
-        tagPill.classList.add('hidden-tag');
+    if (!tag || typeof tag.name !== 'string') {
+        console.error('Invalid tag data provided to createTagPill:', tag);
+        return null;
+    }
+
+    // Use <span> for the tag element, align with Carbon
+    const tagPill = document.createElement('span');
+    tagPill.classList.add('bx--tag', 'bx--tag--custom'); // Base Carbon class + our custom modifier
+    tagPill.setAttribute('data-tag-id', tag.id); // Store tag ID
+
+    // Apply special class for Hidden tag
+    const isHiddenTag = tag.name.toLowerCase() === HIDDEN_TAG_NAME.toLowerCase();
+    if (isHiddenTag) {
+        tagPill.classList.add('bx--tag--gray', 'hidden-tag'); // Use a Carbon gray variant for hidden
         tagPill.title = 'Hidden images are excluded from slideshow unless played directly';
     }
 
-    // Apply tag color and get contrast color for text
+    // Apply custom tag color and get contrast color for text/icons
     const tagColor = tag.color || DEFAULT_TAG_COLOR;
     const contrastColor = getContentColorForBackground(tagColor);
-    
-    // Apply color styles
-    tagPill.style.backgroundColor = tagColor;
-    tagPill.style.color = contrastColor;
 
-    const tagContents = document.createElement('span');
-    tagContents.classList.add('tagContents');
-    
+    // Apply color styles directly ONLY if it's not the Hidden tag (which uses Carbon gray)
+    if (!isHiddenTag) {
+        tagPill.style.setProperty('--tag-background-color', tagColor);
+        tagPill.style.setProperty('--tag-text-color', contrastColor);
+        // Add inline styles for background/color override
+        tagPill.style.backgroundColor = tagColor;
+        tagPill.style.color = contrastColor;
+    } else {
+        // Ensure Hidden tag uses Carbon's gray styles predominantly
+        // Contrast color might still be needed if default Carbon gray text isn't right
+         tagPill.style.setProperty('--tag-text-color', '#161616'); // Default dark text for gray
+    }
+
+
+    // Add the tag name
     const tagNameElem = document.createElement('span');
-    tagNameElem.classList.add('tagName');
+    // tagNameElem.classList.add('bx--tag__label'); // Carbon's internal label class (optional)
     tagNameElem.textContent = tag.name;
-    tagContents.appendChild(tagNameElem);
+    tagPill.appendChild(tagNameElem);
 
-    // Add double-click editing for tag name, but not for Hidden tag
-    if (!imageId && !isRemovable && tag.name.toLowerCase() !== HIDDEN_TAG_NAME.toLowerCase()) {
-        tagNameElem.addEventListener('dblclick', (e) => {
-            e.stopPropagation(); // Prevent other double-click handlers
-            showTagEditModal(tag);
-        });
-        tagNameElem.style.cursor = 'pointer';
-        tagNameElem.title = 'Double-click to edit tag name';
-    }
+    // --- Action Buttons (using Carbon structure) ---
+    const closeSVG = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4l6.6 6.6L8 22.6 9.4 24l6.6-6.6 6.6 6.6 1.4-1.4-6.6-6.6L24 9.4z"></path></svg>`;
+    const deleteSVG = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32"><path d="M12 12H14V24H12zM18 12H20V24H18z"></path><path d="M4 6V8H6V28a2 2 0 002 2H24a2 2 0 002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"></path></svg>`;
 
-    // Add remove button if applicable (for tags on specific images in the table)
-    if (isRemovable && tag.name.toLowerCase() !== HIDDEN_TAG_NAME.toLowerCase()) {
-        const removeBtn = document.createElement('span');
-        removeBtn.classList.add('remove-tag');
-        removeBtn.innerHTML = '&times;';
-        removeBtn.title = 'Remove tag from image';
-        removeBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            handleRemoveTagFromImage(tag.id, imageId);
-        });
-        tagContents.appendChild(removeBtn);
-    }
-
-    tagPill.appendChild(tagContents);
-    if (isRemovable && imageId) {
-        const tagClear = document.createElement('span');
-        tagClear.classList.add('tagClear');
+    // Scenario 1: Tag on an image in the table (Removable)
+    if (isRemovable && imageId && !isHiddenTag) {
         const removeBtn = document.createElement('button');
-        removeBtn.className = 'tagRemoveButton';
-        removeBtn.title = 'Remove tag from this image';
-        removeBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="16" height="16" viewBox="0 0 32 32"><path d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4l6.6 6.6L8 22.6 9.4 24l6.6-6.6 6.6 6.6 1.4-1.4-6.6-6.6L24 9.4z"></path></svg>`;
-        removeBtn.style.color = contrastColor;
+        removeBtn.type = 'button';
+        removeBtn.classList.add('bx--tag__close-icon');
+        removeBtn.title = 'Remove tag from image';
+        removeBtn.innerHTML = closeSVG;
+        
+        removeBtn.style.color = 'inherit'; // Inherit contrast color
         removeBtn.addEventListener('click', (e) => {
             e.stopPropagation(); // Prevent other clicks
             handleRemoveTagFromImage(tag, imageId);
         });
-        tagClear.appendChild(removeBtn);
-        tagContents.appendChild(tagClear);
+        tagPill.appendChild(removeBtn);
+        tagPill.classList.add('bx--tag--filter'); // Use filter style for removable tags
     }
-    // Add delete button for tags in the manager section (excluding 'Hidden')
-    else if (!imageId && !isRemovable && tag.name.toLowerCase() !== 'hidden') {
-        const tagDelete = document.createElement('span');
-        tagDelete.classList.add('tagDelete');
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'tagDeleteButtonDb';
-        deleteBtn.title = 'Delete tag from database';
-        deleteBtn.innerHTML = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" fill="currentColor" width="16" height="16" viewBox="0 0 32 32"><path d="M12 12H14V24H12zM18 12H20V24H18z"></path><path d="M4 6V8H6V28a2 2 0 002 2H24a2 2 0 002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"></path></svg>`;
-        deleteBtn.style.color = contrastColor;
-        deleteBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            handleDeleteTag(tag);
-        });
-        tagDelete.appendChild(deleteBtn);
-        tagContents.appendChild(tagDelete);
+    // Scenario 2: Tag in the manager (Deletable, Click-to-Edit/Add, Remove-from-Selected)
+    else if (!imageId && !isRemovable && !isHiddenTag) {
+        // NEW: Add "Remove from Selected" button (before name)
+        const removeFromSelectedBtn = document.createElement('button');
+        removeFromSelectedBtn.type = 'button';
+        removeFromSelectedBtn.classList.add('bx--tag__close-icon', 'remove-from-selected-btn'); // Use close icon style
+        removeFromSelectedBtn.title = 'Remove tag from selected images';
+        removeFromSelectedBtn.innerHTML = closeSVG;
+        removeFromSelectedBtn.style.color = 'inherit'; // Inherit contrast color
+        
 
-        // Add edit functionality on click for non-delete area
-        tagPill.addEventListener('click', (e) => {
-            // Ensure the click wasn't on the delete button itself
-            if (!e.target.closest('.tagDeleteButtonDb')) {
-                showTagEditModal(tag);
-            }
-        });
-        tagPill.style.cursor = 'pointer'; // Indicate clickable for edit
-    }
-
-    tagPill.appendChild(tagContents);
-
-    // Add double-click listener for adding tags to selected images (only in manager)
-    if (!imageId && !isRemovable && tag.name.toLowerCase() !== 'hidden') {
-        tagPill.addEventListener('dblclick', (e) => {
-            if (e.target.closest('.tagDeleteButtonDb')) return; // Don't trigger if delete was clicked
+        removeFromSelectedBtn.addEventListener('click', async (e) => {
+            e.stopPropagation(); // Prevent edit/add clicks
             const selectedIds = Array.from(state.management.selectedImageIds);
             if (selectedIds.length > 0) {
-                handleAddTagToImages(tag, selectedIds);
+                console.log(`Attempting to remove tag "${tag.name}" from ${selectedIds.length} selected images.`);
+                removeFromSelectedBtn.disabled = true; // Disable during operation
+                try {
+                    // Call the workaround function directly
+                    await removeTagFromImages(selectedIds, tag.name);
+                    await refreshManageData(); // Refresh to show changes
+                } catch (error) {
+                    console.error('Error removing tag from selected images:', error);
+                    handleError(error, ErrorTypes.SERVER); // Use centralized error handler
+                } finally {
+                     removeFromSelectedBtn.disabled = false;
+                }
             } else {
-                 alert("Select one or more images in the table first, then double-click a tag to add it.");
+                console.log('Remove from selected: No images selected.');
+                // Optionally provide feedback that nothing is selected
             }
         });
-         tagPill.title = 'Click to edit, Double-click to add to selected images';
+        tagPill.appendChild(removeFromSelectedBtn); // Append BEFORE name
+
+        // Add the tag name (after the remove button)
+        tagPill.appendChild(tagNameElem);
+
+        // MODIFIED: Change icon for Delete from DB button
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.classList.add('bx--tag__close-icon'); // Keep same class for layout
+        deleteBtn.title = 'Delete tag from database';
+        deleteBtn.innerHTML = deleteSVG; // USE DELETE ICON
+        deleteBtn.style.color = 'inherit'; // Inherit contrast color
+
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent edit/add clicks
+            handleDeleteTag(tag);
+        });
+        tagPill.appendChild(deleteBtn); // Append AFTER name
+
+        // MODIFIED: Single click listener for Add or Edit
+        tagPill.addEventListener('click', async (e) => {
+            // Ensure click wasn't on any button
+            if (!e.target.closest('button')) {
+                const selectedIds = Array.from(state.management.selectedImageIds);
+                if (selectedIds.length > 0) {
+                    // Add tag to selected images
+                    console.log(`Attempting to add tag "${tag.name}" to ${selectedIds.length} selected images.`);
+                    // Optionally disable the whole pill briefly?
+                    try {
+                        await handleAddTagToImages(tag, selectedIds); // Use existing handler
+                        // Clear selection after adding
+                        state.management.selectedImageIds.clear();
+                        await refreshManageData(); // Refresh table to show changes and clear selection visuals
+                        console.log(`Tag "${tag.name}" added and selection cleared.`);
+                    } catch (error) { 
+                        console.error('Error adding tag to selected images:', error);
+                        // Error already handled in handleAddTagToImages via withErrorHandling
+                    }
+                } else {
+                    // No images selected, open edit modal
+                    showTagEditModal(tag);
+                }
+            }
+        });
+        tagPill.style.cursor = 'pointer'; // Indicate clickable
+        tagPill.title = 'Click to Edit (or Add to Selected Images)'; // Update title
+
+        tagPill.classList.add('bx--tag--filter');
+    }
+    // Scenario 3: Hidden tag in manager or non-removable tag in table
+    else {
+         tagPill.appendChild(tagNameElem); // Just add the name
+         // ... (existing title logic for hidden tag)
     }
 
     return tagPill;
@@ -156,19 +195,26 @@ export function createTagPill(tag, imageId = null, isRemovable = false) {
  * Used by Image Management User Story 11 for tag management
  */
 export function displayTagsInManager(tags = state.tags) {
-    if (!dom.tagManagerList) return;
+    if (!dom.tagManagerList) {
+         console.warn("Tag manager list element not found.");
+         return;
+    }
 
     dom.tagManagerList.innerHTML = ''; // Clear existing tags
-    if (!tags || tags.length === 0) {
-        dom.tagManagerList.innerHTML = '<p>No tags defined.</p>'; // Placeholder message
+    const validTags = tags?.filter(tag => tag && typeof tag.name === 'string') || [];
+
+    if (validTags.length === 0) {
+        dom.tagManagerList.innerHTML = '<p class="bx--type-body-short-01">No tags defined.</p>'; // Use Carbon type class
         return;
     }
 
-    tags.forEach(tag => {
-        const isHiddenTag = tag.name === PROTECTED_TAGS.HIDDEN;
-        // Pass 'true' for isEditable if it's NOT the hidden tag
-        const tagElement = createTagPill(tag, !isHiddenTag, !isHiddenTag); // Allow edit/delete if not hidden
-        if (tagElement) {
+    // Sort tags alphabetically, handling potential undefined names safely
+    validTags.sort((a, b) => a.name.localeCompare(b.name));
+
+    validTags.forEach(tag => {
+        // Pass isRemovable=false as these are manager tags
+        const tagElement = createTagPill(tag, null, false);
+        if (tagElement) { // Check if pill creation was successful
             dom.tagManagerList.appendChild(tagElement);
         }
     });
@@ -301,11 +347,11 @@ async function handleDeleteTag(tag) {
  */
 export function attachTagManagerEventListeners() {
     // Tag Manager Toggle Button
-    if (dom.tagManagerToggle && dom.tagManagerList && dom.newTagForm) {
+    if (dom.tagManagerToggle && dom.tagManagerContainer) { // Check for container
         dom.tagManagerToggle.addEventListener('click', () => {
              const isActive = dom.tagManagerToggle.classList.toggle('active');
-             dom.tagManagerList.style.display = isActive ? 'flex' : 'none'; // Changed to flex
-             dom.newTagForm.style.display = isActive ? 'flex' : 'none';
+             dom.tagManagerContainer.style.display = isActive ? 'block' : 'none'; // Toggle container
+
              if (isActive) {
                  displayTagsInManager(state.tags || []); // Refresh manager view
                  // Close playlist manager if open
@@ -315,20 +361,25 @@ export function attachTagManagerEventListeners() {
                  }
              }
         });
+    } else {
+        console.warn('Tag Manager Toggle or Container not found in DOM cache.');
     }
 
     // New Tag Form Submit
     if (dom.newTagForm) {
         dom.newTagForm.addEventListener('submit', handleAddNewTag);
+    } else {
+        console.warn('New Tag Form not found in DOM cache.');
     }
 
-    // Use event delegation for tag action buttons
+    // Use event delegation for tag action buttons (like delete)
     if (dom.tagManagerList) {
-        dom.tagManagerList.addEventListener('click', handleTagActionClick);
+        // This listener might need adjustment if actions aren't on buttons
+        // Currently handled in createTagPill
+        // dom.tagManagerList.addEventListener('click', handleTagActionClick);
+    } else {
+        console.warn('Tag Manager List not found in DOM cache.');
     }
-
-    // Note: Listeners for individual tag pills (edit, delete, double-click add)
-    // are added dynamically within createTagPill.
 }
 
 /**

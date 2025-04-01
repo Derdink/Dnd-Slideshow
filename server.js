@@ -61,8 +61,14 @@ app.use((req, res, next) => {
     next();
 });
 
-// Serve static files
-app.use(express.static(PUBLIC_DIR));
+// Serve static files with explicit CSS Content-Type
+app.use(express.static(PUBLIC_DIR, {
+  setHeaders: function (res, path, stat) {
+    if (path.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css');
+    }
+  }
+}));
 
 // Parse JSON bodies with increased limit
 app.use(express.json({ limit: '50mb' }));
@@ -597,6 +603,7 @@ apiRouter.get('/images', async (req, res, next) => {
         const searchTerm = search ? `%${search.trim().toLowerCase()}%` : null;
         const filterTags = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
         const filterPlaylistId = playlistId ? parseInt(playlistId, 10) : null;
+        const filterIds = req.query.ids ? req.query.ids.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id)) : [];
         const shouldIncludeHidden = includeHidden === 'true';
 
         const validSortKeys = ['id', 'filename', 'title', 'description', 'dateAdded'];
@@ -607,59 +614,67 @@ apiRouter.get('/images', async (req, res, next) => {
         let baseSelect = `
             SELECT
                 i.id, i.filename, i.title, i.description, i.dateAdded,
-                GROUP_CONCAT(CASE WHEN t.id IS NOT NULL THEN t.id || ':::' || t.name || ':::' || t.color ELSE NULL END) as tag_data
+                GROUP_CONCAT(DISTINCT CASE WHEN t.id IS NOT NULL THEN t.id || ':::' || t.name || ':::' || t.color ELSE NULL END) as tag_data
         `;
-        let countSelect = `SELECT COUNT(DISTINCT i.id)`; // Base for counting total matching items
+        let countSelect = `SELECT COUNT(DISTINCT i.id)`;
         let fromClause = `FROM images i`;
         let whereClauses = [];
         let joinClauses = [];
         let params = [];
 
         // --- Dynamic WHERE Clause Construction ---
-        if (searchTerm) {
-            whereClauses.push(`(LOWER(i.title) LIKE ? OR LOWER(i.description) LIKE ?)`);
-            params.push(searchTerm, searchTerm);
-        }
 
-        // Join tags only if filtering by tags or needing to exclude/include hidden
-        if (filterTags.length > 0 || !shouldIncludeHidden) {
-            joinClauses.push(`LEFT JOIN image_tags it_filter ON i.id = it_filter.image_id`);
-            joinClauses.push(`LEFT JOIN tags t_filter ON it_filter.tag_id = t_filter.id`);
-        }
+        // ADDED: Filter by specific IDs if provided (primary filter)
+        if (filterIds.length > 0) {
+            const placeholders = filterIds.map(() => '?').join(',');
+            whereClauses.push(`i.id IN (${placeholders})`);
+            params.push(...filterIds);
+            console.log(`  - Filtering by specific IDs: ${filterIds.join(', ')}`);
+        } else {
+          // Only apply other filters if not filtering by specific IDs
+          if (searchTerm) {
+              whereClauses.push(`(LOWER(i.title) LIKE ? OR LOWER(i.description) LIKE ?)`);
+              params.push(searchTerm, searchTerm);
+          }
 
-        // Filter by Specific Tags (AND logic)
-        if (filterTags.length > 0) {
-            // We need one subquery for each tag to ensure the image has ALL of them
-            filterTags.forEach((tagName, index) => {
-                whereClauses.push(`
-                    EXISTS (
-                        SELECT 1 FROM image_tags it_sub_${index}
-                        JOIN tags t_sub_${index} ON it_sub_${index}.tag_id = t_sub_${index}.id
-                        WHERE it_sub_${index}.image_id = i.id AND LOWER(t_sub_${index}.name) = LOWER(?)
-                    )
-                `);
-                params.push(tagName);
-            });
-        }
+          // Join tags only if filtering by tags or needing to exclude/include hidden
+          if (filterTags.length > 0 || !shouldIncludeHidden) {
+              joinClauses.push(`LEFT JOIN image_tags it_filter ON i.id = it_filter.image_id`);
+              joinClauses.push(`LEFT JOIN tags t_filter ON it_filter.tag_id = t_filter.id`);
+          }
 
-        // Filter by Playlist
-        if (filterPlaylistId && !isNaN(filterPlaylistId)) {
-            joinClauses.push(`INNER JOIN playlist_images pi ON i.id = pi.image_id`);
-            whereClauses.push(`pi.playlist_id = ?`);
-            params.push(filterPlaylistId);
-        }
+          // Filter by Specific Tags (AND logic)
+          if (filterTags.length > 0) {
+              filterTags.forEach((tagName, index) => {
+                  whereClauses.push(`
+                      EXISTS (
+                          SELECT 1 FROM image_tags it_sub_${index}
+                          JOIN tags t_sub_${index} ON it_sub_${index}.tag_id = t_sub_${index}.id
+                          WHERE it_sub_${index}.image_id = i.id AND LOWER(t_sub_${index}.name) = LOWER(?)
+                      )
+                  `);
+                  params.push(tagName);
+              });
+          }
 
-        // Handle Hidden Tag Exclusion (unless explicitly requested)
-        if (!shouldIncludeHidden) {
-            // Ensure image does NOT have the 'Hidden' tag
-            whereClauses.push(`
-                NOT EXISTS (
-                    SELECT 1 FROM image_tags it_hidden
-                    JOIN tags t_hidden ON it_hidden.tag_id = t_hidden.id
-                    WHERE it_hidden.image_id = i.id AND LOWER(t_hidden.name) = LOWER(?)
-                )
-            `);
-            params.push(HIDDEN_TAG_NAME);
+          // Filter by Playlist
+          if (filterPlaylistId && !isNaN(filterPlaylistId)) {
+              joinClauses.push(`INNER JOIN playlist_images pi ON i.id = pi.image_id`);
+              whereClauses.push(`pi.playlist_id = ?`);
+              params.push(filterPlaylistId);
+          }
+
+          // Handle Hidden Tag Exclusion (unless explicitly requested)
+          if (!shouldIncludeHidden) {
+              whereClauses.push(`
+                  NOT EXISTS (
+                      SELECT 1 FROM image_tags it_hidden
+                      JOIN tags t_hidden ON it_hidden.tag_id = t_hidden.id
+                      WHERE it_hidden.image_id = i.id AND LOWER(t_hidden.name) = LOWER(?)
+                  )
+              `);
+              params.push(HIDDEN_TAG_NAME);
+          }
         }
 
         // Always join tags for the main SELECT to get tag data
@@ -667,34 +682,56 @@ apiRouter.get('/images', async (req, res, next) => {
         joinClauses.push(`LEFT JOIN image_tags it ON i.id = it.image_id`);
         joinClauses.push(`LEFT JOIN tags t ON it.tag_id = t.id`);
 
-        // --- Assemble WHERE Clause --- 
+        // --- Assemble WHERE Clause ---
         let whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
         // Ensure joins are unique
         const uniqueJoinClauses = [...new Set(joinClauses)];
         let joinSql = uniqueJoinClauses.join(' ');
 
-        // --- Construct Count Query --- 
-        const countSql = `${countSelect} ${fromClause} ${joinSql} ${whereSql}`;
-        console.log("Count SQL:", countSql, params);
-        const totalItemsResult = await dbGet(countSql, params);
-        const totalItems = totalItemsResult ? totalItemsResult['COUNT(DISTINCT i.id)'] : 0;
-        const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+        // --- Construct Count Query (Only needed if NOT filtering by ID) ---
+        let totalItems = 0;
+        let totalPages = 1;
+        let finalCurrentPage = 1;
+        let finalOffset = 0;
 
-        // Adjust currentPage if it exceeds totalPages after filtering
-        const finalCurrentPage = Math.min(currentPage, totalPages);
-        const finalOffset = (finalCurrentPage - 1) * itemsPerPage;
+        if (filterIds.length > 0) {
+            // If filtering by IDs, pagination might not make sense or totalItems is just the count of valid IDs found
+            totalItems = filterIds.length; // Assume all requested IDs are potentially valid items
+            totalPages = 1; // Typically show all results when filtering by specific IDs
+            finalCurrentPage = 1;
+            finalOffset = 0;
+             console.log(`  - Skipping count query because filtering by specific IDs. Total assumed: ${totalItems}`);
+        } else {
+            // Perform count query only when not filtering by specific IDs
+            const countSql = `${countSelect} ${fromClause} ${joinSql} ${whereSql}`;
+            console.log("Count SQL:", countSql, params);
+            const totalItemsResult = await dbGet(countSql, params);
+            totalItems = totalItemsResult ? totalItemsResult['COUNT(DISTINCT i.id)'] : 0;
+            totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+            // Adjust currentPage if it exceeds totalPages after filtering
+            finalCurrentPage = Math.min(currentPage, totalPages);
+            finalOffset = (finalCurrentPage - 1) * itemsPerPage;
+             console.log(`  - Count query executed. Total items: ${totalItems}, Total pages: ${totalPages}`);
+        }
 
-        // --- Construct Main Query --- 
-        const mainSql = `
+
+        // --- Construct Main Query ---
+        let mainSql = `
             ${baseSelect}
             ${fromClause}
             ${joinSql}
             ${whereSql}
             GROUP BY i.id
             ORDER BY ${sortColumn} ${sortDirection}
-            LIMIT ? OFFSET ?
         `;
-        const mainParams = [...params, itemsPerPage, finalOffset];
+        let mainParams = [...params];
+
+        // Add LIMIT/OFFSET only if not filtering by ID (or decide if you want pagination even with ID filter)
+        if (filterIds.length === 0) {
+             mainSql += ` LIMIT ? OFFSET ?`;
+             mainParams.push(itemsPerPage, finalOffset);
+        }
+
         console.log("Main SQL:", mainSql, mainParams);
         const rows = await dbAll(mainSql, mainParams);
 
@@ -707,16 +744,18 @@ apiRouter.get('/images', async (req, res, next) => {
         const images = rows.map(row => {
             let tagObjects = [];
             if (row.tag_data) {
-                tagObjects = row.tag_data.split(',')
+                // Use Set to ensure uniqueness after splitting, just in case DISTINCT failed
+                const uniqueTagStrings = new Set(row.tag_data.split(',')); 
+                tagObjects = Array.from(uniqueTagStrings) // Convert Set back to array
                     .map(item => {
                         if (!item) return null;
                         const parts = item.split(':::');
                         if (parts.length === 3 && parts[1]) { // Need ID, Name, Color
-                    return {
+                            return {
                                 id: parseInt(parts[0], 10),
                                 name: parts[1],
                                 color: parts[2] || DEFAULT_COLOR
-                    };
+                            };
                         }
                         return null;
                     })

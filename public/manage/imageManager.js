@@ -19,10 +19,15 @@ import { showImageEditModal } from './modals.js'; // Import the correct modal fu
 let dom = {};
 
 export function setImageManagerDOMCache(cachedDom) {
+    console.log('[ImageManager] Received DOM object for caching:', cachedDom);
     dom = cachedDom;
     // Ensure required DOM elements for this module are present
     if (!dom.bulkDeleteBtn || !dom.playSelectBtn || !dom.imageTableBody) {
-        console.error('ImageManager DOM Cache incomplete! Missing required elements.');
+        console.error('ImageManager DOM Cache incomplete! Missing required elements.', {
+            bulkDeleteBtn: dom.bulkDeleteBtn,
+            playSelectBtn: dom.playSelectBtn,
+            imageTableBody: dom.imageTableBody
+        });
     }
 }
 
