@@ -8,7 +8,7 @@
     <link rel="icon" href="/icons/favicon.ico" type="image/x-icon">
     <link rel="shortcut icon" href="/icons/favicon.ico" type="image/x-icon">
     <!-- NEW: Include IBM Carbon Components CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/carbon-components@10.48.0/css/carbon-components.min.css" />
+    <link rel="stylesheet" href="css/carbon/carbon-components.min.css" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="manifest" href="manifest.json" />
 
@@ -217,7 +217,11 @@
             <input type="text" id="newTagName" placeholder="New tag name" required />
             <button type="submit">Add</button>
         </form>
-        <div id="tagManagerSection" style="display: none;"></div>
+        <div id="tagManagerSection" style="display: none;">
+            <div id="tagManagerList">
+                <!-- Tags will be dynamically added here -->
+            </div>
+        </div>
 
         <!-- Replace the existing filterTabsWrapper div -->
         <div id="filterTabsWrapper">
@@ -267,72 +271,22 @@
 
     <!-- Add Socket.IO before other scripts -->
     <script src="/socket.io/socket.io.js"></script>
-    <script src="socket-client.js"></script>
-    <script src="main.js"></script>
+
+    <!-- NEW: Load JS Modules -->
+    <script type="module" src="./socket-client.js"></script>
+    <script type="module" src="./state.js"></script>
+    <script type="module" src="./api.js"></script>
+    <script type="module" src="./manage.js"></script>
+
+    <!-- Service Worker Registration (Keep if needed) -->
     <script src="sw-register.js"></script>
-    <!-- NEW: Fix #settingsToggle panel toggle -->
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const settingsToggle = document.getElementById('settingsToggle');
-            const settingsDetails = document.getElementById('settings-details');
 
-            // Set initial state
-            settingsDetails.style.display = 'none';
-
-            // Toggle settings visibility
-            settingsToggle.addEventListener('click', () => {
-                settingsDetails.style.display =
-                    settingsDetails.style.display === 'none' ? 'block' : 'none';
-
-                // Toggle active state for the button
-                settingsToggle.classList.toggle('active');
-            });
-
-            // Initialize Carbon tabs
-            const tabList = document.querySelector('.bx--tabs__nav');
-            const tabPanels = document.querySelectorAll('.bx--tab-panel');
-            const tabItems = document.querySelectorAll('.bx--tabs__nav-item');
-
-            function switchTab(index) {
-                // Update tab selection
-                tabItems.forEach((item, i) => {
-                    if (i === index) {
-                        item.classList.add('bx--tabs__nav-item--selected');
-                        item.setAttribute('aria-selected', 'true');
-                    } else {
-                        item.classList.remove('bx--tabs__nav-item--selected');
-                        item.setAttribute('aria-selected', 'false');
-                    }
-                });
-
-                // Show/hide panels
-                tabPanels.forEach((panel, i) => {
-                    if (i === index) {
-                        panel.setAttribute('aria-hidden', 'false');
-                        panel.style.display = 'block';
-                    } else {
-                        panel.setAttribute('aria-hidden', 'true');
-                        panel.style.display = 'none';
-                    }
-                });
-            }
-
-            // Add click handlers to tabs
-            tabItems.forEach((item, index) => {
-                item.addEventListener('click', () => switchTab(index));
-            });
-
-            // Initialize first tab
-            switchTab(0);
-
-            // Handle dropdown trigger for mobile
-            const trigger = document.querySelector('.bx--tabs-trigger');
-            trigger.addEventListener('click', () => {
-                const nav = document.querySelector('.bx--tabs__nav');
-                nav.classList.toggle('bx--tabs__nav--hidden');
-            });
-        });
+    <!-- NEW: Initialize the management page -->
+    <script type="module">
+        import { initManage } from './manage.js';
+        document.addEventListener('DOMContentLoaded', initManage);
     </script>
+
     <div id="editModal" class="modal" style="display:none;">
         <div class="modal-content">
             <h3>Edit Image Entry</h3>

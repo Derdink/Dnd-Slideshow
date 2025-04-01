@@ -1,0 +1,149 @@
+/* Title Validation Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: var(--cds-z-index-modal, var(--z-index-modal));
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: var(--cds-overlay-01, rgba(0, 0, 0, 0.5));
+}
+
+.modal-content {
+    background-color: var(--cds-ui-01, #ffffff);
+    margin: 15% auto;
+    padding: var(--cds-spacing-05, 20px);
+    border: 1px solid var(--cds-ui-03, #888);
+    width: 80%;
+    max-width: 500px;
+    border-radius: var(--cds-radius-md, 4px);
+    box-shadow: var(--cds-shadow-lg, 0 4px 8px rgba(0, 0, 0, 0.1));
+}
+
+.invalid-chars {
+    color: var(--cds-support-error, #da1e28);
+    font-weight: bold;
+    margin: var(--cds-spacing-03, 10px) 0;
+    padding: var(--cds-spacing-03, 10px);
+    background-color: var(--cds-layer-error-01, #fff1f1);
+    border-radius: var(--cds-radius-md, 4px);
+}
+
+.close {
+    color: var(--cds-text-02, #aaa);
+    float: right;
+    font-size: var(--cds-type-scale-05, 28px);
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover,
+.close:focus {
+    color: var(--cds-text-01, black);
+    text-decoration: none;
+    cursor: pointer;
+}
+
+/* Playlist Filter Styles */
+.playlist-filter-item {
+    display: flex;
+    align-items: center;
+    padding: var(--cds-spacing-03, 8px);
+    margin: var(--cds-spacing-02, 4px) 0;
+    border-radius: var(--cds-radius-md, 4px);
+    cursor: pointer;
+    transition: background-color var(--cds-motion-fast-01, 0.2s);
+}
+
+.playlist-filter-item:hover {
+    background-color: var(--cds-layer-hover-01, #e5e5e5);
+}
+
+.playlist-filter-item.selected {
+    background-color: var(--cds-layer-selected-01, #e0e0e0);
+}
+
+.playlist-filter-color {
+    width: var(--cds-spacing-03, 12px);
+    height: var(--cds-spacing-03, 12px);
+    border-radius: 50%;
+    margin-right: var(--cds-spacing-03, 8px);
+}
+
+.playlist-filter-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex: 1;
+}
+
+.playlist-filter-name {
+    font-weight: 500;
+    color: var(--cds-text-01, #161616);
+}
+
+.playlist-filter-count {
+    color: var(--cds-text-02, #6f6f6f);
+    font-size: var(--cds-type-scale-02, 0.875rem);
+}
+
+.playlists-scroll-container {
+    max-height: 300px;
+    overflow-y: auto;
+    padding: var(--cds-spacing-03, 8px);
+    border: 1px solid var(--cds-ui-03, #e0e0e0);
+    border-radius: var(--cds-radius-md, 4px);
+}
+
+.playlist-filter-header {
+    display: flex;
+    align-items: center;
+    gap: var(--cds-spacing-03, 8px);
+    margin-bottom: var(--cds-spacing-03, 8px);
+}
+
+.playlist-deselect-btn {
+    padding: var(--cds-spacing-03, 8px);
+    border-radius: var(--cds-radius-md, 4px);
+}
+
+/* Filter Button Active State */
+#filterBtn {
+    position: relative;
+}
+
+#filterBtn[data-filter-active="true"]::after {
+    content: '';
+    position: absolute;
+    top: var(--cds-spacing-02, 2px);
+    right: var(--cds-spacing-02, 2px);
+    width: var(--cds-spacing-02, 8px);
+    height: var(--cds-spacing-02, 8px);
+    background-color: var(--cds-support-success, #24a148);
+    border-radius: 50%;
+}
+
+#filterBtn.active {
+    background-color: var(--cds-layer-selected-01, #e0e0e0);
+}
+
+/* Hidden tag styling */
+.tag-pill.hidden-tag {
+    background-color: #2d2d2d !important;
+    color: #ffffff !important;
+    border: 1px solid #666;
+}
+
+.tag-pill.hidden-tag .tagName {
+    font-style: italic;
+}
+
+.tag-pill.hidden-tag:hover {
+    background-color: #3d3d3d !important;
+}
+
+/* Prevent editing of Hidden tag */
+.tag-pill.hidden-tag .tagName {
+    cursor: not-allowed !important;
+} 

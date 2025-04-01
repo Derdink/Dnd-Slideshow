@@ -4,8 +4,11 @@ const urlsToCache = [
     '/index.html',
     '/manage.html',
     '/styles.css',
-    '/main.js',
     '/socket-client.js',
+    '/state.js',
+    '/api.js',
+    '/manage.js',
+    '/slideshow.js',
     '/manifest.json'
 ];
 
