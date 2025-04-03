@@ -18,18 +18,18 @@
 export async function fetchImages({ 
   page = 1, 
   limit = 100, 
-  sort_by = 'dateAdded',
-  sort_order = 'desc',
+  sortKey = 'dateAdded',
+  sortDir = 'desc',
   filters = {} 
 } = {}) {
-  console.log('fetchImages called with params:', { page, limit, sort_by, sort_order, filters });
+  console.log('fetchImages called with params:', { page, limit, sortKey, sortDir, filters });
   
   // Construct query parameters
   const queryParams = new URLSearchParams({
     page,
     limit,
-    sortKey: sort_by,
-    sortDir: sort_order
+    sortKey: sortKey,
+    sortDir: sortDir
   });
 
   // Add filters if they exist
@@ -154,10 +154,15 @@ async function updateSlideshowSettings(transitionTime, order) {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ transitionTime, order }),
+            body: JSON.stringify({ 
+                action: 'updateSettings',
+                speed: transitionTime,
+                order: order
+            }),
         });
         if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`HTTP error! Status: ${response.status} - ${errorData.message || 'Failed to update settings'}`);
         }
         const result = await response.json();
         console.log('✅ API: Slideshow settings updated successfully.', result);

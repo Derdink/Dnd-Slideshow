@@ -84,107 +84,90 @@ export function createTagPill(tag, imageId = null, isRemovable = false) {
     const closeSVG = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4l6.6 6.6L8 22.6 9.4 24l6.6-6.6 6.6 6.6 1.4-1.4-6.6-6.6L24 9.4z"></path></svg>`;
     const deleteSVG = `<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32"><path d="M12 12H14V24H12zM18 12H20V24H18z"></path><path d="M4 6V8H6V28a2 2 0 002 2H24a2 2 0 002-2V8h2V6zM8 28V8H24V28zM12 2H20V4H12z"></path></svg>`;
 
-    // Scenario 1: Tag on an image in the table (Removable)
-    if (isRemovable && imageId && !isHiddenTag) {
+    // Scenario 1: Tag on an image in the table
+    if (isRemovable && imageId) {
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
         removeBtn.classList.add('bx--tag__close-icon');
         removeBtn.title = 'Remove tag from image';
         removeBtn.innerHTML = closeSVG;
-        
-        removeBtn.style.color = 'inherit'; // Inherit contrast color
+        removeBtn.style.color = 'inherit';
         removeBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent other clicks
+            e.stopPropagation();
             handleRemoveTagFromImage(tag, imageId);
         });
+        tagPill.appendChild(tagNameElem);
         tagPill.appendChild(removeBtn);
-        tagPill.classList.add('bx--tag--filter'); // Use filter style for removable tags
+        tagPill.classList.add('bx--tag--filter');
     }
-    // Scenario 2: Tag in the manager (Deletable, Click-to-Edit/Add, Remove-from-Selected)
-    else if (!imageId && !isRemovable && !isHiddenTag) {
-        // NEW: Add "Remove from Selected" button (before name)
+    // Scenario 2: Tag in the manager
+    else if (!imageId && !isRemovable) {
+        // Add "Remove from Selected" button for ALL tags (including Hidden)
         const removeFromSelectedBtn = document.createElement('button');
         removeFromSelectedBtn.type = 'button';
-        removeFromSelectedBtn.classList.add('bx--tag__close-icon', 'remove-from-selected-btn'); // Use close icon style
-        removeFromSelectedBtn.title = 'Remove tag from selected images';
+        removeFromSelectedBtn.classList.add('bx--tag__close-icon', 'remove-from-selected-btn');
+        removeFromSelectedBtn.title = `Remove tag "${tag.name}" from selected images`;
         removeFromSelectedBtn.innerHTML = closeSVG;
-        removeFromSelectedBtn.style.color = 'inherit'; // Inherit contrast color
-        
-
+        removeFromSelectedBtn.style.color = 'inherit';
         removeFromSelectedBtn.addEventListener('click', async (e) => {
-            e.stopPropagation(); // Prevent edit/add clicks
+            e.stopPropagation();
             const selectedIds = Array.from(state.management.selectedImageIds);
+            console.log('[TagManager RemoveClick] Current selection before removeTagFromImages:', selectedIds);
             if (selectedIds.length > 0) {
-                console.log(`Attempting to remove tag "${tag.name}" from ${selectedIds.length} selected images.`);
-                removeFromSelectedBtn.disabled = true; // Disable during operation
+                removeFromSelectedBtn.disabled = true;
                 try {
-                    // Call the workaround function directly
                     await removeTagFromImages(selectedIds, tag.name);
-                    await refreshManageData(); // Refresh to show changes
-                } catch (error) {
-                    console.error('Error removing tag from selected images:', error);
-                    handleError(error, ErrorTypes.SERVER); // Use centralized error handler
-                } finally {
-                     removeFromSelectedBtn.disabled = false;
-                }
-            } else {
-                console.log('Remove from selected: No images selected.');
-                // Optionally provide feedback that nothing is selected
-            }
+                    await refreshManageData();
+                    state.management.selectedImageIds.clear();
+                    console.log('[TagManager RemoveClick] Cleared selection after removing tag.');
+                } catch (error) { handleError(error, ErrorTypes.SERVER); }
+                finally { removeFromSelectedBtn.disabled = false; }
+            } else { console.log('[TagManager RemoveClick] No images selected.'); }
         });
         tagPill.appendChild(removeFromSelectedBtn); // Append BEFORE name
 
-        // Add the tag name (after the remove button)
-        tagPill.appendChild(tagNameElem);
+        tagPill.appendChild(tagNameElem); // Append name AFTER remove button
 
-        // MODIFIED: Change icon for Delete from DB button
-        const deleteBtn = document.createElement('button');
-        deleteBtn.type = 'button';
-        deleteBtn.classList.add('bx--tag__close-icon'); // Keep same class for layout
-        deleteBtn.title = 'Delete tag from database';
-        deleteBtn.innerHTML = deleteSVG; // USE DELETE ICON
-        deleteBtn.style.color = 'inherit'; // Inherit contrast color
+        // Add "Delete from DB" button ONLY IF NOT HIDDEN TAG
+        if (!isHiddenTag) {
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
+            deleteBtn.classList.add('bx--tag__close-icon');
+            deleteBtn.title = 'Delete tag from database';
+            deleteBtn.innerHTML = deleteSVG;
+            deleteBtn.style.color = 'inherit';
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                handleDeleteTag(tag);
+            });
+            tagPill.appendChild(deleteBtn);
+        }
 
-        deleteBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent edit/add clicks
-            handleDeleteTag(tag);
-        });
-        tagPill.appendChild(deleteBtn); // Append AFTER name
-
-        // MODIFIED: Single click listener for Add or Edit
+        // Add main click listener for Add-to-Selected for ALL TAGS (including Hidden)
         tagPill.addEventListener('click', async (e) => {
-            // Ensure click wasn't on any button
             if (!e.target.closest('button')) {
                 const selectedIds = Array.from(state.management.selectedImageIds);
+                console.log('[TagManager AddClick] Current selection before handleAddTagToImages:', selectedIds);
                 if (selectedIds.length > 0) {
-                    // Add tag to selected images
-                    console.log(`Attempting to add tag "${tag.name}" to ${selectedIds.length} selected images.`);
-                    // Optionally disable the whole pill briefly?
                     try {
-                        await handleAddTagToImages(tag, selectedIds); // Use existing handler
-                        // Clear selection after adding
+                        await handleAddTagToImages(tag, selectedIds);
                         state.management.selectedImageIds.clear();
-                        await refreshManageData(); // Refresh table to show changes and clear selection visuals
-                        console.log(`Tag "${tag.name}" added and selection cleared.`);
-                    } catch (error) { 
-                        console.error('Error adding tag to selected images:', error);
-                        // Error already handled in handleAddTagToImages via withErrorHandling
-                    }
-                } else {
-                    // No images selected, open edit modal
+                        await refreshManageData();
+                    } catch (error) { /* Handled in called function */ }
+                } else if (!isHiddenTag) { // Only open edit modal if NOT hidden and no images selected
                     showTagEditModal(tag);
                 }
             }
         });
-        tagPill.style.cursor = 'pointer'; // Indicate clickable
-        tagPill.title = 'Click to Edit (or Add to Selected Images)'; // Update title
-
+        tagPill.style.cursor = 'pointer';
+        tagPill.title = isHiddenTag
+            ? 'Click to Add "Hidden" Tag to Selected Images'
+            : 'Click to Edit (or Add to Selected Images)';
         tagPill.classList.add('bx--tag--filter');
     }
-    // Scenario 3: Hidden tag in manager or non-removable tag in table
+    // Scenario 3: Default fallback (e.g., hidden tag in table if not removable)
     else {
-         tagPill.appendChild(tagNameElem); // Just add the name
-         // ... (existing title logic for hidden tag)
+        tagPill.appendChild(tagNameElem);
     }
 
     return tagPill;
@@ -258,13 +241,22 @@ async function handleAddNewTag(event) {
     localStorage.setItem('nextTagColorIndex', nextIndex.toString());
 
     try {
-        const newTag = await createTag({ name: tagName, color: tagColor });
-        console.log('New tag added:', newTag);
+        const newTag = await createTag(tagName, tagColor);
+        console.log('[handleAddNewTag] New tag created:', newTag);
+        
+        if (!newTag || typeof newTag.id === 'undefined' || typeof newTag.name !== 'string') {
+             console.error('[handleAddNewTag] Invalid newTag object received from API:', newTag);
+             handleError(new Error('Failed to process newly created tag data.'), ErrorTypes.SERVER);
+             return; // Stop if the tag object is invalid
+        }
+
         dom.newTagForm.reset();
 
-        // Add tag to selected images if any
         const selectedIds = Array.from(state.management.selectedImageIds);
+        console.log('[handleAddNewTag] Selected IDs before applying new tag:', selectedIds);
+
         if (selectedIds.length > 0) {
+            console.log(`[handleAddNewTag] Applying newly created tag "${newTag.name}" (ID: ${newTag.id}) to ${selectedIds.length} selected images.`);
             await handleAddTagToImages(newTag, selectedIds);
         }
 
@@ -279,16 +271,59 @@ async function handleAddNewTag(event) {
  * Used by Image Management User Story 11 for bulk tag operations
  */
 async function handleAddTagToImages(tag, imageIds) {
+    console.log('[handleAddTagToImages] Called with Tag:', tag, 'Image IDs:', imageIds);
+
     if (!tag || !imageIds || imageIds.length === 0) {
-        handleError(new Error('Invalid tag or image selection'), ErrorTypes.VALIDATION);
+        console.warn('[handleAddTagToImages] Invalid tag or image selection passed.');
+        return; // Just return if invalid input
+    }
+    
+    // Validate tag object has necessary properties
+    if (typeof tag.id === 'undefined' || typeof tag.name !== 'string') {
+        console.error('[handleAddTagToImages] Invalid tag object structure:', tag);
+        // Consider throwing an error or returning early
         return;
     }
 
+    const updatePromises = imageIds.map(imageId => {
+        console.log(`[handleAddTagToImages Loop] Processing imageId: ${imageId}`);
+        
+        const image = state.management.displayedImages.find(img => img.id === imageId);
+        console.log(`[handleAddTagToImages Loop] Found image object for ID ${imageId}:`, image);
+
+        if (!image) {
+            console.warn(`[addTagToImages] Image ID ${imageId} not found in state`);
+            return Promise.resolve(); // Skip this one
+        }
+        
+        const imageTagIds = image.tagIds || [];
+        if (imageTagIds.includes(tag.id)) {
+            console.log(`[addTagToImages] Image ID ${imageId} already has tag "${tag.name}"`);
+            return Promise.resolve(); // Skip update if tag already present
+        }
+        
+        const updatedTagIds = [...imageTagIds, tag.id];
+        
+        const updateData = {
+            title: image.title,
+            description: image.description || '',
+            tagIds: updatedTagIds
+        };
+        console.log(`[handleAddTagToImages Loop] Calling updateImage for ID ${imageId} with data:`, updateData);
+        
+        // Add individual try/catch for updateImage if needed, though Promise.all catches failures
+        return updateImage(imageId, updateData);
+    });
+    
     try {
-        await addTagToImages(imageIds, tag.name);
-        await refreshManageData();
+        const results = await Promise.all(updatePromises.filter(p => p)); // Filter out skipped promises
+        console.log('[handleAddTagToImages] Promise.all results (length indicates successful updates):', results.length);
+        console.log(`Tag "${tag.name}" add process completed for selected images.`);
     } catch (error) {
-        handleError(error, ErrorTypes.SERVER);
+         console.error(`[handleAddTagToImages] Error during Promise.all execution while adding tag "${tag.name}":`, error);
+         handleError(error, ErrorTypes.SERVER); // Handle error from Promise.all
+         // Re-throw if the caller needs to know about the failure?
+         // throw error;
     }
 }
 
@@ -346,40 +381,21 @@ async function handleDeleteTag(tag) {
  * - Double-click handlers
  */
 export function attachTagManagerEventListeners() {
-    // Tag Manager Toggle Button
-    if (dom.tagManagerToggle && dom.tagManagerContainer) { // Check for container
-        dom.tagManagerToggle.addEventListener('click', () => {
-             const isActive = dom.tagManagerToggle.classList.toggle('active');
-             dom.tagManagerContainer.style.display = isActive ? 'block' : 'none'; // Toggle container
-
-             if (isActive) {
-                 displayTagsInManager(state.tags || []); // Refresh manager view
-                 // Close playlist manager if open
-                 if (dom.playlistManagerSection && dom.playlistManagerToggle) {
-                     dom.playlistManagerSection.style.display = 'none';
-                     dom.playlistManagerToggle.classList.remove('active');
-                 }
-             }
-        });
-    } else {
-        console.warn('Tag Manager Toggle or Container not found in DOM cache.');
-    }
-
-    // New Tag Form Submit
+    // Tag Manager Toggle - REMOVED (handled by manage.js)
+    // if (dom.tagManagerToggle && dom.tagManagerSection) { ... }
+    
+    // Add New Tag Form
     if (dom.newTagForm) {
         dom.newTagForm.addEventListener('submit', handleAddNewTag);
-    } else {
-        console.warn('New Tag Form not found in DOM cache.');
     }
 
-    // Use event delegation for tag action buttons (like delete)
+    // Tag List Event Delegation for actions
     if (dom.tagManagerList) {
-        // This listener might need adjustment if actions aren't on buttons
-        // Currently handled in createTagPill
-        // dom.tagManagerList.addEventListener('click', handleTagActionClick);
-    } else {
-        console.warn('Tag Manager List not found in DOM cache.');
+        dom.tagManagerList.addEventListener('click', handleTagActionClick);
     }
+    
+    // Drag and Drop listeners for tags (if implementing)
+    // ...
 }
 
 /**
@@ -462,29 +478,31 @@ async function addTagToImages(imageIds, tagName) {
     
     // Create an array of promises for each image update
     const updatePromises = imageIds.map(imageId => {
-        // Find the image in state
         const image = state.management.displayedImages.find(img => img.id === imageId);
         if (!image) {
-            console.warn(`Image ID ${imageId} not found in state`);
-            return Promise.resolve(); // Skip this image
+            console.warn(`[addTagToImages] Image ID ${imageId} not found in state`);
+            return Promise.resolve();
         }
         
-        // Check if image already has this tag
         const imageTagIds = image.tagIds || [];
         if (imageTagIds.includes(tag.id)) {
-            console.log(`Image ID ${imageId} already has tag "${tagName}"`);
-            return Promise.resolve(); // Skip this image
+            console.log(`[addTagToImages] Image ID ${imageId} already has tag "${tagName}"`);
+            return Promise.resolve();
         }
         
-        // Add the tag ID to the image's tag IDs
         const updatedTagIds = [...imageTagIds, tag.id];
         
-        // Update the image with the new tag IDs
-        return updateImage(imageId, { tagIds: updatedTagIds });
+        // FIX: Include title and description when calling updateImage
+        const updateData = {
+            title: image.title, // Include current title
+            description: image.description || '', // Include current description
+            tagIds: updatedTagIds // Include updated tags
+        };
+        console.log(`[addTagToImages] Updating image ${imageId} with data:`, updateData); // Log update data
+        return updateImage(imageId, updateData);
     });
     
-    // Wait for all updates to complete
-    await Promise.all(updatePromises.filter(p => p)); // Filter out undefined promises
+    await Promise.all(updatePromises.filter(p => p));
     console.log(`Tag "${tagName}" added to selected images`);
 }
 
@@ -508,28 +526,30 @@ async function removeTagFromImages(imageIds, tagName) {
     
     // Create an array of promises for each image update
     const updatePromises = imageIds.map(imageId => {
-        // Find the image in state
         const image = state.management.displayedImages.find(img => img.id === imageId);
         if (!image) {
-            console.warn(`Image ID ${imageId} not found in state`);
-            return Promise.resolve(); // Skip this image
+            console.warn(`[removeTagFromImages] Image ID ${imageId} not found in state`);
+            return Promise.resolve();
         }
         
-        // Check if image has this tag
         const imageTagIds = image.tagIds || [];
         if (!imageTagIds.includes(tag.id)) {
-            console.log(`Image ID ${imageId} does not have tag "${tagName}"`);
-            return Promise.resolve(); // Skip this image
+            console.log(`[removeTagFromImages] Image ID ${imageId} does not have tag "${tagName}"`);
+            return Promise.resolve();
         }
         
-        // Remove the tag ID from the image's tag IDs
         const updatedTagIds = imageTagIds.filter(id => id !== tag.id);
         
-        // Update the image with the new tag IDs
-        return updateImage(imageId, { tagIds: updatedTagIds });
+        // FIX: Include title and description when calling updateImage
+        const updateData = {
+            title: image.title, // Include current title
+            description: image.description || '', // Include current description
+            tagIds: updatedTagIds // Include updated tags
+        };
+        console.log(`[removeTagFromImages] Updating image ${imageId} with data:`, updateData); // Log update data
+        return updateImage(imageId, updateData);
     });
     
-    // Wait for all updates to complete
-    await Promise.all(updatePromises.filter(p => p)); // Filter out undefined promises
+    await Promise.all(updatePromises.filter(p => p));
     console.log(`Tag "${tagName}" removed from selected images`);
 } 

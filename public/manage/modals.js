@@ -113,27 +113,30 @@ export function showTagEditModal(tag) {
         return;
     }
 
-    const modal = document.getElementById('tagEditModal');
-    if (!modal) return;
-
-    // Set current tag ID for the save handler
-    modal.dataset.currentTagId = tag.id;
-
-    // Populate the input field with the current tag name
-    const nameInput = modal.querySelector('#tagNameInput');
-    if (nameInput) {
-        nameInput.value = tag.name;
+    // Use cached DOM element for the modal
+    if (!dom.tagEditModal || !dom.editTagNameInput) { // Check for the input element
+        console.warn('Tag edit modal or input field not found in DOM cache.');
+        return;
     }
 
-    // Show the modal using the standard function
-    openModal(modal);
+    // Store the current tag ID
+    currentEditTagId = tag.id;
+    console.log(`[Modal] Opening tag edit modal for ID: ${currentEditTagId}, Name: ${tag.name}`);
+
+    // Populate the input field with the current tag name
+    dom.editTagNameInput.value = tag.name; 
+
+    // Show the modal
+    openModal(dom.tagEditModal);
 }
 
 /**
  * Handles saving changes from the tag edit modal.
  */
 async function handleSaveTagEdit() {
+    // Use the module-level variable
     if (currentEditTagId === null || !dom.editTagNameInput) {
+        console.warn('[handleSaveTagEdit] No tag ID stored or input element missing.');
         return;
     }
 
@@ -145,21 +148,38 @@ async function handleSaveTagEdit() {
         alert('Tag name cannot be empty.');
         return;
     }
-     if (newName.toLowerCase() === 'hidden') {
-        alert('Cannot rename tag to "Hidden".');
+     if (newName.toLowerCase() === HIDDEN_TAG_NAME.toLowerCase()) {
+        alert(`Cannot rename tag to "${HIDDEN_TAG_NAME}".`);
         return;
     }
+    // Optional: Check for duplicate name against other tags in state
+    if (state.tags.some(t => t.id !== currentEditTagId && t.name.toLowerCase() === newName.toLowerCase())) {
+         alert(`Another tag with the name "${newName}" already exists.`);
+         return;
+    }
+
+    console.log(`[handleSaveTagEdit] Attempting to update tag ID ${currentEditTagId} to name: "${newName}"`);
 
     try {
-        await updateTag(currentEditTagId, { name: newName /*, color: newColor */ });
-        console.log(`Tag ${currentEditTagId} updated.`);
+        // Call updateTag API
+        await updateTag(currentEditTagId, newName); // Pass ID and new name string
+        console.log(`[handleSaveTagEdit] Tag ${currentEditTagId} updated successfully.`);
+        
+        // Close modal on success
         closeModal(dom.tagEditModal);
-        await refreshManageData(); // Refresh tags and image table
+        
+        // Refresh data to show changes
+        await refreshManageData(); 
+        
     } catch (error) {
-        console.error(`Error updating tag ${currentEditTagId}:`, error);
+        console.error(`[handleSaveTagEdit] Error updating tag ${currentEditTagId}:`, error);
+        // Use centralized error handler if preferred
+        // handleError(error, ErrorTypes.SERVER, `Error saving tag changes: ${error.message}`);
         alert(`Error saving tag changes: ${error.message}`);
     } finally {
-        currentEditTagId = null; // Reset ID
+        // Reset ID regardless of success/failure to prevent accidental edits
+        console.log(`[handleSaveTagEdit] Resetting currentEditTagId.`);
+        currentEditTagId = null; 
     }
 }
 
@@ -234,9 +254,21 @@ export function attachModalEventListeners() {
         const closeBtn = dom.tagEditModal.querySelector('#closeTagEditBtn');
         const cancelBtn = dom.tagEditModal.querySelector('#cancelTagEditBtn');
         const saveBtn = dom.tagEditModal.querySelector('#saveTagEditBtn');
-        if (closeBtn) closeBtn.addEventListener('click', () => closeModal(dom.tagEditModal));
-        if (cancelBtn) cancelBtn.addEventListener('click', () => closeModal(dom.tagEditModal));
-        if (saveBtn) saveBtn.addEventListener('click', handleSaveTagEdit);
+        
+        if (!saveBtn) {
+            console.warn('Save button for Tag Edit Modal not found!');
+        } else {
+            console.log('Attaching listener to Tag Edit Save button');
+            saveBtn.addEventListener('click', handleSaveTagEdit);
+        }
+        if (closeBtn) closeBtn.addEventListener('click', () => {
+             closeModal(dom.tagEditModal);
+             currentEditTagId = null; // Also reset ID on explicit close/cancel
+        });
+        if (cancelBtn) cancelBtn.addEventListener('click', () => {
+            closeModal(dom.tagEditModal);
+             currentEditTagId = null; // Also reset ID on explicit close/cancel
+        });
     }
 
     // Playlist Edit Modal

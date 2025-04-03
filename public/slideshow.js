@@ -278,19 +278,24 @@ function showPreviousImage() {
  */
 function resetSlideshowInterval() {
     // Clear any existing interval first
-    stopSlideshowInterval();
+    console.log(`[Interval] Clearing existing interval ID: ${intervalId}`);
+    stopSlideshowInterval(); // Calls clearInterval(intervalId) and sets intervalId = null
     
     const images = state.slideshow.images || [];
-    const speed = state.slideshow.speed || DEFAULT_SLIDESHOW_SPEED;
+    // *** CORRECTED: Use transitionTime from state ***
+    const transitionTime = state.slideshow.transitionTime || DEFAULTS.TRANSITION_TIME;
+    const speedMs = transitionTime * 1000; // Convert seconds to milliseconds
+
+    console.log(`[Interval] Attempting to start interval. Image count: ${images.length}, transitionTime (s): ${transitionTime}, speed (ms): ${speedMs}`);
     
     // Only start interval if there are multiple images and speed > 0
-    if (images.length > 1 && speed > 0) {
-        console.log(`Starting slideshow interval with ${images.length} images, speed: ${speed}ms`);
-        intervalId = setInterval(showNextImage, speed);
+    if (images.length > 1 && speedMs > 0) {
+        intervalId = setInterval(showNextImage, speedMs);
+        console.log(`[Interval] Started new interval with ID: ${intervalId}, Speed: ${speedMs}ms`);
     } else {
-        console.log('Not starting interval: ' + 
+        console.log('[Interval] Not starting interval: ' + 
             (images.length <= 1 ? 'Not enough images. ' : '') +
-            (speed <= 0 ? 'Speed is zero or negative. ' : ''));
+            (speedMs <= 0 ? 'Speed is zero or negative. ' : ''));
     }
 }
 
@@ -656,12 +661,23 @@ async function _initSlideshow() {
         crossfadeTo('', 'Error loading images'); // Show error state
     }
     
-    // Set up socket event listeners
-    console.log('Setting up socket event listeners for slideshow...');
-    socket.on('playImage', handlePlayImage);
-    socket.on('playSelect', handlePlaySelect);
-    socket.on('settingsUpdate', handleSettingsUpdate);
-    socket.on('slideAction', handleSlideAction);
+    // --- Socket Event Listeners ---
+    if (window.socket) {
+        // Remove existing listeners before adding new ones (prevent duplicates on potential re-init)
+        window.socket.off('playImage', handlePlayImage);
+        window.socket.off('playSelect', handlePlaySelect);
+        window.socket.off('settingsUpdate', handleSettingsUpdate);
+        window.socket.off('slideAction', handleSlideAction);
+
+        // Attach listeners
+        window.socket.on('playImage', handlePlayImage);
+        window.socket.on('playSelect', handlePlaySelect);
+        window.socket.on('settingsUpdate', handleSettingsUpdate);
+        window.socket.on('slideAction', handleSlideAction);
+        console.log('[Slideshow] Socket event listeners attached.');
+    } else {
+        console.warn('[Slideshow] Socket not available when initializing listeners.');
+    }
     
     console.log('Slideshow initialization complete.');
 }

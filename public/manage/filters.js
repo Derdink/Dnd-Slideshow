@@ -155,19 +155,8 @@ export function attachFilterEventListeners() {
         }
     }
 
-    // Filter Button
-    if (dom.filterBtn && dom.filterTabsWrapper) {
-        dom.filterBtn.addEventListener('click', () => {
-            const isActive = dom.filterBtn.classList.toggle('active'); // Toggle active class for styling
-            dom.filterTabsWrapper.style.display = isActive ? 'flex' : 'none'; // Use flex
-             if (isActive) {
-                 // Refresh filters when opening
-                 displayTagsInFilter(state.tags || []);
-                 // Playlist filters are now handled by playlistManager.js
-                 // displayPlaylistFilters(state.playlists || []);
-             }
-        });
-    }
+    // Filter Button - REMOVED (handled by manage.js)
+    // if (dom.filterBtn && dom.filterTabsWrapper) { ... }
 
     // NOTE: Event listeners for filter pills themselves are added dynamically in displayTagsInFilter
 }

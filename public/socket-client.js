@@ -130,9 +130,12 @@
     // functions defined in main.js or specific page scripts.
 
     /**
-     * Handles slideshow settings updates from the server.
+     * Listener for server-sent settings updates.
+     * Calls the appropriate handler if available.
      * @param {object} data - Data containing new settings (e.g., { speed, order }).
      */
+    // REMOVED Redundant Listener - Handled by specific modules (slideshow.js, settings.js)
+    /*
     socket.on('settingsUpdate', (data) => {
         console.log("⚙️ Received 'settingsUpdate':", data);
         // Call the actual handler function (example)
@@ -142,6 +145,7 @@
             console.warn("No handler found for 'settingsUpdate'");
         }
     });
+    */
 
     /**
      * Handles request to play a specific image.

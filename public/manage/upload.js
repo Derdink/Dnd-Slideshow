@@ -11,7 +11,7 @@
 
 import { uploadFile } from '../api.js';
 import { refreshManageData } from '../manage.js'; // To refresh image list after upload
-import { DEFAULTS } from '../config.js';
+import { DEFAULTS, UI } from '../config.js';
 
 // DOM elements cached by parent manage.js module
 let dom = {};
@@ -86,14 +86,12 @@ async function uploadSingleFile(file, overwrite = false) {
         if (response.overwritePrompt) {
             updateUploadStatus(fileName, 'File exists. Overwrite? ', false, true, file);
         } else {
-            updateUploadStatus(fileName, response.message || 'Upload successful!');
-            if (!response.error) {
-                await refreshManageData();
-            }
+            updateUploadStatus(fileName, response.message || 'Upload successful!', false, false, null, true);
+            await refreshManageData();
         }
     } catch (error) {
         console.error(`Error uploading ${fileName}:`, error);
-        updateUploadStatus(fileName, `Error: ${error.message || 'Upload failed.'}`, true);
+        updateUploadStatus(fileName, `Error: ${error.message || 'Upload failed.'}`, true, false, null, false);
     }
 }
 
@@ -101,8 +99,13 @@ async function uploadSingleFile(file, overwrite = false) {
  * Updates the upload status display
  * Provides feedback for Image Management User Story 1 operations
  */
-function updateUploadStatus(filename, message, isError = false, showOverwriteBtn = false, fileToOverwrite = null) {
+function updateUploadStatus(filename, message, isError = false, showOverwriteBtn = false, fileToOverwrite = null, autoClear = false) {
     if (!dom.uploadStatus) return;
+
+    // Make the container visible if it's currently hidden
+    if (dom.uploadStatus.style.display === 'none') {
+        dom.uploadStatus.style.display = 'block'; // Or 'flex' if it uses flexbox
+    }
 
     // Find existing status line for this file or create a new one
     let statusLine = dom.uploadStatus.querySelector(`[data-filename="${filename}"]`);
@@ -112,27 +115,68 @@ function updateUploadStatus(filename, message, isError = false, showOverwriteBtn
         dom.uploadStatus.appendChild(statusLine);
     }
 
-    statusLine.textContent = `${filename}: ${message}`;
-    statusLine.style.color = isError ? 'var(--cds-support-error, #da1e28)' : 'var(--cds-text-primary, #161616)'; // Use Carbon error color or default text
+    // Create a span for the message to allow appending buttons without replacing text
+    const messageSpan = document.createElement('span');
+    messageSpan.textContent = `${filename}: ${message}`;
+    
+    // Clear previous content and add the message span
+    statusLine.innerHTML = ''; 
+    statusLine.appendChild(messageSpan);
+    
+    statusLine.style.color = isError ? 'var(--cds-support-error, #da1e28)' : 'var(--cds-text-primary, #161616)';
+    statusLine.style.opacity = '1';
+    statusLine.style.transition = `opacity ${UI.FADE_DURATION / 1000}s ease-out`;
 
-    // Remove existing button if present
-    const existingBtn = statusLine.querySelector('button');
-    if (existingBtn) {
-        existingBtn.remove();
-    }
-
-    // Add overwrite button if needed
+    // Add Overwrite and Cancel buttons if needed
     if (showOverwriteBtn && fileToOverwrite) {
+        const buttonContainer = document.createElement('div'); // Use a container for buttons
+        buttonContainer.style.display = 'inline-block'; // Keep buttons on the same line
+        buttonContainer.style.marginLeft = '10px';
+
+        // Overwrite Button
         const overwriteBtn = document.createElement('button');
         overwriteBtn.textContent = 'Yes, Overwrite';
-        overwriteBtn.classList.add('bx--btn', 'bx--btn--danger--tertiary', 'bx--btn--sm'); // Use Carbon button styles
-        overwriteBtn.style.marginLeft = '10px';
+        overwriteBtn.classList.add('bx--btn', 'bx--btn--danger--tertiary', 'bx--btn--sm');
         overwriteBtn.onclick = () => {
-            statusLine.textContent = `${filename}: Overwriting...`; // Update status immediately
-            overwriteBtn.remove(); // Remove button after click
+            messageSpan.textContent = `${filename}: Overwriting...`; // Update message
+            buttonContainer.remove(); // Remove button container
             uploadSingleFile(fileToOverwrite, true);
         };
-        statusLine.appendChild(overwriteBtn);
+        buttonContainer.appendChild(overwriteBtn);
+
+        // Cancel Button
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.classList.add('bx--btn', 'bx--btn--secondary', 'bx--btn--sm');
+        cancelBtn.style.marginLeft = '5px'; // Add some space between buttons
+        cancelBtn.onclick = () => {
+            messageSpan.textContent = `${filename}: Upload cancelled.`; // Update message
+            buttonContainer.remove(); // Remove button container
+            // Optionally auto-clear the cancelled message after a delay
+            setTimeout(() => {
+                statusLine.style.opacity = '0';
+                setTimeout(() => statusLine.remove(), UI.FADE_DURATION);
+            }, UI.SAVE_MESSAGE_DURATION);
+        };
+        buttonContainer.appendChild(cancelBtn);
+        
+        // Append the container with both buttons to the status line
+        statusLine.appendChild(buttonContainer);
+    }
+
+    // Auto-clear logic for success/error messages (if not showing buttons)
+    if (autoClear && !isError && !showOverwriteBtn) {
+        setTimeout(() => {
+            statusLine.style.opacity = '0';
+            // Remove the element after fade-out
+            setTimeout(() => {
+                statusLine.remove();
+                // Optional: Hide the whole container if it's now empty
+                if (dom.uploadStatus && !dom.uploadStatus.hasChildNodes()) {
+                    dom.uploadStatus.style.display = 'none';
+                }
+            }, UI.FADE_DURATION);
+        }, UI.SAVE_MESSAGE_DURATION); // Use same duration as settings save message
     }
 }
 

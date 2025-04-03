@@ -7,6 +7,7 @@ import { showImageEditModal } from './modals.js';
 import { createTagPill } from './tagManager.js';
 import { refreshManageData } from '../manage.js';
 import { formatDateAdded } from './utils.js'; // Assuming utils.js exists or will be created
+import { setSort } from './imageManager.js'; // Import the setSort function
 
 // DOM elements cached by parent manage.js module
 let dom = {};
@@ -20,28 +21,71 @@ export function setImageTableDOMCache(cachedDom) {
  * @param {Array<object>} images - Array of image objects to display.
  */
 export function displayImagesInTable(images) {
-    if (!dom.imageTableBody) {
-        console.warn('Image table body not cached.');
+    const tbody = dom.imageTableBody;
+    if (!tbody) {
+        console.error('[ImageTable] Table body not found in DOM cache!');
         return;
     }
-    dom.imageTableBody.innerHTML = ''; // Clear existing rows
+    console.log('[ImageTable] Target tbody element:', tbody);
+    console.log(`[ImageTable] tbody is connected: ${tbody.isConnected}`);
+    
+    console.log(`[ImageTable] displayImagesInTable called with ${images?.length || 0} images.`);
+    
+    // Clear existing rows
+    tbody.innerHTML = '';
+    console.log('[ImageTable] Table body cleared.');
+
+    // *** LOG: Inspect the entire images array ***
+    console.log('[ImageTable] displayImagesInTable received array (first 5 stringified):', JSON.stringify(images?.slice(0, 5), null, 2));
+    console.log('[ImageTable] Full images array object:', images);
 
     if (!images || images.length === 0) {
-        // Optional: Display a message if no images match filters
-        const row = dom.imageTableBody.insertRow();
-        const cell = row.insertCell();
-        cell.colSpan = 6; // Span across all columns
-        cell.textContent = 'No images found matching your criteria.';
+        console.log('[ImageTable] No images to display, adding empty row.');
+        // Optionally add a row indicating no images found
+        const emptyRow = tbody.insertRow();
+        const cell = emptyRow.insertCell();
+        cell.colSpan = 6; // Adjust colspan based on the number of columns
+        cell.textContent = 'No images found matching the criteria.';
         cell.style.textAlign = 'center';
+        cell.style.padding = 'var(--cds-spacing-05)';
         return;
     }
 
-    images.forEach(image => {
-        dom.imageTableBody.appendChild(createImageRow(image));
+    // Process and append rows for each image
+    images.forEach((image, index) => {
+        // *** LOG: Check the individual image object *before* the try...catch ***
+        console.log(`[ImageTable Loop PRE-TRY] Processing index ${index}, ID: ${image?.id}. Image object:`, image);
+        console.log(`[ImageTable Loop PRE-TRY] Stringified Image object:`, JSON.stringify(image, null, 2));
+
+        console.log(`[ImageTable] Processing image index ${index}, ID: ${image?.id}`);
+        try {
+            const row = createImageRow(image);
+            // *** LOG: Log the returned row element *** (Log moved from previous step)
+            console.log(`[ImageTable] createImageRow returned:`, row);
+            
+            if (row instanceof HTMLTableRowElement) {
+                console.log(`[ImageTable] Row created for image ID: ${image.id}. Appending...`);
+                tbody.appendChild(row);
+                console.log(`[ImageTable] Row appended for image ID: ${image.id}.`);
+            } else {
+                // Log if it's not a row element or null/undefined
+                console.warn(`[ImageTable] Failed to create a valid row element for image index ${index}, ID: ${image?.id}. Return value:`, row);
+            }
+        } catch (error) {
+            console.error(`[ImageTable] Error creating/appending row for image index ${index}, ID: ${image?.id}:`, error);
+        }
     });
 
-    // Update header checkbox state
     updateHeaderCheckboxState(images.length);
+    console.log('[ImageTable] Finished processing all images loop.');
+    console.log(`[ImageTable] Current tbody innerHTML length after loop: ${tbody.innerHTML.length}`);
+
+    setTimeout(() => {
+        console.log(`[ImageTable] Delayed Check: tbody innerHTML length (100ms later): ${tbody.innerHTML.length}`);
+        if (tbody.children.length !== images.length && images.length > 0) {
+             console.warn(`[ImageTable] Delayed Check: Row count mismatch! Expected ${images.length}, found ${tbody.children.length}. Something might have cleared the table.`);
+        }
+    }, 100);
 }
 
 /**
@@ -50,6 +94,8 @@ export function displayImagesInTable(images) {
  * @returns {HTMLTableRowElement} The created table row element.
  */
 function createImageRow(image) {
+    console.log(`[ImageTable - createImageRow] Received image data:`, image);
+    
     const row = document.createElement('tr');
     row.className = 'bx--table-row bx--parent-row'; // Add Carbon row class
     row.setAttribute('data-image-id', image.id); // Keep data attribute for identification
@@ -92,13 +138,23 @@ function createImageRow(image) {
     row.appendChild(cellTitle);
 
     // 4. Tags Cell
-    const cellTags = createCell('bx--table-cell tags-cell'); // Add class for styling tags
+    const cellTags = createCell('bx--table-cell tags-cell');
     const tagContainer = document.createElement('div');
     tagContainer.className = 'tag-container-in-table';
-    (image.tags || []).forEach(tag => {
-        const pill = createTagPill(tag, image.id, true); // Use existing tagManager helper
-        tagContainer.appendChild(pill);
-    });
+
+    if (image.tags && Array.isArray(image.tags)) {
+        image.tags.forEach(tag => {
+            // Pass true for isRemovable as these are tags on an image
+            const pill = createTagPill(tag, image.id, true); 
+            if (pill) { 
+                tagContainer.appendChild(pill);
+            }
+        });
+    } else {
+        // Optional: Display something if no tags array
+        // tagContainer.textContent = '-'; 
+    }
+
     cellTags.appendChild(tagContainer);
     row.appendChild(cellTags);
 
@@ -145,6 +201,7 @@ function createImageRow(image) {
     cellActions.appendChild(actionsContainer);
     row.appendChild(cellActions);
 
+    console.log(`[ImageTable - createImageRow] Returning row element for ID ${image.id}:`, row);
     return row;
 }
 
@@ -245,30 +302,34 @@ function handleSortClick(event) {
 }
 
 /**
- * Updates the visual indicators (arrows) on sortable table headers.
+ * Updates the visual indicators (Carbon classes) on sortable table headers.
  */
 export function updateSortArrows() {
-    if (!dom.imageTableHead) return;
-    const headers = dom.imageTableHead.querySelectorAll('th.sortable[data-key]');
+    if (!dom.imageTableHead) {
+        console.warn("[ImageTable] Table head not found, cannot update sort arrows.");
+        return;
+    }
+    const headers = dom.imageTableHead.querySelectorAll('th[data-sort-key]');
     const currentSortKey = state.management.sortKey;
     const currentSortDir = state.management.sortDirection;
+    
+    console.log(`[ImageTable] Updating sort arrows. Key: ${currentSortKey}, Dir: ${currentSortDir}`);
 
     headers.forEach(th => {
-        const key = th.getAttribute('data-key');
-        let arrowSpan = th.querySelector('.sort-arrow'); // Use let
-        // Ensure arrow span exists, create if not
-        if (!arrowSpan) {
-            arrowSpan = document.createElement('span');
-            arrowSpan.classList.add('sort-arrow');
-            th.appendChild(arrowSpan);
-        }
+        const key = th.dataset.sortKey;
+        // Clear existing sort classes
+        th.classList.remove('bx--table-sort--active', 'bx--table-sort--ascending');
+        // Note: Carbon doesn't seem to have an explicit descending class, 
+        // active without ascending implies descending for their built-in handlers.
 
         if (key === currentSortKey) {
-            arrowSpan.textContent = currentSortDir === 'asc' ? '▲' : '▼';
-            arrowSpan.style.opacity = '1';
-        } else {
-            arrowSpan.textContent = '▲'; // Default arrow
-            arrowSpan.style.opacity = '0.3'; // Dim inactive arrows
+            th.classList.add('bx--table-sort--active');
+            if (currentSortDir === 'asc') {
+                th.classList.add('bx--table-sort--ascending');
+                console.log(`[ImageTable] Added active/ascending classes to header for key: ${key}`);
+            } else {
+                console.log(`[ImageTable] Added active class (descending implied) to header for key: ${key}`);
+            }
         }
     });
 }
@@ -323,23 +384,50 @@ async function handleBulkDelete() {
  * Attaches event listeners for the image table controls.
  */
 export function attachImageTableEventListeners() {
-    // Sorting
-    if (dom.imageTableHead) {
-        dom.imageTableHead.addEventListener('click', handleSortClick);
+    if (!dom.imageTableHead || !dom.imageTableBody) {
+        console.warn('Image table head or body not cached. Listeners not attached.');
+        return;
     }
 
-    // Header checkbox
+    // --- Sort Listener --- 
+    dom.imageTableHead.addEventListener('click', (event) => {
+        const header = event.target.closest('th[data-sort-key]');
+        if (header) {
+            const sortKey = header.dataset.sortKey;
+            console.log(`[ImageTable] Header clicked, setting sort key: ${sortKey}`);
+            setSort(sortKey); // Call the imported sort function
+        }
+    });
+
+    // --- Row Selection Checkbox Listener (Delegated) ---
+    // Moved selection logic to imageManager.js
+    /*
+    dom.imageTableBody.addEventListener('change', (event) => {
+        if (event.target.matches('.row-select-checkbox')) {
+            const row = event.target.closest('tr[data-image-id]');
+            const imageId = parseInt(row?.getAttribute('data-image-id'), 10);
+            if (!isNaN(imageId)) {
+                handleRowSelectionChange(imageId, event.target.checked);
+            }
+        }
+    });
+    */
+
+    // --- Header Selection Checkbox Listener ---
+    // Moved selection logic to imageManager.js
+    /*
     if (dom.headerSelectCheckbox) {
         dom.headerSelectCheckbox.addEventListener('change', handleHeaderSelectionChange);
     }
+    */
 
-    // Bulk delete button
-    if (dom.bulkDeleteBtn) {
-        dom.bulkDeleteBtn.addEventListener('click', handleBulkDelete);
-    }
-
-    // Note: Row-specific listeners (checkbox, delete, name click, dragstart)
-    // are added dynamically within createImageRow.
+    // --- Row Action Button Listener (Delegated) ---
+    // Moved action logic to imageManager.js 
+    /* 
+    dom.imageTableBody.addEventListener('click', async (event) => {
+        // ... existing action button logic ...
+    });
+    */
 }
 
 /**

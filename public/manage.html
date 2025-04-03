@@ -208,7 +208,7 @@
             </button>
         </div>
 
-        <div id="playlistManagerSection" style="display: none; margin-top: 1rem;" class="bx--section">
+        <div id="playlistManagerSection" style="display: none;" class="bx--section">
             <div class="playlist-manager-controls bx--row" style="margin-bottom: var(--cds-spacing-05);">
                 <div class="bx--col-sm-4 bx--col-md-4 bx--col-lg-6">
                     <div class="bx--search bx--search--lg" role="search">
@@ -253,16 +253,16 @@
 
         <!-- Filter Tabs Wrapper (Contains Tags/Playlist Filters) -->
         <div id="filterTabsWrapper" style="display: none;" class="bx--grid bx--grid--condensed">
-            <div class="bx--row">
-                <div class="bx--col-lg-9 tags-section">
+            
+                <div class=" tags-section">
                     <h3>Filter by Tags</h3>
                     <div id="tagFilterDropdown" class="filter-grid"></div>
                 </div>
-                <div class="bx--col-lg-3 playlists-section">
+                <div class=" playlists-section">
                     <h3>Filter by Playlist</h3>
                     <div id="playlistFilterContainer" class="playlistsContainer filter-grid"></div>
                 </div>
-            </div>
+            
         </div>
 
         <!-- NEW: Carbon Data Table Container -->
@@ -280,9 +280,9 @@
                             </div>
                         </th>
                         <!-- Existing Headers - Add bx--table-header -->
-                        <th scope="col" class="bx--table-header" data-sort-key="thumbnail"></th>
+                        <th scope="col" class="bx--table-header"></th>
                         <th scope="col" class="bx--table-header" data-sort-key="title">Title</th>
-                        <th scope="col" class="bx--table-header" data-sort-key="tags">Tags</th>
+                        <th scope="col" class="bx--table-header">Tags</th>
                         <th scope="col" class="bx--table-header" data-sort-key="dateAdded">Date</th>
                         <th scope="col" class="bx--table-header">Actions</th>
                     </tr>

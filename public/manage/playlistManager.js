@@ -378,7 +378,7 @@ export function displayPlaylistsInFilter() {
             item.classList.add('selected');
         }
         // Format count correctly
-        const imageCountText = `(${playlist.imageIds.length} image${playlist.imageIds.length !== 1 ? 's' : ''})`;
+        const imageCountText = `${playlist.imageIds.length} image${playlist.imageIds.length !== 1 ? 's' : ''}`;
         item.innerHTML = `
             <span class="playlist-filter-color" style="background-color: ${playlist.color || DEFAULT_PLAYLIST_COLOR}"></span>
             <div class="playlist-filter-info">
@@ -469,7 +469,8 @@ export function displayPlaylistsForSelection() {
     controlsContainer.innerHTML = ''; // Clear buttons
     settingsSelectedPlaylistIds.clear(); // Clear selection state
 
-    const allPlaylists = (state.playlists || []).filter(p => !p.hidden); // Only show non-hidden
+    const allPlaylists = (state.playlists || [])
+        .filter(p => !p.hidden && p.imageIds && p.imageIds.length > 0); // Only show non-hidden AND non-empty playlists
 
     // --- Add Select/Deselect Buttons --- 
     const selectAllBtn = createSettingsPlaylistActionButton('Select All', true, () => {
@@ -492,7 +493,7 @@ export function displayPlaylistsForSelection() {
     // --- ------------------------ --- 
 
     if (allPlaylists.length === 0) {
-        container.innerHTML = '<p class="bx--type-body-short-01">No playlists available.</p>';
+        container.innerHTML = '<p class="bx--type-body-short-01">No playlists with images available.</p>'; 
         return;
     }
 
@@ -801,14 +802,9 @@ async function handleRemoveImageFromPlaylistClick(playlistId, imageId, thumbWrap
 
 /** Attaches event listeners for playlist manager, filter, and settings controls. */
 export function attachPlaylistManagerEventListeners() {
-    // Manager Section Toggle
-    if (dom.playlistManagerToggle && dom.playlistManagerSection) {
-        dom.playlistManagerToggle.addEventListener('click', () => {
-            const isActive = dom.playlistManagerToggle.classList.toggle('active');
-            dom.playlistManagerSection.style.display = isActive ? 'block' : 'none';
-            if (isActive) displayPlaylistsInManager(); // Refresh on show
-        });
-    }
+    // Manager Section Toggle - REMOVED (handled by manage.js)
+    // if (dom.playlistManagerToggle && dom.playlistManagerSection) { ... }
+    
     // Manager Section Add Form
     if (dom.newPlaylistForm) {
         dom.newPlaylistForm.addEventListener('submit', handleAddNewPlaylist);

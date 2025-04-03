@@ -319,9 +319,9 @@ function sanitizeFilename(name) {
     // Define replacements for problematic characters
     const replacements = {
         "'": "\u2019", // Replace standard apostrophe with right single quotation mark
-        "’": "\u2019", // Keep right single quotation mark
+        "':": "\u2019", // Keep right single quotation mark
         "\"": "\u201D", // Replace standard double quote with right double quotation mark
-        "“": "\u201C", // Keep left double quotation mark
+        "": "\u201C", // Keep left double quotation mark
         "": "\u201D", // Keep right double quotation mark
         "\\": "-", // Replace backslash with hyphen
         "/": "-", // Replace forward slash with hyphen
@@ -335,18 +335,18 @@ function sanitizeFilename(name) {
         "%": "-", // Replace percent with hyphen
         "&": "and", // Replace ampersand with "and"
         // Ligatures
-        "ﬀ": "ff",
-        "ﬁ": "fi",
-        "ﬂ": "fl",
-        "ﬃ": "ffi",
-        "ﬄ": "ffl",
+        "ff": "ff",
+        "fi": "fi",
+        "fl": "fl",
+        "ffi": "ffi",
+        "ffl": "ffl",
         // Archaic letters / special characters
-        "æ": "ae",
-        "œ": "oe",
-        "ß": "ss",
-        "ð": "d",
-        "þ": "th",
-        "ſ": "s"
+        "ae": "ae",
+        "oe": "oe",
+        "ss": "ss",
+        "d": "d",
+        "th": "th",
+        "s": "s"
     };
 
     // Remove leading/trailing whitespace and replace sequences of whitespace with a single hyphen
@@ -474,58 +474,66 @@ app.post('/upload', upload.single('file'), async(req, res, next) => {
     }
 
     const overwrite = req.body.overwrite === 'true';
-    const filename = req.file.filename; // Sanitized filename from multer
+    const sanitizedFilename = req.file.filename;
     const originalPath = req.file.path;
-    const thumbPath = path.join(THUMBNAIL_DIR, filename);
-    const title = path.basename(filename, path.extname(filename)); // Title from sanitized name
+    const thumbPath = path.join(THUMBNAIL_DIR, sanitizedFilename);
+    const originalName = req.file.originalname;
+    const title = path.basename(originalName, path.extname(originalName));
     const dateAdded = Date.now().toString();
 
-    console.log(`➡️ POST /upload request received for file: ${filename}`, { overwrite });
+    console.log(`➡️ POST /upload request received for file: ${originalName} (Sanitized: ${sanitizedFilename})`, { overwrite });
 
     try {
-    // Check if an entry with this filename already exists
-        const existingImage = await dbGet('SELECT id FROM images WHERE filename = ?', [filename]);
+        // *** NEW: Check for duplicate based on ORIGINAL filename first ***
+        const existingByOriginal = await dbGet('SELECT id, filename FROM images WHERE title = ? AND filename != ?', 
+            [title, sanitizedFilename] // Check if title exists with a DIFFERENT sanitized name
+        );
+        // If an entry exists with the same title but different sanitized name, and we are NOT overwriting,
+        // it implies a logical duplicate (e.g., "My Pic.jpg" vs "My_Pic.jpg") that we might want to prevent.
+        // NOTE: This logic assumes `title` is reliably derived from `originalName`'s base.
+        if (existingByOriginal && !overwrite) {
+            console.log(`  - Logical duplicate detected: Title "${title}" already exists (ID: ${existingByOriginal.id}, Filename: ${existingByOriginal.filename}). Overwrite not requested.`);
+            // Clean up the newly uploaded file
+            try { await fs.unlink(originalPath); } catch (e) { /* ignore */ }
+            // Send a specific error message
+            return res.status(409).json({ message: `An image with a similar name ('${title}') already exists. Upload rejected to prevent potential duplicate.` });
+        }
+        // *** END NEW Check ***
 
-        if (existingImage && !overwrite) {
-            console.log(`  - File "${filename}" exists, overwrite not requested. Prompting client.`);
-            // Clean up the uploaded file as it's a duplicate not being overwritten
-            try {
-                await fs.unlink(originalPath);
-                console.log(`    - Deleted temporary duplicate file: ${originalPath}`);
-            } catch (unlinkErr) {
-                if (unlinkErr.code !== 'ENOENT') {
-                    console.warn(`    ⚠️ Could not delete temporary duplicate file ${originalPath}:`, unlinkErr.message);
-                }
-            }
-            return res.json({ overwritePrompt: true, message: `File '${filename}' already exists.` });
+        // Check if an entry with the exact sanitized filename already exists
+        const existingBySanitized = await dbGet('SELECT id FROM images WHERE filename = ?', [sanitizedFilename]);
+
+        if (existingBySanitized && !overwrite) {
+             // Existing logic for exact filename match, prompt user
+            console.log(`  - File "${sanitizedFilename}" exists, overwrite not requested. Prompting client.`);
+            try { await fs.unlink(originalPath); } catch (unlinkErr) { /* ... */ }
+            return res.json({ overwritePrompt: true, message: `File '${sanitizedFilename}' already exists.` });
         }
 
         // Proceed with insert or update
-        if (existingImage && overwrite) {
+        if (existingBySanitized && overwrite) {
             // --- Overwrite existing entry ---
-            console.log(`  - File "${filename}" exists, overwriting.`);
+            console.log(`  - File "${sanitizedFilename}" exists, overwriting.`);
             const result = await dbRun(
-                'UPDATE images SET title = ?, dateAdded = ?, description = ?' +
-                ' WHERE filename = ?', [title, dateAdded, '', filename] // Parameters as a separate argument
+                'UPDATE images SET title = ?, dateAdded = ?, description = NULL' + 
+                ' WHERE filename = ?', 
+                [title, dateAdded, sanitizedFilename]
             );
-            if (result.changes === 0) {
-                console.warn(`  ⚠️ Overwrite failed: Image "${filename}" not found in DB during UPDATE.`);
-                throw new Error('Database update failed during overwrite.');
-            }
-            console.log(`    - Database record updated for "${filename}".`);
+            console.log(`    ✅ Record updated for ID: ${existingBySanitized.id}, Rows affected: ${result.changes}`);
 
-            await generateThumbnail(originalPath, thumbPath, filename);
-            console.log(`✅ POST /upload - File "${filename}" overwritten successfully.`);
-            res.json({ message: `File '${filename}' overwritten successfully.` });
+            await generateThumbnail(originalPath, thumbPath, sanitizedFilename);
+            console.log(`✅ POST /upload - File "${sanitizedFilename}" overwritten successfully.`);
+            res.json({ message: `File '${sanitizedFilename}' overwritten successfully.` });
 
-            } else {
+        } else {
             // --- Insert new entry ---
-            console.log(`  - File "${filename}" is new, inserting record.`);
-            const insertResult = await dbRun(
-                'INSERT INTO images (filename, title, description, dateAdded) VALUES (?, ?, ?, ?)', [filename, title, '', dateAdded] // Insert with empty description
+            console.log(`  - Inserting new record for "${sanitizedFilename}".`);
+            const result = await dbRun(
+                'INSERT INTO images (filename, title, dateAdded, description) VALUES (?, ?, ?, NULL)',
+                [sanitizedFilename, title, dateAdded]
             );
-            const newImageId = insertResult.lastID;
-            console.log(`    - Database record inserted for "${filename}" with ID: ${newImageId}.`);
+            const newImageId = result.lastID; // Get the ID for tag association
+            console.log(`    ✅ New record inserted with ID: ${newImageId}`);
 
             // Add the new image to the 'Hidden' tag by default
             try {
@@ -538,26 +546,33 @@ app.post('/upload', upload.single('file'), async(req, res, next) => {
                 }
             } catch (tagErr) {
                 console.error(`    ❌ Error adding image ${newImageId} to '${HIDDEN_TAG_NAME}' tag:`, tagErr.message);
-                // Decide if this error should cause the whole upload to fail
             }
 
-            await generateThumbnail(originalPath, thumbPath, filename);
-            console.log(`✅ POST /upload - File "${filename}" uploaded successfully.`);
-            res.status(201).json({ message: `File '${filename}' uploaded successfully.`, imageId: newImageId });
+            // *** NEW: Add the new image to the 'All' tag if it exists ***
+            try {
+                const allTag = await dbGet('SELECT id FROM tags WHERE LOWER(name) = ?', ['all']); // Find 'All' tag (case-insensitive)
+                if (allTag) {
+                    await dbRun('INSERT OR IGNORE INTO image_tags (image_id, tag_id) VALUES (?, ?)', [newImageId, allTag.id]);
+                    console.log(`    - Added new image ${newImageId} to 'All' tag (ID: ${allTag.id}).`);
+                } else {
+                    // This is not necessarily a warning, the 'All' tag might not be used.
+                    console.log(`    - 'All' tag not found, skipping addition for image ${newImageId}.`);
+                }
+            } catch (tagErr) {
+                console.error(`    ❌ Error adding image ${newImageId} to 'All' tag:`, tagErr.message);
+            }
+            // *** END NEW ***
+
+            await generateThumbnail(originalPath, thumbPath, sanitizedFilename);
+            console.log(`✅ POST /upload - File "${sanitizedFilename}" uploaded successfully.`);
+            res.status(201).json({ message: `File '${sanitizedFilename}' uploaded successfully.`, imageId: newImageId });
         }
 
     } catch (err) {
-        console.error(`❌ POST /upload - Error processing upload for "${filename}":`, err);
-        // Attempt to clean up the uploaded file if an error occurred during DB operations
-        try {
-            await fs.unlink(originalPath);
-            console.log(`    - Cleaned up temporary file after error: ${originalPath}`);
-        } catch (cleanupErr) {
-            if (cleanupErr.code !== 'ENOENT') {
-                console.warn(`    ⚠️ Could not cleanup file ${originalPath} after error:`, cleanupErr.message);
-            }
-        }
-        next(err); // Pass to the main error handler
+        console.error(`❌ POST /upload - Error processing file ${sanitizedFilename}:`, err.message);
+        // Clean up uploaded file on database error?
+        try { await fs.unlink(originalPath); } catch (e) { /* ignore */ }
+        next(err); // Pass to central error handler
     }
 });
 
@@ -605,17 +620,19 @@ apiRouter.get('/images', async (req, res, next) => {
         const filterPlaylistId = playlistId ? parseInt(playlistId, 10) : null;
         const filterIds = req.query.ids ? req.query.ids.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id)) : [];
         const shouldIncludeHidden = includeHidden === 'true';
+        // *** LOG: Verify the parsed value of shouldIncludeHidden ***
+        console.log(`  [Server Filter Debug] Parsed shouldIncludeHidden: ${shouldIncludeHidden} (Raw query value: ${req.query.includeHidden})`);
 
         const validSortKeys = ['id', 'filename', 'title', 'description', 'dateAdded'];
         const sortColumn = validSortKeys.includes(sortKey) ? sortKey : 'dateAdded';
         const sortDirection = sortDir?.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
+        // *** ADD SERVER LOGGING ***
+        console.log("  [Server Sort Debug] Received Query Params:", req.query);
+        console.log(`  [Server Sort Debug] Derived Sort -> Column: ${sortColumn}, Direction: ${sortDirection}`);
+
         // --- Base SQL Query Parts ---
-        let baseSelect = `
-            SELECT
-                i.id, i.filename, i.title, i.description, i.dateAdded,
-                GROUP_CONCAT(DISTINCT CASE WHEN t.id IS NOT NULL THEN t.id || ':::' || t.name || ':::' || t.color ELSE NULL END) as tag_data
-        `;
+        const baseSelect = `SELECT i.id, i.filename, i.title, i.description, i.dateAdded, GROUP_CONCAT(DISTINCT t.id || ':::' || t.name || ':::' || COALESCE(t.color, '#cccccc')) as tag_data`;
         let countSelect = `SELECT COUNT(DISTINCT i.id)`;
         let fromClause = `FROM images i`;
         let whereClauses = [];
@@ -665,7 +682,10 @@ apiRouter.get('/images', async (req, res, next) => {
           }
 
           // Handle Hidden Tag Exclusion (unless explicitly requested)
+          // *** LOG: Check condition *before* adding WHERE clause ***
+          console.log(`  [Server Filter Debug] Checking condition for hidden filter: !shouldIncludeHidden = ${!shouldIncludeHidden}`);
           if (!shouldIncludeHidden) {
+              console.log('  [Server Filter Debug] Adding WHERE clause to exclude hidden images.');
               whereClauses.push(`
                   NOT EXISTS (
                       SELECT 1 FROM image_tags it_hidden
@@ -674,6 +694,8 @@ apiRouter.get('/images', async (req, res, next) => {
                   )
               `);
               params.push(HIDDEN_TAG_NAME);
+          } else {
+              console.log('  [Server Filter Debug] Skipping WHERE clause for hidden images because shouldIncludeHidden is true.');
           }
         }
 
@@ -716,24 +738,23 @@ apiRouter.get('/images', async (req, res, next) => {
 
 
         // --- Construct Main Query ---
-        let mainSql = `
+        const mainQuery = `
             ${baseSelect}
             ${fromClause}
             ${joinSql}
             ${whereSql}
-            GROUP BY i.id
+            GROUP BY i.id, i.filename, i.title, i.description, i.dateAdded
             ORDER BY ${sortColumn} ${sortDirection}
+            LIMIT ?
+            OFFSET ?
         `;
-        let mainParams = [...params];
+        const finalParams = [...params, itemsPerPage, finalOffset]; // Add limit and offset to params
 
-        // Add LIMIT/OFFSET only if not filtering by ID (or decide if you want pagination even with ID filter)
-        if (filterIds.length === 0) {
-             mainSql += ` LIMIT ? OFFSET ?`;
-             mainParams.push(itemsPerPage, finalOffset);
-        }
+        // *** ADD SERVER LOGGING ***
+        console.log("  [Server Sort Debug] FINAL Main Query:", mainQuery); 
+        console.log("  [Server Sort Debug] FINAL Query Params:", finalParams);
 
-        console.log("Main SQL:", mainSql, mainParams);
-        const rows = await dbAll(mainSql, mainParams);
+        const rows = await dbAll(mainQuery, finalParams);
 
         if (!rows) {
             console.warn("⚠️ GET /api/images - Main query returned null/undefined rows object.");
@@ -797,10 +818,11 @@ apiRouter.get('/images', async (req, res, next) => {
  * @body    {string} title - The new title for the image.
  * @body    {string} [description] - The new description for the image.
  */
-apiRouter.put('/images/:id', async(req, res, next) => {
+apiRouter.put('/images/:id', async (req, res, next) => {
     const imageId = parseInt(req.params.id, 10);
-    console.log(`➡️ PUT /api/images/${imageId} request received`, { title, hasDescription: req.body.description !== undefined });
+    console.log(`➡️ PUT /api/images/${imageId} request received`, { title: req.body.title, hasDescription: req.body.description !== undefined, hasTagIds: req.body.tagIds !== undefined });
 
+    // --- Validation ---
     if (isNaN(imageId)) {
         console.warn(`⚠️ PUT /api/images/:id - Invalid ID format: ${req.params.id}`);
         return res.status(400).json({ message: 'Invalid image ID format.' });
@@ -810,24 +832,71 @@ apiRouter.put('/images/:id', async(req, res, next) => {
         return res.status(400).json({ message: 'Image title is required and must be a non-empty string.' });
     }
     const trimmedTitle = req.body.title.trim();
-    const finalDescription = req.body.description || ''; // Ensure description is at least empty string
+    const finalDescription = req.body.description || '';
+    const newTagIds = req.body.tagIds; // Get the tagIds array
 
+    // Check if tagIds is provided and is an array
+    const shouldUpdateTags = Array.isArray(newTagIds);
+    if (shouldUpdateTags) {
+        // Optional: Validate tagIds are numbers
+        if (!newTagIds.every(id => typeof id === 'number' && !isNaN(id))) {
+            console.warn(`⚠️ PUT /api/images/${imageId} - Invalid tagIds format. Must be an array of numbers.`);
+            return res.status(400).json({ message: 'Invalid tagIds format. Must be an array of numbers.' });
+        }
+        console.log(`  - Request includes tag update. New tag IDs: [${newTagIds.join(', ')}]`);
+    }
+
+    // --- Check if Image Exists ---
     try {
-        const result = await dbRun(
-            'UPDATE images SET title = ?, description = ? WHERE id = ?', [trimmedTitle, finalDescription, imageId]
-        );
-
-        if (result.changes === 0) {
+        const existingImage = await dbGet('SELECT 1 FROM images WHERE id = ?', [imageId]);
+        if (!existingImage) {
             console.warn(`⚠️ PUT /api/images/${imageId} - Image not found.`);
             return res.status(404).json({ message: 'Image not found.' });
         }
+    } catch (err) {
+        console.error(`❌ PUT /api/images/${imageId} - Error checking image existence:`, err.message);
+        return next(err); // Pass to global error handler
+    }
 
-        console.log(`✅ PUT /api/images/${imageId} - Image updated successfully.`);
+    // --- Update Logic (Removed Transaction) ---
+    // let transactionStarted = false; // REMOVE this flag
+    try {
+        // REMOVE: await dbRun('BEGIN TRANSACTION');
+        // REMOVE: transactionStarted = true;
+
+        // 1. Update title and description in images table
+        await dbRun(
+            'UPDATE images SET title = ?, description = ? WHERE id = ?',
+            [trimmedTitle, finalDescription, imageId]
+        );
+        console.log(`  - Updated images table for ID ${imageId}.`);
+
+        // 2. Update tags if provided
+        if (shouldUpdateTags) {
+            // Delete existing tags for this image
+            const deleteResult = await dbRun('DELETE FROM image_tags WHERE image_id = ?', [imageId]);
+            console.log(`  - Deleted ${deleteResult.changes} existing tag associations for image ID ${imageId}.`);
+
+            // Insert new tags
+            if (newTagIds.length > 0) {
+                const insertSql = 'INSERT INTO image_tags (image_id, tag_id) VALUES (?, ?)';
+                await Promise.all(newTagIds.map(tagId => {
+                     return dbRun(insertSql, [imageId, tagId]);
+                }));
+                 console.log(`  - Inserted ${newTagIds.length} new tag associations for image ID ${imageId}.`);
+            }
+            // REMOVE: await dbRun('COMMIT');
+            // REMOVE: transactionStarted = false;
+        }
+
+        console.log(`✅ PUT /api/images/${imageId} - Image update process completed successfully.`);
         res.json({ message: 'Image updated successfully.' });
 
     } catch (err) {
-        console.error(`❌ PUT /api/images/${imageId} - Error updating image:`, err.message);
-        next(err);
+        console.error(`❌ PUT /api/images/${imageId} - Error during update process:`, err.message);
+        // REMOVE: Rollback logic
+        // if (transactionStarted) { ... }
+        next(err); 
     }
 });
 

@@ -22,10 +22,9 @@ export function setImageManagerDOMCache(cachedDom) {
     console.log('[ImageManager] Received DOM object for caching:', cachedDom);
     dom = cachedDom;
     // Ensure required DOM elements for this module are present
-    if (!dom.bulkDeleteBtn || !dom.playSelectBtn || !dom.imageTableBody) {
+    if (!dom.bulkDeleteBtn || !dom.imageTableBody) {
         console.error('ImageManager DOM Cache incomplete! Missing required elements.', {
             bulkDeleteBtn: dom.bulkDeleteBtn,
-            playSelectBtn: dom.playSelectBtn,
             imageTableBody: dom.imageTableBody
         });
     }
@@ -47,8 +46,8 @@ function toggleImageSelection(imageId) {
     } else {
         selectedIds.add(imageId);
     }
-    // No need to call updateState explicitly as we're modifying the Set directly
-    console.log('[ImageManager] Selected IDs:', Array.from(selectedIds));
+    // *** LOG: Log selection set after toggle ***
+    console.log('[ImageManager toggleImageSelection] Updated selectedIds Set:', selectedIds);
     updateBulkActionButtons();
     updateRowSelectionVisuals(); // Update visuals in the table
 }
@@ -64,7 +63,8 @@ function selectAllImages(select) {
     } else {
         state.management.displayedImages.forEach(img => selectedIds.delete(img.id));
     }
-    console.log('[ImageManager] Selected IDs after selectAll:', Array.from(selectedIds));
+    // *** LOG: Log selection set after selectAll ***
+    console.log('[ImageManager selectAllImages] Updated selectedIds Set:', selectedIds);
     updateBulkActionButtons();
     updateRowSelectionVisuals();
 }
@@ -79,10 +79,6 @@ function updateBulkActionButtons() {
     if (dom.bulkDeleteBtn) {
         dom.bulkDeleteBtn.disabled = disabled;
         dom.bulkDeleteBtn.classList.toggle('bx--btn--disabled', disabled);
-    }
-    if (dom.playSelectBtn) {
-        dom.playSelectBtn.disabled = disabled;
-        dom.playSelectBtn.classList.toggle('bx--btn--disabled', disabled);
     }
     // Add logic for other bulk buttons (e.g., add tag, add to playlist) here if needed
 }
@@ -252,48 +248,64 @@ async function handlePlayImage(imageId) {
 export async function refreshImageData() {
     console.log('[ImageManager] Refreshing image data...', state.management);
 
-    // 1. Prepare options for fetching images from global state
     const fetchOptions = {
-        search: state.management.searchQuery,
-        tags: state.management.selectedFilterTags,
-        playlistId: state.management.selectedPlaylistId,
-        sortKey: state.management.sortKey,
-        sortDir: state.management.sortDirection,
         page: state.management.currentPage,
         limit: state.management.currentLimit,
-        // includeHidden: state.management.includeHidden // Add if implementing this filter
+        sortKey: state.management.sortKey,
+        sortDir: state.management.sortDirection,
+        filters: {
+            search: state.management.searchQuery,
+            tags: state.management.selectedFilterTags,
+            playlistId: state.management.selectedPlaylistId,
+            includeHidden: true
+        }
     };
+    
+    console.log('[ImageManager] Fetching images with options:', fetchOptions);
 
     try {
-        // 2. Fetch image data
         const imageData = await fetchImages(fetchOptions);
+        
+        console.log('[ImageManager] Raw imageData received from API:', imageData);
+        
+        const receivedImages = imageData.images || [];
+        
+        const expectedNewId = null; // Or set to the ID you are testing
+        if (expectedNewId) {
+             const foundNew = receivedImages.some(img => img.id === expectedNewId);
+             console.log(`[ImageManager] Does raw API response contain image ID ${expectedNewId}? : ${foundNew}`);
+        }
+        console.log(`[ImageManager] Received ${receivedImages.length} images from fetch. First 5 IDs:`, 
+             receivedImages.slice(0, 5).map(img => img.id)
+        );
 
-        // 3. Update global state with results
         updateState('management', {
-            displayedImages: imageData.images || [], // Ensure it's an array
+            displayedImages: receivedImages, 
             totalPages: imageData.pagination.totalPages || 1,
-            // Potentially update currentPage if the requested page was beyond the new totalPages
             currentPage: imageData.pagination.currentPage || 1
         });
-        // Note: We don't update state.tags or state.playlists here, as that's handled
-        // by a more general refresh function perhaps.
+        
+        console.log('[ImageManager] State updated. Current state.management.displayedImages (first 5 stringified):', 
+            JSON.stringify(state.management.displayedImages?.slice(0, 5), null, 2)
+        );
+         console.log('[ImageManager] Full state.management.displayedImages object:', state.management.displayedImages);
 
-        // 4. Update UI components
-        displayImagesInTable(imageData.images || []);
+        console.log('[ImageManager] Calling displayImagesInTable with image count:', receivedImages.length);
+        displayImagesInTable(receivedImages); 
+        
         updatePaginationControls(imageData.pagination || { currentPage: 1, totalPages: 1, totalItems: 0, itemsPerPage: state.management.currentLimit });
-        updateSortArrows(); // Reflect current sort state
-        updateFilterTagAvailability(imageData.images || []); // Update filter tags based on results
-        updateBulkActionButtons(); // Update buttons based on potential selection changes (e.g., page change)
-        updateRowSelectionVisuals(); // Ensure visuals are correct after redraw
+        updateSortArrows(); 
+        updateFilterTagAvailability(receivedImages); 
+        updateBulkActionButtons(); 
+        updateRowSelectionVisuals(); 
 
         console.log('[ImageManager] Image data refresh complete.');
 
     } catch (error) {
         console.error('[ImageManager] Error refreshing image data:', error);
-        // Optionally, display error in the table or via notification
-        displayImagesInTable([]); // Clear table on error
-        updatePaginationControls({ currentPage: 1, totalPages: 1, totalItems: 0, itemsPerPage: state.management.currentLimit }); // Reset pagination
-        updateBulkActionButtons(); // Disable buttons on error
+        displayImagesInTable([]);
+        updatePaginationControls({ currentPage: 1, totalPages: 1, totalItems: 0, itemsPerPage: state.management.currentLimit });
+        updateBulkActionButtons();
     }
 }
 

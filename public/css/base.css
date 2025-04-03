@@ -8,9 +8,9 @@
 body {
     font-family: 'TestFoundersGrotesk', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     font-size: var(--font-size-base);
-    line-height: var(--line-height-normal);
-    color: var(--text-primary);
-    background-color: var(--bg-primary);
+    line-height: var(--cds-line-height-02);
+    color: var(--cds-text-01);
+    background-color: var(--cds-ui-01);
 }
 
 /* Typography - Using Carbon Design System classes */

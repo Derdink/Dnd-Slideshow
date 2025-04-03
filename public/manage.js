@@ -468,10 +468,35 @@ async function handleSlideshowControlClick(event) {
  * Attaches event listeners for the main management page components.
  */
 function attachMainEventListeners() {
-    // Example: Attach listener for the search input if handled here
-    // if (dom.searchInput) {
-    //     dom.searchInput.addEventListener('input', handleSearchInput);
-    // }
+    // --- Centralized Header Toggles --- 
+    const toggleHandler = (button, section, displayFunc) => {
+        if (!button || !section) return;
+        button.addEventListener('click', () => {
+            const isOpening = !button.classList.contains('active'); // Will it be active AFTER toggle?
+            
+            if (isOpening) {
+                closeOtherHeaderSections(button); // Close others BEFORE toggling this one
+                button.classList.add('active');
+                section.style.display = section === dom.filterTabsWrapper ? 'grid' : 'block'; 
+                console.log(`Accordion: Opening section for button:`, button.id);
+                // Call the display/refresh function for the opened section
+                if (displayFunc) displayFunc(); 
+            } else {
+                button.classList.remove('active');
+                section.style.display = 'none';
+                console.log(`Accordion: Closing section for button:`, button.id);
+            }
+        });
+    };
+
+    // Pass the relevant display function to refresh content when opening
+    toggleHandler(dom.playlistManagerToggle, dom.playlistManagerSection, displayPlaylistsInManager);
+    toggleHandler(dom.tagManagerToggle, dom.tagManagerContainer, displayTagsInManager);
+    toggleHandler(dom.filterBtn, dom.filterTabsWrapper, () => { 
+        displayTagsInFilter(state.tags || []);
+        displayPlaylistsInFilter(state.playlists || []);
+    });
+    // --- End Centralized Header Toggles ---
 
     // Attach listeners for header slideshow controls
     if (dom.slideshowPrevBtn) dom.slideshowPrevBtn.addEventListener('click', handleSlideshowControlClick);
@@ -495,4 +520,26 @@ function attachMainEventListeners() {
     }
 
     // ... other main event listeners ...
+}
+
+// --- Helper Function for Accordion Behavior ---
+/**
+ * Closes header sections other than the one corresponding to the activeButton.
+ * @param {HTMLElement} activeButton - The button element that was just activated.
+ */
+function closeOtherHeaderSections(activeButton) {
+    const sections = [
+        { button: dom.playlistManagerToggle, section: dom.playlistManagerSection, displayFunc: null }, 
+        { button: dom.tagManagerToggle, section: dom.tagManagerContainer, displayFunc: null }, 
+        { button: dom.filterBtn, section: dom.filterTabsWrapper, displayFunc: null } 
+    ];
+
+    sections.forEach(item => {
+        // If this button is not the one that was just activated AND it is currently active
+        if (item.button && item.section && item.button !== activeButton && item.button.classList.contains('active')) {
+            item.button.classList.remove('active');
+            item.section.style.display = 'none'; // This will now correctly target tagManagerContainer
+            console.log(`Accordion: Closing section for button:`, item.button.id);
+        }
+    });
 } 
