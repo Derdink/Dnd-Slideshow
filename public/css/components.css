@@ -794,7 +794,7 @@ padding: 0rem 0.5rem;
     border-bottom: 1px solid var(--cds-border-subtle-01);
 }
 
-#playlist-filter-search-input {
+#playlist-filter-search-input, #settingsPlaylistSearch {
     background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='16'%20height='16'%20viewBox='0%200%2016%2016'%3E%3Cpath%20d='M15,14.3L10.7,10c0.9-1.2,1.4-2.6,1.4-4c0-3.3-2.7-6-6-6S0,2.7,0,6s2.7,6,6,6c1.4,0,2.8-0.5,4-1.4l4.3,4.3c0.2,0.2,0.5,0.3,0.7,0.3s0.5-0.1,0.7-0.3C15.5,15.3,15.5,14.7,15,14.3z%20M6,10.5c-2.5,0-4.5-2-4.5-4.5s2-4.5,4.5-4.5s4.5,2,4.5,4.5S8.5,10.5,6,10.5z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: 10px 50%;
@@ -925,7 +925,7 @@ padding: 0rem 0.5rem;
 
 #imageTable .bx--table-header[data-sort-key="tags"],
 #imageTable .bx--table-cell:nth-child(4) { /* Tags is now 4th cell */
-    width: 35%; 
+    width: 35%;
 }
 
 #imageTable .bx--table-header[data-sort-key="dateAdded"],
@@ -977,29 +977,18 @@ padding: 0rem 0.5rem;
     gap: var(--cds-spacing-01); 
 }
 
+.actions-container-in-table .bx--btn--ghost{
+    color: #161616;
+}
+
 /* ADD specific hover style for consistency with Playlist Manager */
 #imageTable .actions-cell .bx--btn--ghost.bx--btn--icon-only:hover {
-  background-color: var(--cds-layer-hover-01);
+  background-color: var(--cds-ui-background); 
 }
 
 /* Ensure danger button hover is correct */
 #imageTable .actions-cell .bx--btn--danger.bx--btn--icon-only:hover {
      background-color: var(--cds-layer-hover-01); /* Match normal hover */
-}
-
-/* --- Settings Tab Specific Styles --- */
-
-#settingsSection {
-    /* ... existing ... */
-}
-
-#settings-details {
-    /* ... existing ... */
-}
-
-/* Styles for Tag Selection in Settings */
-#tagSelectionWrapper {
-  /* Add padding/margin if needed */
 }
 
 #tagSelectionContainer {
@@ -1033,17 +1022,28 @@ padding: 0rem 0.5rem;
 /* Styles for Playlist Selection in Settings */
 .settings-playlist-controls {
     display: flex;
-    gap: var(--cds-spacing-03);
-    align-items: flex-end; /* Align button baseline with input */
+    gap: var(--cds-spacing-03); /* Reduced gap again */
+    align-items: flex-end; 
     margin-bottom: var(--cds-spacing-05);
 }
 
-.settings-playlist-controls .bx--form-item {
-    flex-grow: 1; /* Allow search to take space */
+.settings-playlist-controls .bx--form-item { /* Search container */
+    flex: 1 1 0%; /* Allow grow/shrink, ZERO basis */
+    min-width: 150px; /* Slightly reduced min-width just in case */
 }
 
-.settings-playlist-controls .bx--btn-set {
-    flex-shrink: 0; /* Prevent buttons shrinking */
+/* Ensure the search component itself fills the form item */
+.settings-playlist-controls .bx--form-item .bx--search {
+    width: 100%; 
+}
+
+.settings-playlist-controls .bx--btn-set { /* Button container */
+    flex: 0 0 auto; /* Don't grow, don't shrink, auto basis */
+}
+
+/* Override potential width: 100% on buttons inside this specific set */
+.settings-playlist-controls .bx--btn-set .bx--btn {
+    width: auto; 
 }
 
 .settings-playlist-list-container {
@@ -1052,16 +1052,5 @@ padding: 0rem 0.5rem;
     overflow-y: auto;
     /* Add Carbon scrollbar styles if desired */
 }
-
-.settings-playlist-item {
-    /* Use the same styles as the filter items */
-    /* .playlist-filter-item styles should apply if class is added */
-}
-
-.settings-playlist-item.selected {
-    /* Use the same selection style as filter items */
-    /* .playlist-filter-item.selected styles should apply */
-}
-
 
 
