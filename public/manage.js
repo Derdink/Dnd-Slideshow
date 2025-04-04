@@ -133,6 +133,7 @@ function cacheDOMElements() {
     dom.orderGroupsBtn = document.getElementById('orderGroups');
     dom.saveSettingsBtn = document.getElementById('saveSettingsBtn');
     dom.saveMessage = document.getElementById('saveMessage');
+    dom.showTextOverlayToggle = document.getElementById('showTextOverlayToggle');
     dom.settingsPlaylistList = document.getElementById('settingsPlaylistList'); // For playlists in settings
     dom.playTagsBtn = document.getElementById('playTagsBtn'); // Play selected tags button
     dom.tagSelectionContainer = document.getElementById('tagSelectionContainer'); // Tags in settings

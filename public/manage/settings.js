@@ -55,6 +55,16 @@ function loadSettingsValues() {
         localStorage.getItem(STORAGE_KEYS.SLIDESHOW_ORDER) ?? 
         DEFAULTS.SLIDESHOW_ORDER;
     updateOrderButtonSelection(currentOrder);
+
+    // Load Show Text Overlay state
+    const currentShowText = state.slideshow?.showTextOverlay ?? 
+        (localStorage.getItem(STORAGE_KEYS.SHOW_TEXT_OVERLAY) === 'true') ?? 
+        DEFAULTS.SHOW_TEXT_OVERLAY;
+    if (dom.showTextOverlayToggle) {
+        dom.showTextOverlayToggle.checked = currentShowText;
+    } else {
+        console.warn('Show Text Overlay toggle not found in DOM cache.');
+    }
 }
 
 /**
@@ -108,7 +118,7 @@ function handleOrderButtonClick(event) {
  * - Save sequence order
  */
 async function handleSaveSettings() {
-    if (!dom.minutesInput || !dom.secondsInput || !dom.orderRandomBtn) {
+    if (!dom.minutesInput || !dom.secondsInput || !dom.orderRandomBtn || !dom.showTextOverlayToggle) {
         console.warn('Cannot save settings, DOM elements missing.');
         return;
     }
@@ -126,18 +136,23 @@ async function handleSaveSettings() {
         newOrder = 'groups';
     }
 
-    console.log(`Saving settings: Time=${newTransitionTime}s, Order=${newOrder}`);
+    // Get Show Text Overlay state
+    const newShowTextOverlay = dom.showTextOverlayToggle.checked;
+
+    console.log(`Saving settings: Time=${newTransitionTime}s, Order=${newOrder}, ShowText=${newShowTextOverlay}`);
 
     try {
         updateState('slideshow', {
             transitionTime: newTransitionTime,
-            order: newOrder
+            order: newOrder,
+            showTextOverlay: newShowTextOverlay
         });
 
         localStorage.setItem(STORAGE_KEYS.TRANSITION_TIME, newTransitionTime.toString());
         localStorage.setItem(STORAGE_KEYS.SLIDESHOW_ORDER, newOrder);
+        localStorage.setItem(STORAGE_KEYS.SHOW_TEXT_OVERLAY, newShowTextOverlay.toString());
 
-        await updateSlideshowSettings(newTransitionTime, newOrder);
+        await updateSlideshowSettings(newTransitionTime, newOrder, newShowTextOverlay);
         showSaveConfirmation();
 
     } catch (error) {
@@ -286,13 +301,12 @@ async function handlePlayTagsClick() {
  */
 function handleSocketSettingsUpdate(data) {
     console.log('Socket received settingsUpdate:', data);
-    if (data && data.transitionTime !== undefined && data.order !== undefined) {
-        // Update local state if necessary (localStorage should be updated by the source of the event)
-        updateState('slideshow', { // Also update runtime state if used
+    if (data && data.transitionTime !== undefined && data.order !== undefined && data.showTextOverlay !== undefined) {
+        updateState('slideshow', { 
              transitionTime: data.transitionTime,
-             order: data.order
+             order: data.order,
+             showTextOverlay: data.showTextOverlay
          });
-        // Reload the values into the form fields to reflect the change
         loadSettingsValues();
     }
 }

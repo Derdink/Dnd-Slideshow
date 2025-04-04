@@ -153,11 +153,12 @@ async function fetchPlaylists() {
  * Updates the slideshow settings on the server.
  * @param {number} transitionTime - The transition time in seconds.
  * @param {string} order - The slideshow order ('random', 'alphabetical', 'groups').
+ * @param {boolean} [showTextOverlay] - Whether to show the title/subtitle overlay.
  * @returns {Promise<object>} A promise that resolves with the server response.
  * @throws {Error} If the fetch request fails or the response is not ok.
  */
-async function updateSlideshowSettings(transitionTime, order) {
-    console.log(`API: Updating slideshow settings - Time: ${transitionTime}, Order: ${order}`);
+async function updateSlideshowSettings(transitionTime, order, showTextOverlay) {
+    console.log(`API: Updating slideshow settings - Time: ${transitionTime}, Order: ${order}, ShowText: ${showTextOverlay}`);
     try {
         const response = await fetch('/api/updateSlideshow', {
             method: 'POST',
@@ -167,7 +168,8 @@ async function updateSlideshowSettings(transitionTime, order) {
             body: JSON.stringify({ 
                 action: 'updateSettings',
                 speed: transitionTime,
-                order: order
+                order: order,
+                showTextOverlay: showTextOverlay
             }),
         });
         if (!response.ok) {

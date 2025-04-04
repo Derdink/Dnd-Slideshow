@@ -269,6 +269,13 @@
     flex-wrap: wrap;
 }
 
+/* Target direct form item children of the settings row in the first tab */
+#tab-panel-1 .settings-row > .bx--form-item {
+    flex-grow: 1; /* Don't grow */
+    flex-shrink: 0; /* Don't shrink */
+    /* Width will be based on content or specific rules like for #timeInputs */
+}
+
 .time-inputs {
     display: flex;
     gap: var(--cds-spacing-03, 0.5rem);
@@ -280,6 +287,14 @@
 
 #orderContainer .bx--btn-set {
     display: flex; /* Ensure button set displays inline */
+    width: max-content; /* Make set only as wide as content */
+}
+
+/* Prevent order buttons from expanding */
+#tab-panel-1 #orderContainer .bx--btn-set .bx--btn {
+    width: auto; 
+    flex-grow: 0;
+    flex-shrink: 0;
 }
 
 #saveSettingsBtn span {
@@ -872,49 +887,70 @@ padding: 0rem 0.5rem;
 }
 
 #imageTable {
-    table-layout: fixed;
+    width: 100%;
 }
 
+/* Checkbox */
+#imageTable .bx--table-header.bx--table-column-checkbox,
+#imageTable .bx--table-cell:nth-child(1) {
+    width: 1%; /* Shrink-to-fit */
+    white-space: nowrap; /* Prevent wrapping */
+    min-width: 48px;
+    padding-left: var(--cds-spacing-05);
+    padding-right: var(--cds-spacing-03);
+}
 
-
-/* Specific Column Widths & Alignment (Adjusted for gaps and alignment) */
+/* Thumbnail */
 #imageTable .bx--table-header[data-sort-key="thumbnail"],
-#imageTable .bx--table-cell:nth-child(2) { /* Thumbnail Cell */
-    width: 80px; /* Fixed width for thumbnail + padding */
+#imageTable .bx--table-cell:nth-child(2) {
+    width: 1%; /* Shrink-to-fit */
+    white-space: nowrap; /* Prevent wrapping */
     min-width: 80px;
     padding-left: var(--cds-spacing-03);
     padding-right: var(--cds-spacing-03);
 }
 
+/* Title */
 #imageTable .bx--table-header[data-sort-key="title"],
-#imageTable .bx--table-cell:nth-child(3) { /* Title Cell - Corrected selector */
-    width: 25%; /* Reduced title width slightly */
+#imageTable .bx--table-cell:nth-child(3) {
+    width: auto; /* Expand */
+    min-width: 300px;
+    /* Removed overflow handling */
 }
 
+/* Tags */
 #imageTable .bx--table-header[data-sort-key="tags"],
-#imageTable .bx--table-cell:nth-child(4) { /* Tags Cell */
-    width: 40%; /* Increased tags width */
+#imageTable .bx--table-cell:nth-child(4) {
+    width: auto; /* Expand */
+    /* Overflow handled by inner container */
 }
 
+/* Date Added */
 #imageTable .bx--table-header[data-sort-key="dateAdded"],
-#imageTable .bx--table-cell:nth-child(5) { /* Date Cell */
-    width: 15%; /* Adjusted date width */
+#imageTable .bx--table-cell:nth-child(5) {
+    width: 1%; /* Shrink-to-fit */
+    white-space: nowrap; /* Prevent wrapping */
+    min-width: 100px;
+    text-align: left;
+}
+#imageTable .bx--table-header[data-sort-key="dateAdded"] {
+    text-align: left;
+    padding-right: var(--cds-spacing-05);
 }
 
-#imageTable .bx--table-header:last-child, /* Actions Header */
-#imageTable .bx--table-cell:last-child { /* Actions Cell */
-    width: auto; /* Let actions take remaining space */
-    min-width: 120px; /* Ensure enough space for buttons */
-    text-align: right; /* Align actions right */
+/* Actions */
+#imageTable .bx--table-header:nth-child(6), /* Header */
+#imageTable .bx--table-cell:nth-child(6) { /* Cell */
+    width: 1%; /* Shrink-to-fit */
+    white-space: nowrap; /* Prevent wrapping */
+    min-width: 120px;
 }
-
-/* Ensure checkbox column is minimal */
-#imageTable .bx--table-header.bx--table-column-checkbox,
-#imageTable .bx--table-cell.bx--table-cell-checkbox {
-    width: 48px; /* Carbon default */
-    min-width: 48px;
-    padding-left: var(--cds-spacing-05);
-    padding-right: var(--cds-spacing-03);
+#imageTable .bx--table-header:nth-child(6) {
+     text-align: left;
+     padding-left: var(--cds-spacing-04);
+}
+#imageTable .bx--table-cell:nth-child(6) {
+    text-align: right;
 }
 
 /* Thumbnail Styling */
@@ -1073,6 +1109,20 @@ padding-left: 1.5em;
 /* Override for Ascending CARET */
 #imageTable .bx--table-header[data-sort-key].bx--table-sort--active.bx--table-sort--ascending::before {
     background-image: url("data:image/svg+xml,%3Csvg%20focusable%3D'false'%20preserveAspectRatio%3D'xMidYMid%20meet'%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20fill%3D'currentColor'%20width%3D'16'%20height%3D'16'%20viewBox%3D'0%200%2016%2016'%20aria-hidden%3D'true'%3E%3Cpath%20d%3D'M8%205l5%205-.7.7L8%206.4%203.7%2010.7%203%2010z'%3E%3C%2Fpath%3E%3C%2Fsvg%3E");
+}
+
+/* Title/Subtitle Overlay Visibility */
+.title-container {
+    /* Base styles are in slideshow.css */
+    transition: opacity 0.5s ease-in-out, visibility 0.5s ease-in-out; /* Smooth fade */
+    opacity: 1;
+    visibility: visible;
+}
+
+.title-container.text-overlay-hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none; /* Prevent interaction when hidden */
 }
 
 

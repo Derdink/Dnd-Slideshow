@@ -346,7 +346,7 @@ export function displayPlaylistsInFilter() {
 
     // Header with search and deselect button
     const header = document.createElement('div');
-    header.className = 'playlist-filter-header';
+            header.className = 'playlist-filter-header';
     const searchInput = document.createElement('input');
     searchInput.type = 'text';
     searchInput.id = 'playlist-filter-search-input';
@@ -388,8 +388,8 @@ export function displayPlaylistsInFilter() {
         .filter(p => !p.hidden && p.imageIds && p.imageIds.length > 0)
         .sort((a, b) => a.name.localeCompare(b.name))
         .forEach(playlist => {
-            const item = document.createElement('div');
-            item.className = 'playlist-filter-item';
+        const item = document.createElement('div');
+        item.className = 'playlist-filter-item';
             item.dataset.playlistId = playlist.id;
             item.dataset.playlistName = playlist.name.toLowerCase(); // For search filtering
 
@@ -455,7 +455,7 @@ function handleDeselectPlaylistFilter() {
     // Refresh the playlist filter view to remove the highlight
     displayPlaylistsInFilter();
     // Trigger a refresh of the image data without the playlist filter
-    refreshManageData(); 
+    refreshManageData();
 }
 
 /**

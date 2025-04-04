@@ -799,7 +799,7 @@ apiRouter.get('/images', async(req, res, next) => {
         // 5. Merge tags into image objects and format response
         const mergeAndFormat = (img) => {
             const tagsInfo = imagesWithTags[img.id] || { tags: [], tagIds: [] };
-                    return {
+            return {
                 id: img.id,
                 url: `/uploads/${encodeURIComponent(img.filename)}`,
                 thumbnailUrl: `/thumbnails/${encodeURIComponent(img.filename)}`,
@@ -1801,8 +1801,9 @@ apiRouter.delete('/playlists/:id', async(req, res, next) => {
  * @access  Public
  */
 apiRouter.post('/updateSlideshow', async(req, res, next) => {
-    const { action, speed, order, imageUrl, title, description, images } = req.body;
-    console.log(`➡️ POST /api/updateSlideshow request received`, { action, speed, order, imageUrl, title, description: description !== undefined, imagesCount: images ? images.length : undefined });
+    // Destructure the new parameter
+    const { action, speed, order, imageUrl, title, description, images, showTextOverlay } = req.body;
+    console.log(`➡️ POST /api/updateSlideshow request received`, { action, speed, order, imageUrl, title, description: description !== undefined, imagesCount: images ? images.length : undefined, showTextOverlay });
 
     try {
         switch (action) {
@@ -1813,12 +1814,14 @@ apiRouter.post('/updateSlideshow', async(req, res, next) => {
                 return res.json({ message: `Navigation action '${action}' broadcasted.` }); // Return early
 
             case 'updateSettings':
-                if (typeof speed !== 'number' || speed < 0 || typeof order !== 'string') {
-                    console.warn(`⚠️ /api/updateSlideshow - Invalid payload for 'updateSettings':`, { speed, order });
-                    return res.status(400).json({ message: 'Invalid payload for updateSettings action (requires valid speed and order).' });
+                // Validate the new parameter
+                if (typeof speed !== 'number' || speed < 0 || typeof order !== 'string' || typeof showTextOverlay !== 'boolean') {
+                    console.warn(`⚠️ /api/updateSlideshow - Invalid payload for 'updateSettings':`, { speed, order, showTextOverlay });
+                    return res.status(400).json({ message: 'Invalid payload for updateSettings action (requires valid speed, order, and showTextOverlay boolean).' });
                 }
-                console.log(`  - Emitting 'settingsUpdate':`, { speed, order });
-                io.emit('settingsUpdate', { speed, order });
+                const settingsPayload = { speed, order, showTextOverlay }; // Include in payload
+                console.log(`  - Emitting 'settingsUpdate':`, settingsPayload);
+                io.emit('settingsUpdate', settingsPayload);
                 return res.json({ message: 'Slideshow settings update broadcasted.' }); // Return early
 
             case 'play':

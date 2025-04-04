@@ -444,19 +444,26 @@ function startSlideshowWithImages(images) {
  * - Reset random indices tracking on order change
  */
 function handleSettingsUpdate(data) {
-    console.log('Received settingsUpdate event:', data);
-    if (data && (data.transitionTime !== undefined || data.order !== undefined)) {
-        // Reset usedRandomIndices if order is changing
-        if (data.order !== undefined && data.order !== state.slideshow.order) {
-            state.slideshow.usedRandomIndices = new Set();
+    console.log('Slideshow handling settings update:', data);
+    if (data.speed !== undefined) {
+        state.slideshow.transitionTime = data.speed; // Update local state if needed
+    }
+    if (data.order !== undefined) {
+        state.slideshow.order = data.order; // Update local state if needed
+    }
+    if (data.showTextOverlay !== undefined) {
+        state.slideshow.showTextOverlay = data.showTextOverlay;
+        // Toggle visibility class on the container
+        if (dom.titleContainer) {
+            dom.titleContainer.classList.toggle('text-overlay-hidden', !data.showTextOverlay);
+            console.log('Toggled text-overlay-hidden class based on settings', !data.showTextOverlay);
         }
+    }
 
-        updateState('slideshow', {
-            transitionTime: data.transitionTime ?? state.slideshow.transitionTime,
-            order: data.order ?? state.slideshow.order,
-        });
-
-        // Restart interval with new settings
+    // If the slideshow is currently running with a list of images,
+    // resetting the interval applies the new speed immediately.
+    // If it's paused or showing a single image, the new speed/order will apply next time playSelect is called.
+    if (intervalId !== null && currentImageIndex !== -1 && state.slideshow.images.length > 0) {
         resetSlideshowInterval();
     }
 }
@@ -494,6 +501,9 @@ function cacheDOMElements() {
     dom.titleOverlay2 = document.getElementById('title-overlay2');
     dom.subtitleOverlay1 = document.getElementById('subtitle-overlay1');
     dom.subtitleOverlay2 = document.getElementById('subtitle-overlay2');
+    
+    // NEW: Get the main container for title/subtitle overlays
+    dom.titleContainer = document.querySelector('.title-container');
     
     // Check if required elements exist
     const requiredElements = [
