@@ -244,6 +244,9 @@ export async function refreshManageData() {
         // Now, trigger the image refresh using the image manager
         // This will use the current state (filters, sort, page) set elsewhere
         await refreshImageData();
+        
+        // Call tag availability update *after* image data and available tags state are updated
+        updateFilterTagAvailability(); 
 
     } catch (error) {
         console.error('Error refreshing tags/playlists data:', error);

@@ -77,7 +77,7 @@ export function displayTagsInFilter(tags) {
  * @param {function} onClick - Click handler function.
  * @returns {HTMLDivElement}
  */
-function createFilterActionPill(text, bgColor, textColor, onClick) {
+export function createFilterActionPill(text, bgColor, textColor, onClick) {
     const pill = document.createElement('div');
     // Use Carbon tag classes + a specific class for filter tags
     pill.className = 'bx--tag bx--tag--custom filter-tag-pill';
@@ -97,32 +97,39 @@ function createFilterActionPill(text, bgColor, textColor, onClick) {
 }
 
 /**
- * Updates filter tag visual state (availability/opacity) based on currently displayed images.
+ * Updates filter tag visual state based on the set of tags available across 
+ * ALL images matching the current filters (search/playlist) and the current selection.
  */
 export function updateFilterTagAvailability() {
     if (!dom.tagFilterDropdown) return;
-    const displayedImages = state.management.displayedImages;
-    const selectedFilters = state.management.selectedFilterTags;
-
-    // Calculate available tags *from the currently displayed images*
-    const availableTagIdsInDisplay = new Set();
-    displayedImages.forEach(img => {
-        (img.tagIds || []).forEach(tagId => availableTagIdsInDisplay.add(tagId));
-    });
+    // Read available tags from the state property set by imageManager
+    const availableFilteredTagIds = new Set(state.management.availableFilteredTagIds || []);
+    const selectedFilters = state.management.selectedFilterTags || [];
 
     dom.tagFilterDropdown.querySelectorAll('.filter-tag-pill.filter-tag').forEach(pill => {
         const tagKey = pill.getAttribute('data-tag-key');
         const tag = state.tags.find(t => t.name.toLowerCase() === tagKey);
-        if (!tag) return; // Skip if tag not found (shouldn't happen)
+        if (!tag) return;
 
         const isSelected = selectedFilters.includes(tagKey);
-        const isAvailable = availableTagIdsInDisplay.has(tag.id);
+        // Determine availability based on whether the tag ID is in the set of all available filtered tags
+        const isAvailableInFilteredSet = availableFilteredTagIds.has(tag.id);
 
-        // Update visual state: selected, available, unavailable
+        // Update visual state based on selection and availability in the current view
         pill.classList.toggle('selected', isSelected);
-        pill.classList.toggle('unavailable', !isAvailable && !isSelected); // Mark as unavailable if not selected and not present
-        pill.style.opacity = isSelected ? '1' : (isAvailable ? '0.7' : '0.3');
-        pill.style.pointerEvents = (isAvailable || isSelected) ? 'auto' : 'none'; // Allow clicking selected/available
+        pill.classList.toggle('unavailable', !isSelected && !isAvailableInFilteredSet);
+
+        // Set opacity and pointer events
+        if (isSelected) {
+            pill.style.opacity = '1';
+            pill.style.pointerEvents = 'auto';
+        } else if (isAvailableInFilteredSet) {
+            pill.style.opacity = '0.5'; // Available but not selected
+            pill.style.pointerEvents = 'auto';
+        } else {
+            pill.style.opacity = '0.3'; // Unavailable in filtered set
+            pill.style.pointerEvents = 'none';
+        }
     });
 }
 

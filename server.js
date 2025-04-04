@@ -12,6 +12,7 @@ const sqlite3 = require('sqlite3').verbose();
 const sharp = require('sharp');
 const http = require('http'); // Required for Socket.IO
 const { Server } = require("socket.io"); // Correct Socket.IO import
+const cors = require('cors'); // Added import for CORS
 
 const app = express();
 const server = http.createServer(app); // Create HTTP server for Socket.IO
@@ -525,7 +526,7 @@ app.post('/upload', upload.single('file'), async(req, res, next) => {
             console.log(`✅ POST /upload - File "${sanitizedFilename}" overwritten successfully.`);
             res.json({ message: `File '${sanitizedFilename}' overwritten successfully.` });
 
-        } else {
+            } else {
             // --- Insert new entry ---
             console.log(`  - Inserting new record for "${sanitizedFilename}".`);
             const result = await dbRun(
@@ -595,218 +596,275 @@ const apiRouter = express.Router(); // Use a dedicated router for API endpoints
 
 /**
  * @route   GET /api/images
- * @desc    Get images with filtering, sorting, and pagination
+ * @desc    Get images with filtering, sorting, pagination, and tag info.
+ *          Now includes an 'alwaysIncludeIds' feature.
  * @access  Public
- * @query   {string} [search] - Text to search in title/description.
- * @query   {string} [tags] - Comma-separated list of tag names to filter by (AND logic).
- * @query   {number} [playlistId] - ID of the playlist to filter by.
- * @query   {boolean} [includeHidden=false] - Whether to include images tagged as 'Hidden'.
- * @query   {string} [sortKey=dateAdded] - Field to sort by (id, filename, title, description, dateAdded).
- * @query   {string} [sortDir=desc] - Sort direction ('asc' or 'desc').
- * @query   {number} [page=1] - Page number for pagination.
- * @query   {number} [limit=20] - Number of items per page.
+ * @query   search {string} - Filter by title or filename.
+ * @query   tags {string} - Comma-separated list of tag names to filter by (AND logic).
+ * @query   playlistId {number} - Filter by playlist membership.
+ * @query   includeHidden {boolean} - If true, include images tagged as 'Hidden'.
+ * @query   ids {string} - Comma-separated list of specific image IDs to fetch.
+ * @query   alwaysIncludeIds {string} - Comma-separated list of image IDs to *always* include,
+ *          even if they don't match filters (used for keeping selected items visible).
+ * @query   sortKey {string} - Field to sort by (id, title, dateAdded). Default: dateAdded.
+ * @query   sortDir {string} - Sort direction (asc, desc). Default: desc.
+ * @query   page {number} - Page number for pagination. Default: 1.
+ * @query   limit {number} - Number of items per page. Default: 100.
  */
-apiRouter.get('/images', async (req, res, next) => {
-    console.log("➡️ GET /api/images request received with query:", req.query);
-    try {
-        const { search, tags, playlistId, includeHidden, sortKey, sortDir, page, limit } = req.query;
+apiRouter.get('/images', async(req, res, next) => {
+    console.log('➡️ GET /api/images request received with query:', req.query);
 
-        // --- Parameter Validation & Defaults ---
-        const currentPage = parseInt(page, 10) || 1;
-        const itemsPerPage = parseInt(limit, 10) || 20;
-        const offset = (currentPage - 1) * itemsPerPage;
-        const searchTerm = search ? `%${search.trim().toLowerCase()}%` : null;
-        const filterTags = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
-        const filterPlaylistId = playlistId ? parseInt(playlistId, 10) : null;
-        const filterIds = req.query.ids ? req.query.ids.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id)) : [];
-        const shouldIncludeHidden = includeHidden === 'true';
-        // *** LOG: Verify the parsed value of shouldIncludeHidden ***
-        console.log(`  [Server Filter Debug] Parsed shouldIncludeHidden: ${shouldIncludeHidden} (Raw query value: ${req.query.includeHidden})`);
+    // --- Parameter Parsing & Validation ---
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 100; // Default limit
+    const offset = (page - 1) * limit;
 
-        const validSortKeys = ['id', 'filename', 'title', 'description', 'dateAdded'];
-        const sortColumn = validSortKeys.includes(sortKey) ? sortKey : 'dateAdded';
-        const sortDirection = sortDir?.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+    const sortKey = req.query.sortKey || 'dateAdded';
+    const sortDir = req.query.sortDir?.toLowerCase() === 'asc' ? 'ASC' : 'DESC'; // Default DESC
+    const validSortKeys = { 'id': 'i.id', 'title': 'LOWER(i.title)', 'dateAdded': 'i.dateAdded' }; // <-- Corrected mapping
+    const orderBy = validSortKeys[sortKey] || validSortKeys.dateAdded;
 
-        // *** ADD SERVER LOGGING ***
-        console.log("  [Server Sort Debug] Received Query Params:", req.query);
-        console.log(`  [Server Sort Debug] Derived Sort -> Column: ${sortColumn}, Direction: ${sortDirection}`);
+    const filters = {};
+    if (req.query.search) filters.search = req.query.search;
+    if (req.query.tags) filters.tags = req.query.tags.split(',').map(t => t.trim()).filter(t => t);
+    // Reverted to single playlist ID
+    if (req.query.playlistId) filters.playlistId = parseInt(req.query.playlistId, 10);
+    if (req.query.ids) filters.ids = req.query.ids.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
+    if (req.query.alwaysIncludeIds) filters.alwaysIncludeIds = req.query.alwaysIncludeIds.split(',').map(id => parseInt(id.trim(), 10)).filter(id => !isNaN(id));
 
-        // --- Base SQL Query Parts ---
-        const baseSelect = `SELECT i.id, i.filename, i.title, i.description, i.dateAdded, GROUP_CONCAT(DISTINCT t.id || ':::' || t.name || ':::' || COALESCE(t.color, '#cccccc')) as tag_data`;
-        let countSelect = `SELECT COUNT(DISTINCT i.id)`;
-        let fromClause = `FROM images i`;
+    // Default to NOT including hidden unless specified
+    const includeHidden = req.query.includeHidden === 'true';
+
+    // --- Query Building ---
         let whereClauses = [];
         let joinClauses = [];
         let params = [];
 
-        // --- Dynamic WHERE Clause Construction ---
-
-        // ADDED: Filter by specific IDs if provided (primary filter)
-        if (filterIds.length > 0) {
-            const placeholders = filterIds.map(() => '?').join(',');
-            whereClauses.push(`i.id IN (${placeholders})`);
-            params.push(...filterIds);
-            console.log(`  - Filtering by specific IDs: ${filterIds.join(', ')}`);
-        } else {
-          // Only apply other filters if not filtering by specific IDs
-          if (searchTerm) {
-              whereClauses.push(`(LOWER(i.title) LIKE ? OR LOWER(i.description) LIKE ?)`);
-              params.push(searchTerm, searchTerm);
-          }
-
-          // Join tags only if filtering by tags or needing to exclude/include hidden
-          if (filterTags.length > 0 || !shouldIncludeHidden) {
-              joinClauses.push(`LEFT JOIN image_tags it_filter ON i.id = it_filter.image_id`);
-              joinClauses.push(`LEFT JOIN tags t_filter ON it_filter.tag_id = t_filter.id`);
-          }
-
-          // Filter by Specific Tags (AND logic)
-          if (filterTags.length > 0) {
-              filterTags.forEach((tagName, index) => {
-                  whereClauses.push(`
-                      EXISTS (
-                          SELECT 1 FROM image_tags it_sub_${index}
-                          JOIN tags t_sub_${index} ON it_sub_${index}.tag_id = t_sub_${index}.id
-                          WHERE it_sub_${index}.image_id = i.id AND LOWER(t_sub_${index}.name) = LOWER(?)
-                      )
-                  `);
-                  params.push(tagName);
-              });
-          }
-
-          // Filter by Playlist
-          if (filterPlaylistId && !isNaN(filterPlaylistId)) {
-              joinClauses.push(`INNER JOIN playlist_images pi ON i.id = pi.image_id`);
-              whereClauses.push(`pi.playlist_id = ?`);
-              params.push(filterPlaylistId);
-          }
-
-          // Handle Hidden Tag Exclusion (unless explicitly requested)
-          // *** LOG: Check condition *before* adding WHERE clause ***
-          console.log(`  [Server Filter Debug] Checking condition for hidden filter: !shouldIncludeHidden = ${!shouldIncludeHidden}`);
-          if (!shouldIncludeHidden) {
-              console.log('  [Server Filter Debug] Adding WHERE clause to exclude hidden images.');
-              whereClauses.push(`
-                  NOT EXISTS (
-                      SELECT 1 FROM image_tags it_hidden
-                      JOIN tags t_hidden ON it_hidden.tag_id = t_hidden.id
-                      WHERE it_hidden.image_id = i.id AND LOWER(t_hidden.name) = LOWER(?)
-                  )
-              `);
-              params.push(HIDDEN_TAG_NAME);
-          } else {
-              console.log('  [Server Filter Debug] Skipping WHERE clause for hidden images because shouldIncludeHidden is true.');
-          }
+    // Add search filter (title or filename)
+    if (filters.search) {
+        whereClauses.push('(LOWER(i.title) LIKE ? OR LOWER(i.filename) LIKE ?)');
+        const searchTerm = `%${filters.search.toLowerCase()}%`;
+            params.push(searchTerm, searchTerm);
         }
 
-        // Always join tags for the main SELECT to get tag data
-        // Use different aliases to avoid conflicts with filter joins
-        joinClauses.push(`LEFT JOIN image_tags it ON i.id = it.image_id`);
-        joinClauses.push(`LEFT JOIN tags t ON it.tag_id = t.id`);
+    // Add specific ID filter
+    if (filters.ids && filters.ids.length > 0) {
+        whereClauses.push(`i.id IN (${filters.ids.map(() => '?').join(',')})`);
+        params.push(...filters.ids);
+    }
 
-        // --- Assemble WHERE Clause ---
-        let whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
-        // Ensure joins are unique
-        const uniqueJoinClauses = [...new Set(joinClauses)];
-        let joinSql = uniqueJoinClauses.join(' ');
+    // Reverted playlist filter for single ID
+    if (filters.playlistId && !isNaN(filters.playlistId)) {
+        joinClauses.push('INNER JOIN playlist_images pi ON i.id = pi.image_id');
+        whereClauses.push('pi.playlist_id = ?');
+        params.push(filters.playlistId);
+    }
 
-        // --- Construct Count Query (Only needed if NOT filtering by ID) ---
-        let totalItems = 0;
-        let totalPages = 1;
-        let finalCurrentPage = 1;
-        let finalOffset = 0;
+    // Add tag filters (AND logic for multiple tags)
+    if (filters.tags && filters.tags.length > 0) {
+        const tagPlaceholders = filters.tags.map(() => '?').join(',');
+        // Subquery to find images that have ALL specified tags
+                whereClauses.push(`
+            i.id IN (
+                SELECT it.image_id
+                FROM image_tags it
+                JOIN tags t ON it.tag_id = t.id
+                WHERE LOWER(t.name) IN (${tagPlaceholders})
+                GROUP BY it.image_id
+                HAVING COUNT(DISTINCT LOWER(t.name)) = ?
+            )
+        `);
+        params.push(...filters.tags.map(t => t.toLowerCase()), filters.tags.length);
+    }
 
-        if (filterIds.length > 0) {
-            // If filtering by IDs, pagination might not make sense or totalItems is just the count of valid IDs found
-            totalItems = filterIds.length; // Assume all requested IDs are potentially valid items
-            totalPages = 1; // Typically show all results when filtering by specific IDs
-            finalCurrentPage = 1;
-            finalOffset = 0;
-             console.log(`  - Skipping count query because filtering by specific IDs. Total assumed: ${totalItems}`);
-        } else {
-            // Perform count query only when not filtering by specific IDs
-            const countSql = `${countSelect} ${fromClause} ${joinSql} ${whereSql}`;
-            console.log("Count SQL:", countSql, params);
-            const totalItemsResult = await dbGet(countSql, params);
-            totalItems = totalItemsResult ? totalItemsResult['COUNT(DISTINCT i.id)'] : 0;
-            totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
-            // Adjust currentPage if it exceeds totalPages after filtering
-            finalCurrentPage = Math.min(currentPage, totalPages);
-            finalOffset = (finalCurrentPage - 1) * itemsPerPage;
-             console.log(`  - Count query executed. Total items: ${totalItems}, Total pages: ${totalPages}`);
+    // Handle 'Hidden' tag exclusion (unless includeHidden is true)
+    if (!includeHidden) {
+        const hiddenTag = await dbGet('SELECT id FROM tags WHERE name = ?', [HIDDEN_TAG_NAME]);
+        if (hiddenTag) {
+            whereClauses.push(`
+                i.id NOT IN (
+                    SELECT image_id FROM image_tags WHERE tag_id = ?
+                )
+            `);
+            params.push(hiddenTag.id);
         }
+    }
 
+    // Combine clauses
+    const joinClause = joinClauses.join(' ');
+    const whereClause = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
-        // --- Construct Main Query ---
-        const mainQuery = `
-            ${baseSelect}
-            ${fromClause}
-            ${joinSql}
-            ${whereSql}
-            GROUP BY i.id, i.filename, i.title, i.description, i.dateAdded
-            ORDER BY ${sortColumn} ${sortDirection}
-            LIMIT ?
-            OFFSET ?
+    // --- Count Query (Based ONLY on standard filters) ---
+    const countSql = `SELECT COUNT(DISTINCT i.id) as count FROM images i ${joinClause} ${whereClause}`;
+    console.log('  - Count SQL:', countSql);
+    console.log('  - Count Params:', params);
+
+    // --- Data Query (Based ONLY on standard filters for pagination) ---
+    const dataSql = `
+        SELECT
+            i.id, i.filename, i.title, i.description, i.dateAdded
+        FROM images i
+        ${joinClause}
+        ${whereClause}
+        ORDER BY ${orderBy} ${sortDir}
+        LIMIT ? OFFSET ?
+    `;
+    const dataParams = [...params, limit, offset];
+    console.log('  - Data SQL:', dataSql);
+    console.log('  - Data Params:', dataParams);
+
+    // --- Available Tags Query (Based ONLY on standard filters, NO pagination) ---
+    // Combine the base whereClause with the tag_id IS NOT NULL check
+    const availableTagsWhereClause = whereClause 
+        ? `${whereClause} AND it.tag_id IS NOT NULL` 
+        : 'WHERE it.tag_id IS NOT NULL';
+        
+    const availableTagsSql = `
+        SELECT DISTINCT it.tag_id 
+        FROM images i 
+        ${joinClause} 
+        LEFT JOIN image_tags it ON i.id = it.image_id
+        ${availableTagsWhereClause}
+    `; 
+    const availableTagsParams = [...params]; // Use the same base filter params
+    console.log('  - Available Tags SQL:', availableTagsSql);
+    console.log('  - Available Tags Params:', availableTagsParams);
+
+    // --- Fetch Always Include IDs Data (if requested) ---
+    let alwaysIncludeSql = '';
+    let alwaysIncludeParams = [];
+    if (filters.alwaysIncludeIds && filters.alwaysIncludeIds.length > 0) {
+        alwaysIncludeSql = `
+            SELECT
+                i.id, i.filename, i.title, i.description, i.dateAdded
+            FROM images i
+            WHERE i.id IN (${filters.alwaysIncludeIds.map(() => '?').join(',')})
         `;
-        const finalParams = [...params, itemsPerPage, finalOffset]; // Add limit and offset to params
+        alwaysIncludeParams = filters.alwaysIncludeIds;
+        console.log('  - Always Include SQL:', alwaysIncludeSql);
+        console.log('  - Always Include Params:', alwaysIncludeParams);
+    }
 
-        // *** ADD SERVER LOGGING ***
-        console.log("  [Server Sort Debug] FINAL Main Query:", mainQuery); 
-        console.log("  [Server Sort Debug] FINAL Query Params:", finalParams);
+    try {
+        // 1. Get total count based on filters
+        const countResult = await dbGet(countSql, params);
+        const totalItems = countResult?.count || 0;
+        const totalPages = Math.ceil(totalItems / limit);
+        console.log(`  - Count Result: ${totalItems} items, ${totalPages} pages`);
 
-        const rows = await dbAll(mainQuery, finalParams);
+        // 2. Get the filtered page of images
+        const filteredPageImages = await dbAll(dataSql, dataParams);
+        console.log(`  - Filtered Page Images Fetched: ${filteredPageImages.length}`);
 
-        if (!rows) {
-            console.warn("⚠️ GET /api/images - Main query returned null/undefined rows object.");
-            return res.json({ images: [], pagination: { currentPage: 1, totalPages: 1, totalItems: 0 } });
+        // 3. Get the 'always include' images if needed
+        let alwaysIncludedImages = [];
+        if (alwaysIncludeSql) {
+            alwaysIncludedImages = await dbAll(alwaysIncludeSql, alwaysIncludeParams);
+            console.log(`  - Always Included Images Fetched: ${alwaysIncludedImages.length}`);
         }
 
-        // --- Process Results --- 
-        const images = rows.map(row => {
-            let tagObjects = [];
-            if (row.tag_data) {
-                // Use Set to ensure uniqueness after splitting, just in case DISTINCT failed
-                const uniqueTagStrings = new Set(row.tag_data.split(',')); 
-                tagObjects = Array.from(uniqueTagStrings) // Convert Set back to array
-                    .map(item => {
-                        if (!item) return null;
-                        const parts = item.split(':::');
-                        if (parts.length === 3 && parts[1]) { // Need ID, Name, Color
-                            return {
-                                id: parseInt(parts[0], 10),
-                                name: parts[1],
-                                color: parts[2] || DEFAULT_COLOR
-                            };
-                        }
-                        return null;
-                    })
-                    .filter(t => t && t.name && t.name.trim().toLowerCase() !== 'all'); // Filter out nulls and legacy 'all' tag
-            }
-            return {
-                id: row.id,
-                title: row.title,
-                description: row.description || '',
-                tags: tagObjects, // Return full tag objects
-                tagIds: tagObjects.map(t => t.id), // Include tag IDs for easier client-side filtering if needed
-                dateAdded: row.dateAdded,
-                url: `/images/${encodeURIComponent(row.filename)}`,
-                thumbnailUrl: `/thumbnails/${encodeURIComponent(row.filename)}`
-            };
-        });
+        // NEW 3b: Get all available tag IDs for the *entire* filtered set
+        const availableTagsResult = await dbAll(availableTagsSql, availableTagsParams);
+        const availableFilteredTagIds = availableTagsResult.map(row => row.tag_id);
+        console.log(`  - Available Tag IDs in filtered set: ${availableFilteredTagIds.length}`);
 
-        const pagination = {
-            currentPage: finalCurrentPage,
-            totalPages: totalPages,
-            totalItems: totalItems,
-            itemsPerPage: itemsPerPage
+        // 4. Fetch tags for all relevant images (filtered page + always include)
+        const allImageIds = new Set([
+            ...filteredPageImages.map(img => img.id),
+            ...alwaysIncludedImages.map(img => img.id)
+        ]);
+
+        let imagesWithTags = {};
+        if (allImageIds.size > 0) {
+            const imageTagSql = `
+                SELECT it.image_id, t.id as tag_id, t.name as tag_name, t.color as tag_color
+                FROM image_tags it
+                JOIN tags t ON it.tag_id = t.id
+                WHERE it.image_id IN (${Array.from(allImageIds).map(() => '?').join(',')})
+                ORDER BY it.image_id, t.name
+            `;
+            const imageTagParams = Array.from(allImageIds);
+            const tagsData = await dbAll(imageTagSql, imageTagParams);
+
+            // Group tags by image_id
+            tagsData.forEach(row => {
+                if (!imagesWithTags[row.image_id]) {
+                    imagesWithTags[row.image_id] = { tags: [], tagIds: [] };
+                }
+                imagesWithTags[row.image_id].tags.push({ id: row.tag_id, name: row.tag_name, color: row.tag_color });
+                imagesWithTags[row.image_id].tagIds.push(row.tag_id);
+            });
+        }
+
+        // 5. Merge tags into image objects and format response
+        const mergeAndFormat = (img) => {
+            const tagsInfo = imagesWithTags[img.id] || { tags: [], tagIds: [] };
+                    return {
+                id: img.id,
+                url: `/uploads/${encodeURIComponent(img.filename)}`,
+                thumbnailUrl: `/thumbnails/${encodeURIComponent(img.filename)}`,
+                title: img.title,
+                description: img.description,
+                dateAdded: img.dateAdded, // Keep original timestamp (Corrected)
+                tags: tagsInfo.tags,
+                tagIds: tagsInfo.tagIds // Add tagIds for easier client-side filtering/updates
+            };
         };
 
-        console.log(`✅ GET /api/images - Responding with ${images.length} images (Page ${finalCurrentPage}/${totalPages}, Total ${totalItems}).`);
-        res.json({ images, pagination });
+        const formattedFilteredImages = filteredPageImages.map(mergeAndFormat);
+        const formattedAlwaysIncludeImages = alwaysIncludedImages.map(mergeAndFormat);
+
+        // 6. Combine lists, ensuring unique images (filtered page takes precedence for order)
+        const combinedImagesMap = new Map();
+        formattedFilteredImages.forEach(img => combinedImagesMap.set(img.id, img));
+        // Add always included images only if they weren't already in the filtered page
+        formattedAlwaysIncludeImages.forEach(img => {
+            if (!combinedImagesMap.has(img.id)) {
+                combinedImagesMap.set(img.id, img);
+            }
+        });
+        const finalImages = Array.from(combinedImagesMap.values());
+
+        // 7. Sort the final combined list according to the requested sort order
+        //    (This is needed because merging might disrupt the original sort)
+        finalImages.sort((a, b) => {
+            let valA, valB;
+            switch (sortKey) {
+                case 'title':
+                    valA = a.title.toLowerCase();
+                    valB = b.title.toLowerCase();
+                    break;
+                case 'dateAdded':
+                    valA = a.dateAdded; // Compare based on the correct property
+                    valB = b.dateAdded;
+                    break;
+                case 'id':
+                default:
+                    valA = a.id;
+                    valB = b.id;
+            }
+
+            if (valA < valB) return sortDir === 'ASC' ? -1 : 1;
+            if (valA > valB) return sortDir === 'ASC' ? 1 : -1;
+            return 0;
+        });
+
+
+        console.log(`✅ GET /api/images - Responding with ${finalImages.length} images (filtered page had ${formattedFilteredImages.length}). Pagination based on ${totalItems} total filtered items.`);
+        res.json({
+            images: finalImages,
+            pagination: {
+                currentPage: page,
+                totalPages: totalPages,
+                totalItems: totalItems, // Base pagination on the filtered count
+                itemsPerPage: limit
+            },
+            availableFilteredTagIds: availableFilteredTagIds // Add available tags to response
+        });
 
     } catch (err) {
-        console.error("❌ GET /api/images - Error processing request:", err.message, err.stack);
-        next(err);
+        console.error('❌ GET /api/images - Error fetching images:', err.message);
+        next(err); // Pass error to the global error handler
     }
 });
 
@@ -896,7 +954,7 @@ apiRouter.put('/images/:id', async (req, res, next) => {
         console.error(`❌ PUT /api/images/${imageId} - Error during update process:`, err.message);
         // REMOVE: Rollback logic
         // if (transactionStarted) { ... }
-        next(err); 
+        next(err);
     }
 });
 
@@ -1049,17 +1107,29 @@ apiRouter.delete('/images', async(req, res, next) => {
 
 /**
  * @route   GET /api/tags
- * @desc    Get all tags, ordered by name.
+ * @desc    Get all tags with optional image counts.
  * @access  Public
  */
 apiRouter.get('/tags', async(req, res, next) => {
-    console.log("➡️ GET /api/tags request received");
+    console.log('➡️ GET /api/tags request received');
     try {
-        const tags = await dbAll('SELECT * FROM tags ORDER BY name');
-        console.log(`✅ GET /api/tags - Responding with ${tags.length} tags.`);
-        res.json(tags.map(tag => ({...tag, color: tag.color || DEFAULT_COLOR }))); // Ensure default color
+        // Join with image_tags to count associated images
+        const sql = `
+            SELECT 
+                t.id, 
+                t.name, 
+                t.color, 
+                COUNT(DISTINCT it.image_id) as imageCount
+            FROM tags t
+            LEFT JOIN image_tags it ON t.id = it.tag_id
+            GROUP BY t.id, t.name, t.color
+            ORDER BY LOWER(t.name) ASC
+        `;
+        const tags = await dbAll(sql);
+        console.log(`✅ GET /api/tags - Fetched ${tags.length} tags with image counts.`);
+        res.json(tags);
     } catch (err) {
-        console.error("❌ GET /api/tags - Error fetching tags:", err.message);
+        console.error('❌ GET /api/tags - Error fetching tags:', err.message);
         next(err);
     }
 });
@@ -1653,11 +1723,11 @@ apiRouter.post('/playlists/:id/images', async(req, res, next) => {
             let insertedCount = 0;
             for (const imageId of imageIds) {
                 // Optional: Check if image exists?
-                // const imageExists = await dbGet('SELECT 1 FROM images WHERE id = ?', [imageId]);
-                // if (imageExists) {
+                    // const imageExists = await dbGet('SELECT 1 FROM images WHERE id = ?', [imageId]);
+                    // if (imageExists) {
                 const result = await dbRun(insertSql, [playlistId, imageId]);
                 insertedCount += result.changes; // Count actual insertions
-                // }
+                    // }
             }
 
             // 3. Commit the transaction
@@ -1717,8 +1787,8 @@ apiRouter.delete('/playlists/:id', async(req, res, next) => {
 
     } catch (err) {
         console.error(`❌ DELETE /api/playlists/${playlistId} - Error deleting playlist:`, err.message);
-        next(err);
-    }
+            next(err);
+        }
 });
 
 
@@ -1843,6 +1913,24 @@ async function startApp() {
         await connectDatabase();
         await initializeSchema(db); // Pass the connected db instance
         await ensureDirectoriesExist([UPLOAD_DIR, THUMBNAIL_DIR]);
+
+        // --- Middleware Setup ---
+        app.use(cors()); // Enable CORS
+        app.use(express.json()); // Parse JSON bodies
+        app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
+
+        // Serve static files from the 'public' directory
+        app.use(express.static(PUBLIC_DIR));
+        console.log(`  - Serving static files from: ${PUBLIC_DIR}`);
+
+        // NEW: Serve uploads and thumbnails
+        app.use('/uploads', express.static(UPLOAD_DIR));
+        console.log(`  - Serving /uploads path from: ${UPLOAD_DIR}`);
+        app.use('/thumbnails', express.static(THUMBNAIL_DIR));
+        console.log(`  - Serving /thumbnails path from: ${THUMBNAIL_DIR}`);
+
+        // Mount the API router
+        app.use('/api', apiRouter);
 
         // Start listening only after setup is complete
         server.listen(PORT, () => {

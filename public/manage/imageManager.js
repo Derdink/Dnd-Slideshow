@@ -248,6 +248,9 @@ async function handlePlayImage(imageId) {
 export async function refreshImageData() {
     console.log('[ImageManager] Refreshing image data...', state.management);
 
+    // Convert selected IDs Set to Array for the API call
+    const selectedIdsArray = Array.from(state.management.selectedImageIds);
+
     const fetchOptions = {
         page: state.management.currentPage,
         limit: state.management.currentLimit,
@@ -257,7 +260,8 @@ export async function refreshImageData() {
             search: state.management.currentSearchTerm,
             tags: state.management.selectedFilterTags,
             playlistId: state.management.selectedPlaylistId,
-            includeHidden: true
+            includeHidden: true,
+            alwaysIncludeIds: selectedIdsArray
         }
     };
     
@@ -282,7 +286,8 @@ export async function refreshImageData() {
         updateState('management', {
             displayedImages: receivedImages, 
             totalPages: imageData.pagination.totalPages || 1,
-            currentPage: imageData.pagination.currentPage || 1
+            currentPage: imageData.pagination.currentPage || 1,
+            availableFilteredTagIds: imageData.availableFilteredTagIds || [] // Store available tags
         });
         
         console.log('[ImageManager] State updated. Current state.management.displayedImages (first 5 stringified):', 
@@ -295,7 +300,6 @@ export async function refreshImageData() {
         
         updatePaginationControls(imageData.pagination || { currentPage: 1, totalPages: 1, totalItems: 0, itemsPerPage: state.management.currentLimit });
         updateSortArrows(); 
-        updateFilterTagAvailability(receivedImages); 
         updateBulkActionButtons(); 
         updateRowSelectionVisuals(); 
 

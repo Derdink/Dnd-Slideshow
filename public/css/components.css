@@ -735,16 +735,17 @@ padding: 0rem 0.5rem;
 }
 
 .filter-tag-pill {
-    /* Ensure base bx--tag styles apply */
-    /* Add specific filter styles if needed */
-    cursor: pointer;
-    transition: opacity var(--cds-motion-fast-01);
+    /* Basic styles for filter tags */
+    margin: var(--cds-spacing-01);
+    transition: opacity 0.2s ease-in-out, filter 0.2s ease-in-out;
 }
 
 .filter-tag-pill.unavailable {
-    /* opacity: 0.3; */ /* Already handled by JS */
+    /* Styles for tags not present in the current view */
+    /* Opacity is set by JS (e.g., 0.3) */
+    /* pointer-events: none; is set by JS */
+    filter: grayscale(100%); /* Add grayscale effect */
     cursor: not-allowed;
-    filter: grayscale(100%); /* Add grayscale filter */
 }
 
 
@@ -768,6 +769,7 @@ padding: 0rem 0.5rem;
     background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='16'%20height='16'%20viewBox='0%200%2016%2016'%3E%3Cpath%20d='M15,14.3L10.7,10c0.9-1.2,1.4-2.6,1.4-4c0-3.3-2.7-6-6-6S0,2.7,0,6s2.7,6,6,6c1.4,0,2.8-0.5,4-1.4l4.3,4.3c0.2,0.2,0.5,0.3,0.7,0.3s0.5-0.1,0.7-0.3C15.5,15.3,15.5,14.7,15,14.3z%20M6,10.5c-2.5,0-4.5-2-4.5-4.5s2-4.5,4.5-4.5s4.5,2,4.5,4.5S8.5,10.5,6,10.5z'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: 10px 50%;
+    padding: 0 2rem;
 }
 
 /* Ensure header search takes available space */
@@ -877,39 +879,42 @@ padding: 0rem 0.5rem;
 
 /* Specific Column Widths & Alignment (Adjusted for gaps and alignment) */
 #imageTable .bx--table-header[data-sort-key="thumbnail"],
-#imageTable .bx--table-cell:nth-child(2) { /* Thumbnail is 2nd visible cell */
-    width: 100px; 
-    padding-right: var(--cds-spacing-03); /* REDUCED gap after thumbnail */
+#imageTable .bx--table-cell:nth-child(2) { /* Thumbnail Cell */
+    width: 80px; /* Fixed width for thumbnail + padding */
+    min-width: 80px;
+    padding-left: var(--cds-spacing-03);
+    padding-right: var(--cds-spacing-03);
 }
 
 #imageTable .bx--table-header[data-sort-key="title"],
-#imageTable .bx--table-cell:nth-child(3) { /* Title is 3rd cell */
-    width: 25%; 
-    padding-left: var(--cds-spacing-03); /* REDUCED gap before title */
+#imageTable .bx--table-cell:nth-child(3) { /* Title Cell - Corrected selector */
+    width: 25%; /* Reduced title width slightly */
 }
 
-/* Description column removed */
-
 #imageTable .bx--table-header[data-sort-key="tags"],
-#imageTable .bx--table-cell:nth-child(4) { /* Tags is now 4th cell */
-    width: 35%;
+#imageTable .bx--table-cell:nth-child(4) { /* Tags Cell */
+    width: 40%; /* Increased tags width */
 }
 
 #imageTable .bx--table-header[data-sort-key="dateAdded"],
-#imageTable .bx--table-cell:nth-child(5) { /* Date is now 5th cell */
-    width: 14%; /* Slightly reduced width */
-    padding-right: var(--cds-spacing-01); /* REDUCED gap after date */
+#imageTable .bx--table-cell:nth-child(5) { /* Date Cell */
+    width: 15%; /* Adjusted date width */
 }
 
 #imageTable .bx--table-header:last-child, /* Actions Header */
-#imageTable .bx--table-cell:last-child { /* Actions Cell is now 6th cell */
-    width: 120px; 
-    text-align: left; /* CHANGED alignment for header */
-    padding-left: var(--cds-spacing-03); /* REDUCED gap before actions */
+#imageTable .bx--table-cell:last-child { /* Actions Cell */
+    width: auto; /* Let actions take remaining space */
+    min-width: 120px; /* Ensure enough space for buttons */
+    text-align: right; /* Align actions right */
 }
 
-.bx--data-table .bx--table-cell.bx--table-cell-checkbox{
+/* Ensure checkbox column is minimal */
+#imageTable .bx--table-header.bx--table-column-checkbox,
+#imageTable .bx--table-cell.bx--table-cell-checkbox {
+    width: 48px; /* Carbon default */
+    min-width: 48px;
     padding-left: var(--cds-spacing-05);
+    padding-right: var(--cds-spacing-03);
 }
 
 /* Thumbnail Styling */

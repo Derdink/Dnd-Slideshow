@@ -35,10 +35,17 @@ export async function fetchImages({
   // Add filters if they exist
   if (filters.search) queryParams.append('search', filters.search);
   if (filters.tags && filters.tags.length) queryParams.append('tags', filters.tags.join(','));
-  if (filters.playlistId) queryParams.append('playlistId', filters.playlistId);
+  if (filters.playlistId) {
+    queryParams.append('playlistId', filters.playlistId);
+    console.log('[api.js fetchImages] Appending playlistId:', filters.playlistId); // Debug Log
+  }
   if (filters.includeHidden) queryParams.append('includeHidden', 'true');
   if (filters.ids && Array.isArray(filters.ids) && filters.ids.length > 0) {
     queryParams.append('ids', filters.ids.join(','));
+  }
+  if (filters.alwaysIncludeIds && Array.isArray(filters.alwaysIncludeIds) && filters.alwaysIncludeIds.length > 0) {
+    queryParams.append('alwaysIncludeIds', filters.alwaysIncludeIds.join(','));
+    console.log('[api.js fetchImages] Appending alwaysIncludeIds:', filters.alwaysIncludeIds.join(',')); // Debug Log
   }
 
   console.log('API URL being called:', `/api/images?${queryParams.toString()}`);
@@ -65,7 +72,8 @@ export async function fetchImages({
           totalPages: 1, 
           totalItems: 0, 
           itemsPerPage: limit 
-        }
+        },
+        availableFilteredTagIds: []
       };
     }
     
@@ -81,7 +89,8 @@ export async function fetchImages({
         totalPages: 1, 
         totalItems: data.images.length, 
         itemsPerPage: limit 
-      }
+      },
+      availableFilteredTagIds: data.availableFilteredTagIds || []
     };
   } catch (error) {
     console.error('Error fetching images:', error);
@@ -92,7 +101,8 @@ export async function fetchImages({
         totalPages: 1, 
         totalItems: 0, 
         itemsPerPage: limit 
-      } 
+      }, 
+      availableFilteredTagIds: []
     };
   }
 }

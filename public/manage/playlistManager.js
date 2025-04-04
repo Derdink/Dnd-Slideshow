@@ -9,6 +9,7 @@ import { handleError, ErrorTypes, withErrorHandling } from './errorHandler.js';
 import { refreshManageData } from '../manage.js';
 import { getContentColorForBackground } from './utils.js';
 import { BACKGROUND_COLORS } from '../config.js'; // <-- Import BACKGROUND_COLORS
+import { createFilterActionPill } from './filters.js'; // Import the helper function
 
 // DOM elements cached by parent manage.js module
 let dom = {};
@@ -268,8 +269,8 @@ function createManagerPlaylistItem(playlist, allImages) {
     row.addEventListener('click', async (e) => {
         // Ignore clicks on buttons or the expand toggle
         if (e.target.closest('button') || e.target.closest('.playlist-count-toggle')) {
-            return;
-        }
+        return;
+    }
 
         const selectedIds = Array.from(state.management.selectedImageIds);
         if (selectedIds.length > 0) {
@@ -337,120 +338,129 @@ export function displayPlaylistsInManager() {
 // --- Playlist Filtering UI --- (Moved from filters.js)
 
 /**
- * Displays playlists in the filter panel.
+ * Displays playlists in the filter section.
  */
 export function displayPlaylistsInFilter() {
-    const container = dom.playlistFilterContainer;
-    if (!container) return;
+    if (!dom.playlistFilterContainer) return;
+    dom.playlistFilterContainer.innerHTML = ''; // Clear existing
 
-    let scrollContainer = container.querySelector('.playlists-scroll-container');
-    if (!scrollContainer) { // Create header and scroll container if they don't exist
-        let header = container.querySelector('.playlist-filter-header');
-        if (!header) {
-            header = document.createElement('div');
-            header.className = 'playlist-filter-header';
-            // Use Carbon search sm, update deselect button icon
-            header.innerHTML = `
-                <div class="bx--search bx--search--sm" role="search">
-                     <label class="bx--label bx--visually-hidden" for="playlist-filter-search-input">Filter Playlists</label>
-                     <input type="text" class="bx--search-input" id="playlist-filter-search-input" placeholder="Filter playlists..." aria-label="Filter playlists">
-                    <button class="bx--search-close bx--search-close--hidden" title="Clear search input" aria-label="Clear search input">
-                         <svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true"><path d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4l6.6 6.6L8 22.6 9.4 24l6.6-6.6 6.6 6.6 1.4-1.4-6.6-6.6L24 9.4z"></path></svg>
-                    </button>
-                </div>
-                <button class="bx--btn bx--btn--ghost bx--btn--sm playlist-deselect-btn" title="Deselect All Playlist Filters">
-                    <svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true">
-                        <path d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4l6.6 6.6L8 22.6 9.4 24l6.6-6.6 6.6 6.6 1.4-1.4-6.6-6.6L24 9.4z"></path>
-                    </svg>
-                    <span class="bx--assistive-text">Deselect All Playlist Filters</span>
-                </button>
-            `;
-            container.appendChild(header);
-             // Add listeners for filter header controls
-            const searchInput = header.querySelector('.bx--search-input'); // Use correct class
-            const clearSearchBtn = header.querySelector('.bx--search-close');
-            searchInput.addEventListener('input', (e) => {
-                filterPlaylistFilterView(e.target.value);
-                clearSearchBtn.classList.toggle('bx--search-close--hidden', !e.target.value);
-            });
-            clearSearchBtn.addEventListener('click', () => {
-                searchInput.value = '';
-                filterPlaylistFilterView('');
-                clearSearchBtn.classList.add('bx--search-close--hidden');
-            });
-            header.querySelector('.playlist-deselect-btn').addEventListener('click', handleDeselectPlaylistFilter);
-        }
-        scrollContainer = document.createElement('div');
-        scrollContainer.className = 'playlists-scroll-container';
-        container.appendChild(scrollContainer);
+    // Header with search and deselect button
+    const header = document.createElement('div');
+    header.className = 'playlist-filter-header';
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.id = 'playlist-filter-search-input';
+    searchInput.placeholder = 'Filter playlists...';
+    searchInput.className = 'bx--text-input bx--text-input--sm'; // Use Carbon styling
+    searchInput.addEventListener('input', (e) => filterPlaylistFilterView(e.target.value));
+
+    // Create Deselect button as a Carbon icon button
+    const deselectBtn = document.createElement('button');
+    deselectBtn.className = 'bx--btn bx--btn--ghost bx--btn--icon-only playlist-deselect-btn'; // Added specific class back
+    deselectBtn.title = 'Deselect Playlist Filter';
+    deselectBtn.innerHTML = `
+        <svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width="16" height="16" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M24 9.4L22.6 8 16 14.6 9.4 8 8 9.4l6.6 6.6L8 22.6 9.4 24l6.6-6.6 6.6 6.6 1.4-1.4-6.6-6.6L24 9.4z"></path>
+            <title>Deselect Playlist Filter</title> <!-- Added title element -->
+        </svg>
+    `;
+    deselectBtn.addEventListener('click', handleDeselectPlaylistFilter);
+    deselectBtn.style.marginLeft = 'auto'; // Push to the right
+
+    header.appendChild(searchInput);
+    header.appendChild(deselectBtn);
+    dom.playlistFilterContainer.appendChild(header);
+
+    const listContainer = document.createElement('div');
+    listContainer.className = 'playlists-scroll-container'; // For scrolling
+
+    const currentPlaylists = state.playlists || [];
+    if (currentPlaylists.length === 0) {
+        listContainer.innerHTML = '<p class="bx--type-body-short-01">No playlists available.</p>';
+        dom.playlistFilterContainer.appendChild(listContainer);
+        return;
     }
 
-    scrollContainer.innerHTML = ''; // Clear previous items
-    const selectedPlaylistIds = state.management.selectedPlaylistIds || []; // Expecting an array now
-    const playlists = state.playlists || [];
-    
-    // Filter for non-hidden, non-empty playlists, then sort
-    const visiblePlaylists = playlists
-        .filter(p => !p.hidden && p.imageIds && p.imageIds.length > 0)
-        .sort((a, b) => a.name.localeCompare(b.name));
+    const selectedId = state.management.selectedPlaylistId; // Use single ID
 
-    visiblePlaylists.forEach(playlist => {
-        const item = document.createElement('div');
-        item.className = 'playlist-filter-item';
-        item.setAttribute('data-playlist-id', playlist.id);
-        // Check if the current playlist ID is in the selected array
-        if (selectedPlaylistIds.includes(playlist.id)) {
-            item.classList.add('selected');
-        }
-        // Format count correctly
-        const imageCountText = `${playlist.imageIds.length} image${playlist.imageIds.length !== 1 ? 's' : ''}`;
-        item.innerHTML = `
-            <span class="playlist-filter-color" style="background-color: ${playlist.color || DEFAULT_PLAYLIST_COLOR}"></span>
-            <div class="playlist-filter-info">
-                <span class="playlist-filter-name">${playlist.name}</span>
-                <span class="playlist-filter-count">${imageCountText}</span>
-            </div>
-        `;
-        item.addEventListener('click', () => handleSelectPlaylistFilter(playlist.id)); // Pass only ID
-        scrollContainer.appendChild(item);
-    });
-    // Pass the actual input element's value for filtering
-    filterPlaylistFilterView(container.querySelector('.bx--search-input').value);
+    currentPlaylists
+        // Filter out hidden AND empty playlists
+        .filter(p => !p.hidden && p.imageIds && p.imageIds.length > 0)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .forEach(playlist => {
+            const item = document.createElement('div');
+            item.className = 'playlist-filter-item';
+            item.dataset.playlistId = playlist.id;
+            item.dataset.playlistName = playlist.name.toLowerCase(); // For search filtering
+
+            // Highlight if selected (compare with single ID)
+            if (selectedId === playlist.id) { 
+                item.classList.add('selected');
+            }
+
+            // Color indicator
+            const colorIndicator = document.createElement('span');
+            colorIndicator.className = 'playlist-filter-color';
+            colorIndicator.style.backgroundColor = playlist.color || '#cccccc';
+
+            // Playlist Info (showing image count)
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'playlist-filter-info';
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'playlist-filter-name';
+            nameSpan.textContent = playlist.name;
+            const countSpan = document.createElement('span');
+            countSpan.className = 'playlist-filter-count';
+            countSpan.textContent = `(${(playlist.imageIds || []).length})`; // Show image count
+            infoDiv.appendChild(nameSpan);
+            infoDiv.appendChild(countSpan);
+
+            item.appendChild(colorIndicator);
+            item.appendChild(infoDiv);
+
+            // Click listener to select this playlist
+            item.addEventListener('click', () => handleSelectPlaylistFilter(playlist.id));
+
+            listContainer.appendChild(item);
+        });
+
+    dom.playlistFilterContainer.appendChild(listContainer);
+    // Apply search term if input exists
+    const currentSearchValue = header.querySelector('#playlist-filter-search-input')?.value;
+    if (currentSearchValue) {
+        filterPlaylistFilterView(currentSearchValue);
+    }
 }
 
 /**
- * Handles selecting/deselecting a playlist filter.
- * @param {number} playlistId - The ID of the playlist clicked.
+ * Handles clicking a playlist in the filter view (sets single selection).
  */
 function handleSelectPlaylistFilter(playlistId) {
-    const currentSelectedIds = [...(state.management.selectedPlaylistIds || [])]; // Clone current selection
-    const index = currentSelectedIds.indexOf(playlistId);
-
-    if (index === -1) {
-        // Not selected, add it
-        currentSelectedIds.push(playlistId);
-    } else {
-        // Already selected, remove it
-        currentSelectedIds.splice(index, 1);
-    }
-
-    console.log('Updating selected playlist filters:', currentSelectedIds);
-    updateState('management', { selectedPlaylistIds: currentSelectedIds, currentPage: 1 }); // Update state, reset page
-    displayPlaylistsInFilter(); // Re-render the filter list to show selection change
-    refreshManageData(); // Fetch data with new filters
+    console.log('Selecting playlist filter:', playlistId);
+    // Update state with the selected playlist ID
+    updateState('management', { selectedPlaylistId: playlistId, currentPage: 1 }); // Reset page
+    // Refresh the playlist filter view to highlight the selection
+    displayPlaylistsInFilter(); 
+    // Trigger a refresh of the image data based on the new filter
+    refreshManageData(); 
 }
 
 /**
- * Handles deselecting ALL playlist filters.
+ * Handles clicking the deselect button in the playlist filter view.
  */
 function handleDeselectPlaylistFilter() {
-    console.log('Deselecting all playlist filters');
-    updateState('management', { selectedPlaylistIds: [], currentPage: 1 }); // Clear selection, reset page
-    displayPlaylistsInFilter(); // Re-render the filter list
-    refreshManageData(); // Fetch data with cleared filters
+    console.log('Deselecting playlist filter');
+    // Update state to remove the selected playlist ID
+    updateState('management', { selectedPlaylistId: null, currentPage: 1 }); // Reset page
+    // Refresh the playlist filter view to remove the highlight
+    displayPlaylistsInFilter();
+    // Trigger a refresh of the image data without the playlist filter
+    refreshManageData(); 
 }
 
-/** Filters the visible list of playlist filters based on search input. */
+/**
+ * Filters the playlist list in the **Filter** section based on search input.
+ */
 function filterPlaylistFilterView(searchTerm) {
     const term = searchTerm.toLowerCase();
     const container = dom.playlistFilterContainer?.querySelector('.playlists-scroll-container');
@@ -620,7 +630,7 @@ async function handleAddNewPlaylist(event) {
         alert(`Playlist "${playlistName}" already exists.`);
         return;
     }
-
+    
     try {
         const newPlaylist = await createPlaylistAPI({ name: playlistName });
         await refreshManageData();
