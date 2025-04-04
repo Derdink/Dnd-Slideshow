@@ -1384,89 +1384,341 @@ apiRouter.get('/playlists', async(req, res, next) => {
  * @access  Public
  * @body    {Array<object>} playlists - The complete array of playlist objects to save.
  */
-apiRouter.post('/playlists', async(req, res, next) => {
-    const playlists = req.body.playlists;
-    console.log(`➡️ POST /api/playlists (Bulk Save) request received`);
 
-    if (!Array.isArray(playlists)) {
-        console.warn("⚠️ POST /api/playlists - Invalid payload: 'playlists' must be an array.");
-        return res.status(400).json({ message: 'Invalid playlists data: Body must contain a \'playlists\' array.' });
+
+/**
+ * @route   POST /api/playlists/:id/images
+ * @desc    Add images to a playlist.
+ * @access  Public
+ * @param   {number} id - The ID of the playlist to update.
+ * @body    {number[]} imageIds - An array of image IDs to add to the playlist.
+ */
+// *** New POST endpoint for creating a single playlist (Should remain active) ***\
+apiRouter.post('/playlists', async (req, res, next) => {
+    console.log('<<<<< EXECUTION REACHED SINGLE PLAYLIST POST HANDLER >>>>>'); 
+    const { name, color, is_hidden } = req.body;
+    console.log(`➡️ POST /api/playlists (Create Single) request received`, req.body);
+
+    // --- Validation ---\
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+        console.warn("⚠️ POST /api/playlists - Invalid or missing playlist name.");
+        return res.status(400).json({ message: 'Playlist name is required and must be a non-empty string.' });
+    }
+    const trimmedName = name.trim();
+    const finalColor = color || DEFAULT_PLAYLIST_COLOR || '#8a3ffc'; 
+    const finalIsHidden = is_hidden === true ? 1 : 0;
+    const createdAt = new Date().toISOString();
+
+    // Check for duplicate name (case-insensitive)
+    try {
+        const existing = await dbGet('SELECT id FROM playlists WHERE LOWER(name) = LOWER(?)', [trimmedName]);
+        if (existing) {
+            console.warn(`⚠️ POST /api/playlists - Playlist name conflict: \\"${trimmedName}\\"`);
+            return res.status(409).json({ message: `Playlist name \\"${trimmedName}\\" already exists.` });
+        }
+    } catch (err) {
+        console.error("❌ POST /api/playlists - Error checking for existing playlist:", err.message);
+        return next(err);
     }
 
-    // Basic validation of playlist structure
-    const isValid = playlists.every(p =>
-        p &&
-        typeof p.name === 'string' && p.name.trim().length > 0 &&
-        Array.isArray(p.imageIds) &&
-        p.imageIds.every(id => typeof id === 'number' && !isNaN(id)) &&
-        (p.id === undefined || (typeof p.id === 'number' && !isNaN(p.id))) // ID should be number or undefined
-    );
-    if (!isValid) {
-        console.warn("⚠️ POST /api/playlists - Invalid playlist structure in array.");
-        return res.status(400).json({ message: 'Invalid playlist structure in the provided array.' });
+    // --- Insertion ---
+    try {
+        const result = await dbRun(
+            'INSERT INTO playlists (name, color, is_hidden, created_at) VALUES (?, ?, ?, ?)',
+            [trimmedName, finalColor, finalIsHidden, createdAt]
+        );
+
+        const newPlaylist = await dbGet('SELECT * FROM playlists WHERE id = ?', [result.lastID]);
+        
+        if (!newPlaylist) {
+             throw new Error('Failed to retrieve newly created playlist after insertion.');
+        }
+
+        console.log(`✅ POST /api/playlists - Created playlist ID ${newPlaylist.id} (\\"${newPlaylist.name}\\")`);
+        res.status(201).json({
+            id: newPlaylist.id,
+            name: newPlaylist.name,
+            color: newPlaylist.color,
+            hidden: newPlaylist.is_hidden === 1,
+            createdAt: newPlaylist.created_at,
+            imageIds: [] 
+        });
+
+    } catch (err) {
+        console.error(`❌ POST /api/playlists - Error inserting new playlist \\"${trimmedName}\\"`, err.message);
+        next(err); 
+    }
+});
+
+/**\
+ * @route   POST /api/playlists/:id/images\
+ * @desc    Remove an image from a playlist.
+ * @access  Public
+ * @param   {number} id - The ID of the playlist to update.
+ * @param   {number} imageId - The ID of the image to remove from the playlist.
+ */
+apiRouter.delete('/playlists/:id/images/:imageId', async(req, res, next) => {
+    const playlistId = parseInt(req.params.id, 10);
+    const imageId = parseInt(req.params.imageId, 10);
+    console.log(`➡️ DELETE /api/playlists/${playlistId}/images/${imageId} request received`);
+
+    if (isNaN(playlistId)) {
+        console.warn(`⚠️ DELETE /api/playlists/:id - Invalid ID format: ${req.params.id}`);
+        return res.status(400).json({ message: 'Invalid playlist ID format.' });
+    }
+    if (isNaN(imageId)) {
+        console.warn(`⚠️ DELETE /api/playlists/:id/images/:imageId - Invalid ID format: ${req.params.imageId}`);
+        return res.status(400).json({ message: 'Invalid image ID format.' });
     }
 
-    console.log(`  - Attempting to save/replace ${playlists.length} playlists.`);
-
+    // Use a transaction for atomic deletion
     db.serialize(async() => {
         try {
             await dbRun('BEGIN TRANSACTION');
 
-            await dbRun('DELETE FROM playlist_images');
-            await dbRun('DELETE FROM playlists');
-            console.log('  - Cleared existing playlist data.');
-
-            const playlistInsertSql = 'INSERT INTO playlists (id, name, color, is_hidden, created_at) VALUES (?, ?, ?, ?, ?)';
-            const imageInsertSql = 'INSERT INTO playlist_images (playlist_id, image_id) VALUES (?, ?)';
-
-            let insertedPlaylists = 0;
-            let insertedAssociations = 0;
-
-            for (const playlist of playlists) {
-                const playlistId = playlist.id || Date.now() + Math.random(); // More robust temporary ID if needed
-                const createdAt = playlist.createdAt || new Date().toISOString();
-                const color = playlist.color || DEFAULT_COLOR;
-                const name = playlist.name.trim();
-                const isHidden = playlist.hidden ? 1 : 0;
-
-                await dbRun(playlistInsertSql, [
-                    playlistId,
-                    name,
-                    color,
-                    isHidden,
-                    createdAt
-                ]);
-                insertedPlaylists++;
-
-                for (const imageId of playlist.imageIds) {
-                    // Optional: Check if imageId exists in images table?
-                    // const imageExists = await dbGet('SELECT 1 FROM images WHERE id = ?', [imageId]);
-                    // if (imageExists) {
-                    await dbRun(imageInsertSql, [playlistId, imageId]);
-                    insertedAssociations++;
-                    // }
-                }
+            // 1. Find the image ID for the given playlist and image
+            const row = await dbGet('SELECT image_id FROM playlist_images WHERE playlist_id = ? AND image_id = ?', [playlistId, imageId]);
+            if (!row) {
+                console.warn(`⚠️ DELETE /api/playlists/${playlistId}/images/${imageId} - Image not found in playlist.`);
+                await dbRun('ROLLBACK');
+                return res.status(404).json({ message: 'Image not found in playlist.' });
             }
 
+            // 2. Delete the image record from the database
+            const dbResult = await dbRun('DELETE FROM playlist_images WHERE playlist_id = ? AND image_id = ?', [playlistId, imageId]);
+            if (dbResult.changes === 0) {
+                console.warn(`⚠️ DELETE /api/playlists/${playlistId}/images/${imageId} - Association not found during deletion.`);
+                await dbRun('ROLLBACK'); // Rollback if no change happened
+                return res.status(404).json({ message: 'Image association not found in playlist.' });
+            }
+            console.log(`  - Deleted association for image ${imageId} from playlist ${playlistId}.`);
+
+            // 3. REMOVE FILE DELETION LOGIC - We only remove the association
+            /*
+            try {
+                await fs.unlink(path.join(UPLOAD_DIR, row.filename)); // row.filename is not available here!
+                console.log(`  - Deleted image file: ${path.join(UPLOAD_DIR, row.filename)}`);
+            } catch (fileErr) { ... }
+            try {
+                await fs.unlink(path.join(THUMBNAIL_DIR, row.filename));
+                console.log(`  - Deleted thumbnail file: ${path.join(THUMBNAIL_DIR, row.filename)}`);
+            } catch (fileErr) { ... }
+            */
+
             await dbRun('COMMIT');
-            console.log(`✅ POST /api/playlists - Saved ${insertedPlaylists} playlists and ${insertedAssociations} image associations.`);
-        res.json({ message: 'Playlists saved successfully.' });
+            console.log(`✅ DELETE /api/playlists/${playlistId}/images/${imageId} - Image association removed successfully.`);
+            res.json({ message: `Image removed from playlist ${playlistId}.` });
 
         } catch (err) {
-            console.error("❌ POST /api/playlists - Transaction error during bulk save:", err.message);
+            console.error(`❌ DELETE /api/playlists/${playlistId}/images/${imageId} - Error removing image from playlist:`, err.message);
             try {
                 await dbRun('ROLLBACK');
                 console.log("  - Transaction rolled back due to error.");
             } catch (rollbackErr) {
                 console.error("  - Failed to rollback transaction:", rollbackErr.message);
             }
-            // Handle specific errors like UNIQUE constraint violation
-            if (err.message && err.message.includes('UNIQUE constraint failed')) {
-                return res.status(409).json({ message: 'Playlist name conflict during save.' });
-            }
-            next(err);
+            next(err); // Pass error to the main error handler
         }
     });
+});
+
+/**
+ * @route   PUT /api/playlists/:id
+ * @desc    Update a playlist's name, color, or hidden status.
+ * @access  Public
+ * @param   {number} id - The ID of the playlist to update.
+ * @body    {string} [name] - The new name for the playlist (optional).
+ * @body    {string} [color] - The new color for the playlist (optional).
+ * @body    {boolean} [is_hidden] - Whether the playlist is hidden (optional).
+ */
+apiRouter.put('/playlists/:id', async(req, res, next) => {
+    const playlistId = parseInt(req.params.id, 10);
+    console.log(`➡️ PUT /api/playlists/${playlistId} request received`, req.body);
+
+    // --- Validation ---
+    if (isNaN(playlistId)) {
+        console.warn(`⚠️ PUT /api/playlists/:id - Invalid ID format: ${req.params.id}`);
+        return res.status(400).json({ message: 'Invalid playlist ID format.' });
+    }
+
+    const updates = {};
+    if (req.body.name !== undefined) {
+        if (typeof req.body.name !== 'string' || req.body.name.trim().length === 0) {
+            return res.status(400).json({ message: 'Playlist name must be a non-empty string.' });
+        }
+        updates.name = req.body.name.trim();
+    }
+    if (req.body.color !== undefined) {
+        if (typeof req.body.color !== 'string' || req.body.color.trim().length === 0) {
+            // Basic check, could add regex for hex color format
+            return res.status(400).json({ message: 'Playlist color must be a non-empty string.' });
+        }
+        updates.color = req.body.color.trim();
+    }
+    if (req.body.is_hidden !== undefined) {
+        if (typeof req.body.is_hidden !== 'boolean') {
+             return res.status(400).json({ message: 'Playlist hidden status must be a boolean.' });
+        }
+        updates.is_hidden = req.body.is_hidden ? 1 : 0;
+    }
+
+    if (Object.keys(updates).length === 0) {
+        return res.status(400).json({ message: 'No valid fields provided for update.' });
+    }
+
+    // --- Update Logic ---
+    try {
+        // Check for name conflict IF name is being updated
+        if (updates.name) {
+             const existing = await dbGet(
+                 'SELECT id FROM playlists WHERE LOWER(name) = LOWER(?) AND id != ?',
+                 [updates.name, playlistId]
+             );
+             if (existing) {
+                 console.warn(`⚠️ PUT /api/playlists/${playlistId} - Playlist name conflict: "${updates.name}"`);
+                 return res.status(409).json({ message: `Playlist name "${updates.name}" already exists.` });
+             }
+        }
+
+        // Construct dynamic UPDATE query
+        const setClauses = Object.keys(updates).map(key => `${key} = ?`).join(', ');
+        const values = [...Object.values(updates), playlistId];
+        const sql = `UPDATE playlists SET ${setClauses} WHERE id = ?`;
+
+        console.log(`  - Executing SQL: ${sql} with values:`, values);
+        const result = await dbRun(sql, values);
+
+        if (result.changes === 0) {
+            // Check if the playlist actually exists before saying 'not found'
+            const exists = await dbGet('SELECT 1 FROM playlists WHERE id = ?', [playlistId]);
+            if (!exists) {
+                 console.warn(`⚠️ PUT /api/playlists/${playlistId} - Playlist not found.`);
+                 return res.status(404).json({ message: 'Playlist not found.' });
+            } else {
+                // Playlist exists, but no changes were made (maybe values were the same?)
+                 console.log(`✅ PUT /api/playlists/${playlistId} - Playlist updated (no effective changes).`);
+                 return res.json({ message: 'Playlist updated successfully (no changes detected).' });
+            }
+        }
+
+        console.log(`✅ PUT /api/playlists/${playlistId} - Playlist updated successfully.`);
+        res.json({ message: 'Playlist updated successfully.' });
+
+    } catch (err) {
+        console.error(`❌ PUT /api/playlists/${playlistId} - Error updating playlist:`, err.message);
+        // Handle potential UNIQUE constraint error if the pre-check somehow failed
+         if (err.message && err.message.includes('UNIQUE constraint failed')) {
+             return res.status(409).json({ message: `Playlist name "${updates.name}" already exists.` });
+         }
+        next(err);
+    }
+});
+
+/**
+ * @route   POST /api/playlists/:id/images
+ * @desc    Add images to a playlist.
+ * @access  Public
+ * @param   {number} id - The ID of the playlist to update.
+ * @body    {number[]} imageIds - An array of image IDs to add to the playlist.
+ */
+apiRouter.post('/playlists/:id/images', async(req, res, next) => {
+    const playlistId = parseInt(req.params.id, 10);
+    const imageIds = req.body.imageIds;
+    console.log(`➡️ POST /api/playlists/${playlistId}/images request received`, { imageIds });
+
+    if (isNaN(playlistId)) {
+        console.warn(`⚠️ POST /api/playlists/:id - Invalid ID format: ${req.params.id}`);
+        return res.status(400).json({ message: 'Invalid playlist ID format.' });
+    }
+    if (!Array.isArray(imageIds) || imageIds.length === 0) {
+        console.warn(`⚠️ POST /api/playlists/:id - Invalid image IDs format: ${req.body.imageIds}`);
+        return res.status(400).json({ message: 'Invalid image IDs format. Must be a non-empty array.' });
+    }
+
+    // Use a transaction for atomic insertion
+    db.serialize(async() => {
+        try {
+            await dbRun('BEGIN TRANSACTION');
+
+            // 1. Find the playlist ID for the given playlist
+            const playlist = await dbGet('SELECT id FROM playlists WHERE id = ?', [playlistId]);
+            if (!playlist) {
+                console.warn(`⚠️ POST /api/playlists/${playlistId} - Playlist not found.`);
+                await dbRun('ROLLBACK');
+                return res.status(404).json({ message: 'Playlist not found.' });
+            }
+
+            // 2. Insert images into the playlist_images table one by one
+            const insertSql = 'INSERT OR IGNORE INTO playlist_images (playlist_id, image_id) VALUES (?, ?)'; // Added OR IGNORE
+            let insertedCount = 0;
+            for (const imageId of imageIds) {
+                // Optional: Check if image exists?
+                // const imageExists = await dbGet('SELECT 1 FROM images WHERE id = ?', [imageId]);
+                // if (imageExists) {
+                const result = await dbRun(insertSql, [playlistId, imageId]);
+                insertedCount += result.changes; // Count actual insertions
+                // }
+            }
+
+            // 3. Commit the transaction
+            await dbRun('COMMIT');
+
+            console.log(`✅ POST /api/playlists/${playlistId}/images - Added/ignored ${insertedCount} image associations.`);
+            res.json({ message: `Images processed for playlist ${playlistId}. ${insertedCount} new associations added.` });
+
+        } catch (err) {
+            console.error(`❌ POST /api/playlists/${playlistId}/images - Error adding images to playlist:`, err.message);
+            try {
+                await dbRun('ROLLBACK');
+                console.log("  - Transaction rolled back due to error.");
+            } catch (rollbackErr) {
+                console.error("  - Failed to rollback transaction:", rollbackErr.message);
+            }
+            next(err); // Pass error to the main error handler
+        }
+    });
+});
+
+/**
+ * @route   DELETE /api/playlists/:id
+ * @desc    Delete a playlist and its associations (handled by CASCADE).
+ * @access  Public
+ * @param   {number} id - The ID of the playlist to delete.
+ */
+apiRouter.delete('/playlists/:id', async(req, res, next) => {
+    const playlistId = parseInt(req.params.id, 10);
+    console.log(`➡️ DELETE /api/playlists/${playlistId} request received`);
+
+    if (isNaN(playlistId)) {
+        console.warn(`⚠️ DELETE /api/playlists/:id - Invalid ID format: ${req.params.id}`);
+        return res.status(400).json({ message: 'Invalid playlist ID format.' });
+    }
+
+    try {
+        // Check if playlist exists first (optional but good for 404 response)
+        const exists = await dbGet('SELECT name FROM playlists WHERE id = ?', [playlistId]);
+        if (!exists) {
+            console.warn(`⚠️ DELETE /api/playlists/${playlistId} - Playlist not found.`);
+            return res.status(404).json({ message: 'Playlist not found.' });
+        }
+        const playlistName = exists.name; // For logging
+
+        // Delete the playlist (CASCADE constraint handles playlist_images)
+        const result = await dbRun('DELETE FROM playlists WHERE id = ?', [playlistId]);
+
+        if (result.changes === 0) {
+            // Should not happen if the SELECT check passed, but handle defensively
+            console.warn(`⚠️ DELETE /api/playlists/${playlistId} - Playlist found but delete reported 0 changes.`);
+            return res.status(404).json({ message: 'Playlist not found during deletion.' });
+        }
+
+        console.log(`✅ DELETE /api/playlists/${playlistId} - Playlist "${playlistName}" deleted successfully (associations handled by CASCADE).`);
+        res.json({ message: `Playlist "${playlistName}" deleted successfully.` }); // Or res.status(204).send();
+
+    } catch (err) {
+        console.error(`❌ DELETE /api/playlists/${playlistId} - Error deleting playlist:`, err.message);
+        next(err);
+    }
 });
 
 

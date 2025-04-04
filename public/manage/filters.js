@@ -138,7 +138,7 @@ export function attachFilterEventListeners() {
             debounceTimer = setTimeout(() => {
                  updateState('management', { currentPage: 1, currentSearchTerm: dom.searchInput.value }); // Reset page, update search term
                  refreshManageData();
-            }, 300); // Debounce search input
+            }, 150); // Debounce search input - Reduced delay
         });
         // Clear button for search
         const clearSearchBtn = dom.searchInput.parentNode.querySelector('.bx--search-close');

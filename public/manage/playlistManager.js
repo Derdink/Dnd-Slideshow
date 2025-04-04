@@ -2,16 +2,17 @@
 // Logic for playlist management, filtering, and playback selection
 
 import { state, updateState } from '../state.js';
-import { playSelectedPlaylist, updatePlaylist, deletePlaylist, addImagesToPlaylist, removeImageFromPlaylist, fetchImages } from '../api.js'; // Using available CRUD operations
+import { playSelectedPlaylist, updatePlaylist, deletePlaylist, addImagesToPlaylist, removeImageFromPlaylist, fetchImages, createPlaylistAPI } from '../api.js'; // Using available CRUD operations
 // TODO: Refactor backend for individual playlist CRUD APIs
 import { showPlaylistEditModal } from './modals.js';
 import { handleError, ErrorTypes, withErrorHandling } from './errorHandler.js';
 import { refreshManageData } from '../manage.js';
 import { getContentColorForBackground } from './utils.js';
+import { BACKGROUND_COLORS } from '../config.js'; // <-- Import BACKGROUND_COLORS
 
 // DOM elements cached by parent manage.js module
 let dom = {};
-const DEFAULT_PLAYLIST_COLOR = '#8a3ffc'; // A default purple
+// const DEFAULT_PLAYLIST_COLOR = '#8a3ffc'; // <-- Remove this default, we'll use the cycle
 
 // --- State for Settings Playlist Selection ---
 let settingsSelectedPlaylistIds = new Set();
@@ -120,7 +121,7 @@ function createManagerPlaylistItem(playlist, allImages) {
     row.setAttribute('data-playlist-id', playlist.id);
     row.setAttribute('draggable', true);
     if (playlist.hidden) {
-        row.classList.add('hidden');
+        row.classList.add('hidden-list');
     }
 
     // Cell for Playlist Name
@@ -263,6 +264,30 @@ function createManagerPlaylistItem(playlist, allImages) {
         }
     });
 
+    // Add click listener to the ROW itself for adding selected images
+    row.addEventListener('click', async (e) => {
+        // Ignore clicks on buttons or the expand toggle
+        if (e.target.closest('button') || e.target.closest('.playlist-count-toggle')) {
+            return;
+        }
+
+        const selectedIds = Array.from(state.management.selectedImageIds);
+        if (selectedIds.length > 0) {
+            console.log(`[Playlist Row Click] Adding ${selectedIds.length} selected images to playlist ${playlist.id}`);
+            try {
+                await addImagesToPlaylist(playlist.id, selectedIds);
+                state.management.selectedImageIds.clear(); // Clear selection after adding
+                await refreshManageData(); // Refresh to update counts etc.
+                // Optional: Provide success feedback (e.g., Carbon toast)
+            } catch (error) {
+                handleError(error, ErrorTypes.SERVER, `Failed to add images to playlist "${playlist.name}"`);
+            }
+        } else {
+            // Optional: If no images are selected, maybe toggle the details row?
+            // countToggleContainer.click(); // Simulate click on toggle
+            console.log(`[Playlist Row Click] No images selected for playlist ${playlist.id}`);
+        }
+    });
 
     // Drag and Drop for Main Row
     row.addEventListener('dragstart', handleDragStart);
@@ -582,34 +607,6 @@ function filterSettingsPlaylistsView(searchTerm) {
 // --- API Interaction Functions ---
 
 /**
- * Workaround: Creates a new playlist using the updatePlaylist endpoint.
- * @param {object} playlistData - Data for the new playlist (name, color, hidden).
- * @returns {Promise<string>} The temporary ID assigned to the playlist.
- */
-async function createPlaylistWorkaround(playlistData) {
-    // Create a temporary ID - the server will assign a real one
-    const tempId = `temp-${Date.now()}`; 
-    const newPlaylist = {
-        id: tempId,
-        name: playlistData.name,
-        color: playlistData.color || DEFAULT_PLAYLIST_COLOR,
-        is_hidden: playlistData.hidden || false,
-        imageIds: [], // Start with no images
-        created_at: new Date().toISOString()
-    };
-    
-    try {
-        // Use updatePlaylist as a workaround - the backend should handle new playlists
-        await updatePlaylist(tempId, newPlaylist);
-        console.log(`Playlist "${playlistData.name}" created successfully (temp ID: ${tempId}).`);
-        return tempId;
-    } catch (error) {
-        console.error('Error creating playlist:', error);
-        throw error; // Re-throw for handling by caller
-    }
-}
-
-/**
  * Handles form submission for adding a new playlist.
  */
 async function handleAddNewPlaylist(event) {
@@ -623,17 +620,13 @@ async function handleAddNewPlaylist(event) {
         alert(`Playlist "${playlistName}" already exists.`);
         return;
     }
-    
+
     try {
-        // Use our workaround function instead of a direct API call
-        await createPlaylistWorkaround({ 
-            name: playlistName, 
-            color: DEFAULT_PLAYLIST_COLOR 
-        });
-        dom.newPlaylistForm.reset();
-        await refreshManageData(); // Refresh data to show the new playlist
+        const newPlaylist = await createPlaylistAPI({ name: playlistName });
+        await refreshManageData();
+        console.log('New playlist created:', newPlaylist);
     } catch (error) {
-        handleError(error, ErrorTypes.SERVER);
+        handleError(error, ErrorTypes.SERVER, 'Failed to create new playlist');
     }
 }
 
@@ -788,9 +781,8 @@ async function handleRemoveImageFromPlaylistClick(playlistId, imageId, thumbWrap
         // Remove the thumbnail from the grid immediately
         thumbWrapperElement.remove();
         console.log(`Image ${imageId} removed from playlist ${playlistId} visually.`);
-        // TODO: Update the playlist count in the main row without full refresh?
-        // For now, rely on manual refresh or next data load to update count.
-        await refreshManageData(); // Or trigger a targeted refresh later
+        // TODO: Update the playlist count in the main row UI?
+        // await refreshManageData(); // <-- Comment out this line
     } catch (error) {
         handleError(error, ErrorTypes.SERVER, `Failed to remove image ${imageId} from playlist ${playlistId}`);
         // Re-enable button on error

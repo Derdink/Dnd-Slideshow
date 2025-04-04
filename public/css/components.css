@@ -539,8 +539,8 @@ padding: 0rem 0.5rem;
     border-bottom: none;
 }
 
-.bx--data-table tr.hidden {
-    opacity: 0.6;
+.bx--data-table tr.hidden-list {
+    opacity: 0.5;
     background-color: var(--cds-layer-disabled-01);
 }
 
@@ -609,7 +609,7 @@ padding: 0rem 0.5rem;
 
 /* Change background on hover */
 #playlistList .bx--btn--ghost.bx--btn--icon-only:hover {
-    background-color: var(--cds-ui-background); /* Use Carbon background color variable */
+    background-color: rgba(0, 0, 0, 1); /* Use Carbon background color variable */
 }
 
 /* Playlist count text styling (already part of toggle) */

@@ -592,7 +592,36 @@ async function uploadFile(file, overwrite = false) {
     }
 }
 
+/**
+ * Creates a new playlist.
+ * @param {string} name - The name of the playlist.
+ * @param {string} [color] - Optional color for the playlist.
+ * @param {boolean} [hidden] - Optional hidden status.
+ * @returns {Promise<object>} A promise that resolves with the new playlist object.
+ * @throws {Error} If the fetch request fails or the response is not ok.
+ */
+async function createPlaylistAPI(name, color, hidden = false) {
+    console.log(`API: Creating playlist: ${name}`);
+    try {
+        const response = await fetch('/api/playlists', { // Use POST method
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, color, is_hidden: hidden }),
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`HTTP error! Status: ${response.status} - ${errorData.message || 'Failed to create playlist'}`);
+        }
+        const newPlaylist = await response.json();
+        console.log('✅ API: Playlist created successfully.', newPlaylist);
+        return newPlaylist;
+    } catch (error) {
+        console.error('❌ API: Error creating playlist:', error);
+        throw error;
+    }
+}
+
 // Export the API functions
-export { fetchTags, fetchPlaylists, updateSlideshowSettings, playSelectedTags, playSelectedPlaylist, navigateSlideshow, deleteImageById, bulkDeleteImages, updateImage, playImageAPI, playSelectedImagesAPI, createTag, updateTag, deleteTag, updatePlaylist, deletePlaylist, addImagesToPlaylist, removeImageFromPlaylist, uploadFile };
+export { fetchTags, fetchPlaylists, updateSlideshowSettings, playSelectedTags, playSelectedPlaylist, navigateSlideshow, deleteImageById, bulkDeleteImages, updateImage, playImageAPI, playSelectedImagesAPI, createTag, updateTag, deleteTag, updatePlaylist, deletePlaylist, addImagesToPlaylist, removeImageFromPlaylist, uploadFile, createPlaylistAPI };
 
 console.log('api.js loaded'); // Placeholder

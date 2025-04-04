@@ -254,7 +254,7 @@ export async function refreshImageData() {
         sortKey: state.management.sortKey,
         sortDir: state.management.sortDirection,
         filters: {
-            search: state.management.searchQuery,
+            search: state.management.currentSearchTerm,
             tags: state.management.selectedFilterTags,
             playlistId: state.management.selectedPlaylistId,
             includeHidden: true
