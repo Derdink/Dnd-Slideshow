@@ -3,6 +3,7 @@
 
 import { validateAndSanitizeStateUpdate } from './manage/stateValidator.js';
 import { handleError, ErrorTypes } from './manage/errorHandler.js';
+import { DEFAULTS } from './config.js';
 
 console.log('state.js loaded'); // Placeholder
 
@@ -43,7 +44,20 @@ const initialState = {
             playPauseBtn: null,
             speedInput: null,
             orderSelect: null
-        }
+        },
+        // Settings
+        showTextOverlay: DEFAULTS.SHOW_TEXT_OVERLAY, // From config
+
+        // Runtime State
+        isPlaying: false,
+        currentImageIndex: -1,
+        activeList: [], // Holds the image objects currently in the slideshow
+        sourceType: 'none', // 'all', 'tags', 'playlist', 'selection', 'direct', 'none'
+        sourceDetails: null, // Stores the specific tags, playlistId, or image objects
+        usedIndices: new Set(), // Tracks indices used in the current loop
+        randomizedOrder: [], // Stores shuffled indices for random order
+        currentImage: null, // Stores the object of the currently displayed image
+        history: [], // Add history for random prev
     },
     // Add other application states here if needed (e.g., management page state)
     tags: [],

@@ -296,13 +296,16 @@ async function handleAddTagToImages(tag, imageIds) {
             return Promise.resolve(); // Skip this one
         }
         
-        const imageTagIds = image.tagIds || [];
-        if (imageTagIds.includes(tag.id)) {
+        // *** FIX: Read IDs from image.tags (array of objects) ***
+        const currentTagIds = (image.tags || []).map(t => t.id);
+        
+        if (currentTagIds.includes(tag.id)) { // Check using the extracted IDs
             console.log(`[addTagToImages] Image ID ${imageId} already has tag "${tag.name}"`);
             return Promise.resolve(); // Skip update if tag already present
         }
         
-        const updatedTagIds = [...imageTagIds, tag.id];
+        // *** FIX: Create updated list based on currentTagIds ***
+        const updatedTagIds = [...currentTagIds, tag.id];
         
         const updateData = {
             title: image.title,
@@ -484,13 +487,16 @@ async function addTagToImages(imageIds, tagName) {
             return Promise.resolve();
         }
         
-        const imageTagIds = image.tagIds || [];
-        if (imageTagIds.includes(tag.id)) {
+        // *** FIX: Read IDs from image.tags (array of objects) ***
+        const currentTagIds = (image.tags || []).map(t => t.id);
+        
+        if (currentTagIds.includes(tag.id)) { // Check using the extracted IDs
             console.log(`[addTagToImages] Image ID ${imageId} already has tag "${tagName}"`);
             return Promise.resolve();
         }
         
-        const updatedTagIds = [...imageTagIds, tag.id];
+        // *** FIX: Create updated list based on currentTagIds ***
+        const updatedTagIds = [...currentTagIds, tag.id];
         
         // FIX: Include title and description when calling updateImage
         const updateData = {
@@ -532,13 +538,16 @@ async function removeTagFromImages(imageIds, tagName) {
             return Promise.resolve();
         }
         
-        const imageTagIds = image.tagIds || [];
-        if (!imageTagIds.includes(tag.id)) {
+        // *** FIX: Read IDs from image.tags (array of objects) ***
+        const currentTagIds = (image.tags || []).map(t => t.id);
+
+        if (!currentTagIds.includes(tag.id)) { // Check using the extracted IDs
             console.log(`[removeTagFromImages] Image ID ${imageId} does not have tag "${tagName}"`);
             return Promise.resolve();
         }
         
-        const updatedTagIds = imageTagIds.filter(id => id !== tag.id);
+        // *** FIX: Create updated list based on currentTagIds ***
+        const updatedTagIds = currentTagIds.filter(id => id !== tag.id);
         
         // FIX: Include title and description when calling updateImage
         const updateData = {

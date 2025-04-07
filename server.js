@@ -635,238 +635,174 @@ apiRouter.get('/images', async(req, res, next) => {
     // Default to NOT including hidden unless specified
     const includeHidden = req.query.includeHidden === 'true';
 
-    // --- Query Building ---
+    // --- Start of TRY block ---
+    try { 
+        // --- Query Building ---
         let whereClauses = [];
         let joinClauses = [];
         let params = [];
 
-    // Add search filter (title or filename)
-    if (filters.search) {
-        whereClauses.push('(LOWER(i.title) LIKE ? OR LOWER(i.filename) LIKE ?)');
-        const searchTerm = `%${filters.search.toLowerCase()}%`;
+        // Add search filter (title or filename)
+        if (filters.search) {
+            whereClauses.push('(LOWER(i.title) LIKE ? OR LOWER(i.filename) LIKE ?)');
+            const searchTerm = `%${filters.search.toLowerCase()}%`;
             params.push(searchTerm, searchTerm);
         }
 
-    // Add specific ID filter
-    if (filters.ids && filters.ids.length > 0) {
-        whereClauses.push(`i.id IN (${filters.ids.map(() => '?').join(',')})`);
-        params.push(...filters.ids);
-    }
+        // Add specific ID filter
+        if (filters.ids && filters.ids.length > 0) {
+            whereClauses.push(`i.id IN (${filters.ids.map(() => '?').join(',')})`);
+            params.push(...filters.ids);
+        }
 
-    // Reverted playlist filter for single ID
-    if (filters.playlistId && !isNaN(filters.playlistId)) {
-        joinClauses.push('INNER JOIN playlist_images pi ON i.id = pi.image_id');
-        whereClauses.push('pi.playlist_id = ?');
-        params.push(filters.playlistId);
-    }
+        // Reverted playlist filter for single ID
+        if (filters.playlistId && !isNaN(filters.playlistId)) {
+            joinClauses.push('INNER JOIN playlist_images pi ON i.id = pi.image_id');
+            whereClauses.push('pi.playlist_id = ?');
+            params.push(filters.playlistId);
+        }
 
-    // Add tag filters (AND logic for multiple tags)
-    if (filters.tags && filters.tags.length > 0) {
-        const tagPlaceholders = filters.tags.map(() => '?').join(',');
-        // Subquery to find images that have ALL specified tags
+        // Add tag filters (AND logic for multiple tags)
+        if (filters.tags && filters.tags.length > 0) {
+            const tagPlaceholders = filters.tags.map(() => '?').join(',');
+            // Subquery to find images that have ALL specified tags
                 whereClauses.push(`
-            i.id IN (
-                SELECT it.image_id
-                FROM image_tags it
-                JOIN tags t ON it.tag_id = t.id
-                WHERE LOWER(t.name) IN (${tagPlaceholders})
-                GROUP BY it.image_id
-                HAVING COUNT(DISTINCT LOWER(t.name)) = ?
-            )
-        `);
-        params.push(...filters.tags.map(t => t.toLowerCase()), filters.tags.length);
-    }
-
-    // Handle 'Hidden' tag exclusion (unless includeHidden is true)
-    if (!includeHidden) {
-        const hiddenTag = await dbGet('SELECT id FROM tags WHERE name = ?', [HIDDEN_TAG_NAME]);
-        if (hiddenTag) {
-            whereClauses.push(`
-                i.id NOT IN (
-                    SELECT image_id FROM image_tags WHERE tag_id = ?
+                i.id IN (
+                    SELECT it.image_id
+                    FROM image_tags it
+                    JOIN tags t ON it.tag_id = t.id
+                    WHERE LOWER(t.name) IN (${tagPlaceholders})
+                    GROUP BY it.image_id
+                    HAVING COUNT(DISTINCT LOWER(t.name)) = ?
                 )
             `);
-            params.push(hiddenTag.id);
+            params.push(...filters.tags.map(t => t.toLowerCase()), filters.tags.length);
         }
-    }
 
-    // Combine clauses
-    const joinClause = joinClauses.join(' ');
-    const whereClause = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+        // Handle 'Hidden' tag exclusion (unless includeHidden is true)
+        if (!includeHidden) {
+            const hiddenTag = await dbGet('SELECT id FROM tags WHERE name = ?', [HIDDEN_TAG_NAME]);
+            if (hiddenTag) {
+            whereClauses.push(`
+                    i.id NOT IN (
+                        SELECT image_id FROM image_tags WHERE tag_id = ?
+                    )
+                `);
+                params.push(hiddenTag.id);
+            }
+        }
 
-    // --- Count Query (Based ONLY on standard filters) ---
-    const countSql = `SELECT COUNT(DISTINCT i.id) as count FROM images i ${joinClause} ${whereClause}`;
-    console.log('  - Count SQL:', countSql);
-    console.log('  - Count Params:', params);
+        // Combine clauses
+        const joinClause = joinClauses.join(' ');
+        const whereClause = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
-    // --- Data Query (Based ONLY on standard filters for pagination) ---
-    const dataSql = `
-        SELECT
-            i.id, i.filename, i.title, i.description, i.dateAdded
-        FROM images i
-        ${joinClause}
-        ${whereClause}
-        ORDER BY ${orderBy} ${sortDir}
-        LIMIT ? OFFSET ?
-    `;
-    const dataParams = [...params, limit, offset];
-    console.log('  - Data SQL:', dataSql);
-    console.log('  - Data Params:', dataParams);
+        // --- Count Query (Based ONLY on standard filters) ---
+        const countSql = `SELECT COUNT(DISTINCT i.id) as count FROM images i ${joinClause} ${whereClause}`;
+        console.log('  - Count SQL:', countSql);
+        console.log('  - Count Params:', params);
+        const countResult = await dbGet(countSql, params); // Execute count query
+        const totalItems = countResult ? countResult.count : 0;
+        const totalPages = Math.ceil(totalItems / limit);
 
-    // --- Available Tags Query (Based ONLY on standard filters, NO pagination) ---
-    // Combine the base whereClause with the tag_id IS NOT NULL check
-    const availableTagsWhereClause = whereClause 
-        ? `${whereClause} AND it.tag_id IS NOT NULL` 
-        : 'WHERE it.tag_id IS NOT NULL';
-        
-    const availableTagsSql = `
-        SELECT DISTINCT it.tag_id 
-        FROM images i 
-        ${joinClause} 
-        LEFT JOIN image_tags it ON i.id = it.image_id
-        ${availableTagsWhereClause}
-    `; 
-    const availableTagsParams = [...params]; // Use the same base filter params
-    console.log('  - Available Tags SQL:', availableTagsSql);
-    console.log('  - Available Tags Params:', availableTagsParams);
-
-    // --- Fetch Always Include IDs Data (if requested) ---
-    let alwaysIncludeSql = '';
-    let alwaysIncludeParams = [];
-    if (filters.alwaysIncludeIds && filters.alwaysIncludeIds.length > 0) {
-        alwaysIncludeSql = `
+        // --- Data Query (Based ONLY on standard filters for pagination) ---
+        const dataSql = `
             SELECT
                 i.id, i.filename, i.title, i.description, i.dateAdded
             FROM images i
-            WHERE i.id IN (${filters.alwaysIncludeIds.map(() => '?').join(',')})
+            ${joinClause}
+            ${whereClause}
+            ORDER BY ${orderBy} ${sortDir}
+            LIMIT ? OFFSET ?
         `;
-        alwaysIncludeParams = filters.alwaysIncludeIds;
-        console.log('  - Always Include SQL:', alwaysIncludeSql);
-        console.log('  - Always Include Params:', alwaysIncludeParams);
-    }
+        const dataParams = [...params, limit, offset];
+        console.log('  - Data SQL:', dataSql);
+        console.log('  - Data Params:', dataParams);
+        const images = await dbAll(dataSql, dataParams); // Execute data query
 
-    try {
-        // 1. Get total count based on filters
-        const countResult = await dbGet(countSql, params);
-        const totalItems = countResult?.count || 0;
-        const totalPages = Math.ceil(totalItems / limit);
-        console.log(`  - Count Result: ${totalItems} items, ${totalPages} pages`);
-
-        // 2. Get the filtered page of images
-        const filteredPageImages = await dbAll(dataSql, dataParams);
-        console.log(`  - Filtered Page Images Fetched: ${filteredPageImages.length}`);
-
-        // 3. Get the 'always include' images if needed
-        let alwaysIncludedImages = [];
-        if (alwaysIncludeSql) {
-            alwaysIncludedImages = await dbAll(alwaysIncludeSql, alwaysIncludeParams);
-            console.log(`  - Always Included Images Fetched: ${alwaysIncludedImages.length}`);
+        // --- Tag Fetching for the retrieved images ---
+        let imageIdsForTags = images.map(img => img.id);
+        if (filters.alwaysIncludeIds && filters.alwaysIncludeIds.length > 0) {
+            filters.alwaysIncludeIds.forEach(id => {
+                if (!imageIdsForTags.includes(id)) {
+                    imageIdsForTags.push(id);
+                }
+            });
+            const missingIds = filters.alwaysIncludeIds.filter(id => !images.some(img => img.id === id));
+            if (missingIds.length > 0) {
+                const missingPlaceholders = missingIds.map(() => '?').join(',');
+                const missingSql = `SELECT * FROM images WHERE id IN (${missingPlaceholders})`;
+                const missingImages = await dbAll(missingSql, missingIds);
+                images.push(...missingImages); 
+            }
         }
 
-        // NEW 3b: Get all available tag IDs for the *entire* filtered set
-        const availableTagsResult = await dbAll(availableTagsSql, availableTagsParams);
-        const availableFilteredTagIds = availableTagsResult.map(row => row.tag_id);
-        console.log(`  - Available Tag IDs in filtered set: ${availableFilteredTagIds.length}`);
-
-        // 4. Fetch tags for all relevant images (filtered page + always include)
-        const allImageIds = new Set([
-            ...filteredPageImages.map(img => img.id),
-            ...alwaysIncludedImages.map(img => img.id)
-        ]);
-
-        let imagesWithTags = {};
-        if (allImageIds.size > 0) {
-            const imageTagSql = `
-                SELECT it.image_id, t.id as tag_id, t.name as tag_name, t.color as tag_color
+        let tagsByImageId = {};
+        if (imageIdsForTags.length > 0) {
+            const tagPlaceholders = imageIdsForTags.map(() => '?').join(',');
+            const tagsSql = `
+                SELECT it.image_id, t.id, t.name, t.color
                 FROM image_tags it
                 JOIN tags t ON it.tag_id = t.id
-                WHERE it.image_id IN (${Array.from(allImageIds).map(() => '?').join(',')})
-                ORDER BY it.image_id, t.name
+                WHERE it.image_id IN (${tagPlaceholders})
             `;
-            const imageTagParams = Array.from(allImageIds);
-            const tagsData = await dbAll(imageTagSql, imageTagParams);
-
-            // Group tags by image_id
-            tagsData.forEach(row => {
-                if (!imagesWithTags[row.image_id]) {
-                    imagesWithTags[row.image_id] = { tags: [], tagIds: [] };
+            const tagRows = await dbAll(tagsSql, imageIdsForTags);
+            tagRows.forEach(tagRow => {
+                if (!tagsByImageId[tagRow.image_id]) {
+                    tagsByImageId[tagRow.image_id] = [];
                 }
-                imagesWithTags[row.image_id].tags.push({ id: row.tag_id, name: row.tag_name, color: row.tag_color });
-                imagesWithTags[row.image_id].tagIds.push(row.tag_id);
+                tagsByImageId[tagRow.image_id].push({
+                    id: tagRow.id,
+                    name: tagRow.name,
+                    color: tagRow.color || DEFAULT_COLOR
+                });
             });
         }
 
-        // 5. Merge tags into image objects and format response
-        const mergeAndFormat = (img) => {
-            const tagsInfo = imagesWithTags[img.id] || { tags: [], tagIds: [] };
-            return {
-                id: img.id,
-                url: `/uploads/${encodeURIComponent(img.filename)}`,
-                thumbnailUrl: `/thumbnails/${encodeURIComponent(img.filename)}`,
-                title: img.title,
-                description: img.description,
-                dateAdded: img.dateAdded, // Keep original timestamp (Corrected)
-                tags: tagsInfo.tags,
-                tagIds: tagsInfo.tagIds // Add tagIds for easier client-side filtering/updates
-            };
-        };
+        // --- Available Tags Query (Based ONLY on standard filters, NO pagination) ---
+        const availableTagsWhereClause = whereClause
+            ? `${whereClause} AND it.tag_id IS NOT NULL`
+            : 'WHERE it.tag_id IS NOT NULL';
+        const availableTagsSql = `
+            SELECT DISTINCT it.tag_id
+            FROM images i
+            ${joinClause}
+            LEFT JOIN image_tags it ON i.id = it.image_id
+            ${availableTagsWhereClause}
+        `;
+        const availableTagsParams = [...params];
+        const availableTags = await dbAll(availableTagsSql, availableTagsParams);
+        const availableFilteredTagIds = availableTags.map(t => t.tag_id);
 
-        const formattedFilteredImages = filteredPageImages.map(mergeAndFormat);
-        const formattedAlwaysIncludeImages = alwaysIncludedImages.map(mergeAndFormat);
+        // --- Prepare Final Response ---
+        const imagesWithTags = images.map(img => ({
+            ...img,
+            tags: tagsByImageId[img.id] || []
+        }));
 
-        // 6. Combine lists, ensuring unique images (filtered page takes precedence for order)
-        const combinedImagesMap = new Map();
-        formattedFilteredImages.forEach(img => combinedImagesMap.set(img.id, img));
-        // Add always included images only if they weren't already in the filtered page
-        formattedAlwaysIncludeImages.forEach(img => {
-            if (!combinedImagesMap.has(img.id)) {
-                combinedImagesMap.set(img.id, img);
-            }
-        });
-        const finalImages = Array.from(combinedImagesMap.values());
+        const imagesToSend = imagesWithTags.map(img => mergeAndFormat(img));
 
-        // 7. Sort the final combined list according to the requested sort order
-        //    (This is needed because merging might disrupt the original sort)
-        finalImages.sort((a, b) => {
-            let valA, valB;
-            switch (sortKey) {
-                case 'title':
-                    valA = a.title.toLowerCase();
-                    valB = b.title.toLowerCase();
-                    break;
-                case 'dateAdded':
-                    valA = a.dateAdded; // Compare based on the correct property
-                    valB = b.dateAdded;
-                    break;
-                case 'id':
-                default:
-                    valA = a.id;
-                    valB = b.id;
-            }
+        if (!filters.search && !filters.tags && !filters.playlistId && !filters.ids) {
+            console.log(`✅ GET /api/images - Responding with ${imagesToSend.length} images (unfiltered page). Pagination based on ${totalItems} total items.`);
+        } else {
+            console.log(`✅ GET /api/images - Responding with ${imagesToSend.length} images (filtered page). Pagination based on ${totalItems} total filtered items.`);
+        }
 
-            if (valA < valB) return sortDir === 'ASC' ? -1 : 1;
-            if (valA > valB) return sortDir === 'ASC' ? 1 : -1;
-            return 0;
-        });
-
-
-        console.log(`✅ GET /api/images - Responding with ${finalImages.length} images (filtered page had ${formattedFilteredImages.length}). Pagination based on ${totalItems} total filtered items.`);
         res.json({
-            images: finalImages,
+            images: imagesToSend,
             pagination: {
                 currentPage: page,
                 totalPages: totalPages,
-                totalItems: totalItems, // Base pagination on the filtered count
+                totalItems: totalItems,
                 itemsPerPage: limit
-            },
-            availableFilteredTagIds: availableFilteredTagIds // Add available tags to response
+            }, 
+            availableFilteredTagIds: availableFilteredTagIds
         });
-
-    } catch (err) {
+    // --- End of TRY block ---
+    } catch (err) { // Correctly placed catch block
         console.error('❌ GET /api/images - Error fetching images:', err.message);
         next(err); // Pass error to the global error handler
-    }
-});
+    } // REMOVED ); from here
+}); // This should now correctly close the route handler function
 
 /**
  * @route   PUT /api/images/:id
@@ -1884,6 +1820,356 @@ apiRouter.post('/updateSlideshow', async(req, res, next) => {
     }
 });
 
+// =============================================================================
+// API Route - Play by Tags (/api/playTags)
+// =============================================================================
+/**
+ * @route   POST /api/playTags
+ * @desc    Fetches images associated with given tags and initiates a slideshow.
+ * @access  Public
+ * @body    {string[]} tags - An array of tag names.
+ */
+apiRouter.post('/playTags', async (req, res, next) => {
+    const { tags } = req.body;
+    console.log(`➡️ POST /api/playTags request received`, { tags });
+    // *** ADD LOG HERE ***
+    console.log(`[SERVER /api/playTags] Received tags in request body:`, tags);
+
+    // Check if tags array is empty - treat as request for 'all'
+    const playAll = !Array.isArray(tags) || tags.length === 0;
+
+    if (!playAll && (!Array.isArray(tags))) { // Only error if not playing all and tags is not array
+        console.warn(`⚠️ /api/playTags - Invalid payload:`, req.body);
+        return res.status(400).json({ message: 'Invalid payload: Requires an array of tags.' });
+    }
+
+    try {
+        let imageIds = [];
+
+        if (!playAll) {
+            // 1. Find tag IDs for the given names (if tags provided)
+            const placeholders = tags.map(() => '?').join(',');
+            const tagObjects = await dbAll(`SELECT id, name FROM tags WHERE lower(name) IN (${placeholders})`, tags.map(t => t.toLowerCase()));
+            const tagIds = tagObjects.map(t => t.id);
+            // *** ADD LOG ***
+            console.log(`[SERVER /api/playTags] Found tag IDs:`, tagIds);
+
+            if (tagIds.length === 0) {
+                console.warn(`⚠️ /api/playTags - No valid tags found for names:`, tags);
+                return res.status(404).json({ message: 'No images found for the specified tags.' });
+            }
+
+            // 2. Find image IDs associated with ANY of these tags (if tags provided)
+            const imageIdPlaceholders = tagIds.map(() => '?').join(',');
+            const imageTagLinks = await dbAll(
+                `SELECT DISTINCT image_id FROM image_tags WHERE tag_id IN (${imageIdPlaceholders})`,
+                tagIds
+            );
+            imageIds = imageTagLinks.map(link => link.image_id);
+            // *** ADD LOG ***
+            console.log(`[SERVER /api/playTags] Image IDs after DISTINCT query (OR logic):`, imageIds);
+
+        } else {
+            // 3a. If playing all, get all image IDs (this could be optimized)
+            console.log('  - Play All requested, fetching all image IDs.');
+            const allImageLinks = await dbAll('SELECT id FROM images');
+            imageIds = allImageLinks.map(link => link.id);
+        }
+
+        if (imageIds.length === 0) {
+            console.warn(`⚠️ /api/playTags - No images found for the criteria (Tags: ${playAll ? '[ALL]' : tags.join(',')}).`);
+            return res.status(404).json({ message: 'No images found for the specified criteria.' });
+        }
+
+        // 4. Fetch full image details for these IDs (excluding hidden by default)
+        const imageDetailPlaceholders = imageIds.map(() => '?').join(',');
+        const hiddenTagId = await getHiddenTagId(); 
+        
+        let imagesSql = `SELECT * FROM images WHERE id IN (${imageDetailPlaceholders})`;
+        const sqlParams = [...imageIds];
+        
+        if (hiddenTagId !== null) {
+            imagesSql += ` AND id NOT IN (SELECT image_id FROM image_tags WHERE tag_id = ?)`;
+            sqlParams.push(hiddenTagId);
+        }
+        // Apply default sort for 'all' or tag-based?
+        imagesSql += ' ORDER BY dateAdded DESC'; // Example: Sort all by date added
+
+        const images = await dbAll(imagesSql, sqlParams);
+
+        // --- NEW: Fetch Tags for these specific images ---
+        let tagsByImageId = {};
+        if (imageIds.length > 0) { // Only fetch tags if we have images
+            const tagPlaceholders = imageIds.map(() => '?').join(',');
+            const tagsSql = `
+                SELECT it.image_id, t.id, t.name, t.color
+                FROM image_tags it
+                JOIN tags t ON it.tag_id = t.id
+                WHERE it.image_id IN (${tagPlaceholders})
+            `;
+            const tagRows = await dbAll(tagsSql, imageIds);
+            console.log(`[SERVER /api/playTags] Fetched ${tagRows.length} tag associations for ${imageIds.length} images.`);
+            tagRows.forEach(tagRow => {
+                if (!tagsByImageId[tagRow.image_id]) {
+                    tagsByImageId[tagRow.image_id] = [];
+                }
+                tagsByImageId[tagRow.image_id].push({
+                    id: tagRow.id,
+                    name: tagRow.name,
+                    color: tagRow.color || DEFAULT_COLOR
+                });
+            });
+        }
+        // --- END NEW TAG FETCH ---
+
+        // --- Modify Formatting to include fetched tags ---
+        const formattedImages = images.map(img => {
+            const baseFormatted = mergeAndFormat(img); // Gets basic details + URLs
+            return {
+                ...baseFormatted,
+                tags: tagsByImageId[img.id] || [] // Add the fetched tags array, default to empty array
+            };
+        });
+
+        const sourceDescription = playAll ? '[ALL]' : `tags [${tags.join(',')}]`;
+        if (formattedImages.length === 0) {
+             console.warn(`⚠️ /api/playTags - All images for ${sourceDescription} were hidden.`);
+             return res.status(404).json({ message: `No visible images found for ${sourceDescription}.` });
+        }
+
+        // 5. Get current slideshow settings
+        const currentSpeed = globalAppSettings.slideshowSpeed || 3;
+        const currentOrder = globalAppSettings.slideshowOrder || 'random';
+
+        // 6. Emit socket event
+        const payload = {
+            sourceType: playAll ? 'all' : 'tags', // Set sourceType correctly
+            sourceDetails: playAll ? null : tags, // Set sourceDetails correctly
+            images: formattedImages,
+            speed: currentSpeed,
+            order: currentOrder
+        };
+        // *** ADD LOG ***
+        console.log(`[SERVER /api/playTags] Final formatted image count before emit: ${formattedImages.length}`);
+        // *** ADD DETAILED LOGGING of the first few image objects ***
+        console.log(`[SERVER /api/playTags] First 3 formatted images being sent:`, JSON.stringify(formattedImages.slice(0, 3), null, 2)); 
+        console.log(`[SERVER /api/playTags] Entire formattedImages object being sent:`, formattedImages);
+        // *** END ADDED LOGGING ***
+        console.log(`  - Emitting 'playSelect' for ${sourceDescription} with ${formattedImages.length} images.`);
+        io.emit('playSelect', payload);
+
+        res.json({ message: `Slideshow initiated for ${sourceDescription}` });
+
+    } catch (err) {
+        console.error(`❌ /api/playTags - Error processing request:`, err.message);
+        next(err);
+    }
+});
+
+// =============================================================================
+// API Route - Play by Playlist (/api/playPlaylist)
+// =============================================================================
+/**
+ * @route   POST /api/playPlaylist
+ * @desc    Fetches images associated with a given playlist and initiates a slideshow.
+ * @access  Public
+ * @body    {number} playlistId - The ID of the playlist.
+ */
+apiRouter.post('/playPlaylist', async (req, res, next) => {
+    const { playlistId } = req.body;
+    console.log(`➡️ POST /api/playPlaylist request received`, { playlistId });
+
+    if (typeof playlistId !== 'number' || isNaN(playlistId)) {
+        console.warn(`⚠️ /api/playPlaylist - Invalid payload:`, req.body);
+        return res.status(400).json({ message: 'Invalid payload: Requires a numeric playlistId.' });
+    }
+
+    try {
+        // 1. Check if playlist exists
+        const playlist = await dbGet('SELECT id, name FROM playlists WHERE id = ?', [playlistId]);
+        if (!playlist) {
+            console.warn(`⚠️ /api/playPlaylist - Playlist ID ${playlistId} not found.`);
+            return res.status(404).json({ message: 'Playlist not found.' });
+        }
+
+        // 2. Get image IDs associated with this playlist
+        const imageLinks = await dbAll('SELECT image_id FROM playlist_images WHERE playlist_id = ?', [playlistId]);
+        const imageIds = imageLinks.map(link => link.image_id);
+
+        if (imageIds.length === 0) {
+            console.warn(`⚠️ /api/playPlaylist - No images found in playlist: ${playlist.name} (ID: ${playlistId})`);
+            return res.status(404).json({ message: `No images found in playlist "${playlist.name}".` });
+        }
+
+        // 3. Fetch full image details for these IDs (excluding hidden by default)
+        const imageDetailPlaceholders = imageIds.map(() => '?').join(',');
+        const hiddenTagId = await getHiddenTagId(); // Helper to get the ID of the 'hidden' tag
+        
+        let imagesSql = `SELECT * FROM images WHERE id IN (${imageDetailPlaceholders})`;
+        const sqlParams = [...imageIds];
+        
+        if (hiddenTagId !== null) {
+            imagesSql += ` AND id NOT IN (SELECT image_id FROM image_tags WHERE tag_id = ?)`;
+            sqlParams.push(hiddenTagId);
+        }
+        
+        // Add ordering based on playlist order (if implemented - default for now)
+        // imagesSql += ' ORDER BY ...'; // Needs a way to store order in playlist_images
+
+        const images = await dbAll(imagesSql, sqlParams);
+        const formattedImages = images.map(img => mergeAndFormat(img)); // Assuming mergeAndFormat exists
+
+        if (formattedImages.length === 0) {
+             console.warn(`⚠️ /api/playPlaylist - All images for playlist ${playlist.name} (ID: ${playlistId}) were hidden.`);
+             return res.status(404).json({ message: `No visible images found for playlist "${playlist.name}".` });
+        }
+
+        // 4. Get current slideshow settings (example)
+        const currentSpeed = globalAppSettings.slideshowSpeed || 3;
+        const currentOrder = globalAppSettings.slideshowOrder || 'random'; // Playlist order might override this
+
+        // 5. Emit socket event
+        const payload = {
+            sourceType: 'playlist', // Add sourceType
+            sourceDetails: playlistId, // Add original playlist ID
+            images: formattedImages,
+            speed: currentSpeed,
+            order: currentOrder // Or potentially a specific 'playlist' order
+        };
+        console.log(`  - Emitting 'playSelect' for playlist [${playlist.name}] with ${formattedImages.length} images.`);
+        io.emit('playSelect', payload);
+
+        res.json({ message: `Slideshow initiated for playlist: ${playlist.name}` });
+
+    } catch (err) {
+        console.error(`❌ /api/playPlaylist - Error processing request:`, err.message);
+        next(err);
+    }
+});
+
+// =============================================================================
+// API Route - Slideshow Control (/api/slideshowControl)
+// =============================================================================
+/**
+ * @route   POST /api/slideshowControl
+ * @desc    Sends control commands to the slideshow.
+ * @access  Public
+ * @body    {string} action - The control action ('next', 'prev', 'togglePause', 'reset').
+ */
+apiRouter.post('/slideshowControl', async(req, res, next) => {
+    const { action } = req.body;
+    console.log(`➡️ POST /api/slideshowControl request received`, { action });
+
+    try {
+        switch (action) {
+            case 'next':
+            case 'prev':
+            case 'togglePause':
+            case 'reset': // Added reset case
+                console.log(`  - Emitting 'slideAction': ${action}`);
+                io.emit('slideAction', { action }); // Emit standard slideAction for client to handle
+                return res.json({ message: `Slideshow action '${action}' broadcasted.` });
+            default:
+                console.warn(`⚠️ /api/slideshowControl - Invalid action: ${action}`);
+                return res.status(400).json({ message: 'Invalid slideshow action.' });
+        }
+    } catch (err) {
+        console.error(`❌ /api/slideshowControl - Error processing action '${action}':`, err.message);
+        next(err);
+    }
+});
+
+// =============================================================================
+// API Route - Update Slideshow Settings (/api/updateSlideshow) - KEPT FOR COMPATIBILITY?
+// =============================================================================
+/**
+ * @route   POST /api/updateSlideshow
+ * @desc    Handles various slideshow control actions via Socket.IO events.
+ * @access  Public
+ */
+apiRouter.post('/updateSlideshow', async(req, res, next) => {
+    // Destructure the new parameter
+    const { action, speed, order, imageUrl, title, description, images, showTextOverlay } = req.body;
+    console.log(`➡️ POST /api/updateSlideshow request received`, { action, speed, order, imageUrl, title, description: description !== undefined, imagesCount: images ? images.length : undefined, showTextOverlay });
+
+    try {
+        switch (action) {
+            case 'next':
+            case 'prev':
+                console.log(`  - Emitting 'slideAction': ${action}`);
+                io.emit('slideAction', { action });
+                return res.json({ message: `Navigation action '${action}' broadcasted.` }); // Return early
+
+            case 'updateSettings':
+                // Validate the new parameter
+                if (typeof speed !== 'number' || speed < 0 || typeof order !== 'string' || typeof showTextOverlay !== 'boolean') {
+                    console.warn(`⚠️ /api/updateSlideshow - Invalid payload for 'updateSettings':`, { speed, order, showTextOverlay });
+                    return res.status(400).json({ message: 'Invalid payload for updateSettings action (requires valid speed, order, and showTextOverlay boolean).' });
+                }
+                const settingsPayload = { speed, order, showTextOverlay }; // Include in payload
+                console.log(`  - Emitting 'settingsUpdate':`, settingsPayload);
+                io.emit('settingsUpdate', settingsPayload);
+                return res.json({ message: 'Slideshow settings update broadcasted.' }); // Return early
+
+            case 'play':
+                if (!imageUrl || !title || typeof imageUrl !== 'string' || typeof title !== 'string') {
+                    console.warn(`⚠️ /api/updateSlideshow - Invalid payload for 'play':`, { imageUrl, title });
+                    return res.status(400).json({ message: 'Invalid payload for play action (requires imageUrl and title strings).' });
+                }
+                const playPayload = { imageUrl, title, description: description || '' };
+                console.log(`  - Emitting 'playImage':`, playPayload);
+                io.emit('playImage', playPayload);
+                return res.json({ message: 'Play specific image broadcasted.' }); // Return early
+
+            case 'playSelect':
+                if (!Array.isArray(images) || typeof speed !== 'number' || speed < 0 || typeof order !== 'string') {
+                    console.warn(`⚠️ /api/updateSlideshow - Invalid payload for 'playSelect':`, { imagesIsArray: Array.isArray(images), speed, order });
+                    return res.status(400).json({ message: 'Invalid payload for playSelect action (requires images array, valid speed, and order).' });
+                }
+
+                const MAX_IMAGES_PAYLOAD = 1000; // Adjust limit as needed
+                if (images.length > MAX_IMAGES_PAYLOAD) {
+                    console.warn(`⚠️ /api/updateSlideshow - Payload too large for 'playSelect': ${images.length} images.`);
+                    return res.status(413).json({ message: `Payload too large. Maximum ${MAX_IMAGES_PAYLOAD} images allowed.` });
+                }
+
+                console.log('  - Fetching hidden image IDs for filtering...');
+                const hiddenTag = await dbGet('SELECT id FROM tags WHERE name = ?', [HIDDEN_TAG_NAME]);
+                let hiddenImageIds = new Set();
+                if (hiddenTag) {
+                    const hiddenImages = await dbAll('SELECT image_id FROM image_tags WHERE tag_id = ?', [hiddenTag.id]);
+                    hiddenImageIds = new Set(hiddenImages.map(row => row.image_id));
+                    console.log(`    - Found ${hiddenImageIds.size} hidden image IDs.`);
+                } else {
+                    console.log(`    - '${HIDDEN_TAG_NAME}' tag not found, no images will be filtered out as hidden.`);
+                }
+
+                // Filter the provided images list and ensure structure
+                const imagesToPlay = images
+                    .filter(img => img && typeof img.id !== 'undefined' && !hiddenImageIds.has(img.id))
+                    .map(img => ({
+                        id: img.id, // Ensure ID is present
+                        url: img.url || '', // Ensure URL is string
+                        title: img.title || '', // Ensure title is string
+                        description: img.description || '' // Ensure description is string
+                    }));
+
+                console.log(`  - Filtered list contains ${imagesToPlay.length} images (removed ${images.length - imagesToPlay.length} hidden or invalid).`);
+
+                const playSelectPayload = { images: imagesToPlay, speed, order };
+                console.log(`  - Emitting 'playSelect':`, { imagesCount: imagesToPlay.length, speed, order });
+                io.emit('playSelect', playSelectPayload);
+                return res.json({ message: 'Play selection broadcasted.' }); // Return early
+
+            default:
+                console.warn(`⚠️ /api/updateSlideshow - Unknown action: ${action}`);
+                return res.status(400).json({ message: `Unknown action: ${action}` });
+        }
+    } catch (err) {
+        console.error(`❌ /api/updateSlideshow - Error processing action '${action}':`, err.message);
+        next(err);
+    }
+});
 
 // Mount the API router
 app.use('/api', apiRouter);
@@ -1927,8 +2213,8 @@ async function startApp() {
         console.log(`  - Serving static files from: ${PUBLIC_DIR}`);
 
         // NEW: Serve uploads and thumbnails
-        app.use('/uploads', express.static(UPLOAD_DIR));
-        console.log(`  - Serving /uploads path from: ${UPLOAD_DIR}`);
+        app.use('/images', express.static(UPLOAD_DIR));
+        console.log(`  - Serving /images path from: ${UPLOAD_DIR}`);
         app.use('/thumbnails', express.static(THUMBNAIL_DIR));
         console.log(`  - Serving /thumbnails path from: ${THUMBNAIL_DIR}`);
 
@@ -2028,3 +2314,45 @@ function shutdown() {
 
 // Run the application
 startApp();
+
+// =============================================================================
+// Helper Function Definitions
+// =============================================================================
+
+/**
+ * Retrieves the ID of the 'Hidden' tag from the database.
+ * @returns {Promise<number|null>} The ID of the hidden tag, or null if not found.
+ */
+async function getHiddenTagId() {
+    try {
+        const hiddenTag = await dbGet('SELECT id FROM tags WHERE name = ?', [HIDDEN_TAG_NAME]);
+        return hiddenTag ? hiddenTag.id : null;
+    } catch (error) {
+        console.error('Error fetching hidden tag ID:', error);
+        return null; // Return null on error to avoid breaking queries
+    }
+}
+
+/**
+ * Formats a raw image object from the database for API responses.
+ * @param {object} img - Raw image object from DB (must have filename, etc.).
+ * @returns {object} Formatted image object with full URLs.
+ */
+function mergeAndFormat(img) {
+    if (!img) return null;
+    // Construct full URLs (Adjust base URL/path as needed)
+    const baseUrl = ''; // Assuming served from root
+    return {
+        ...img,
+        url: `${baseUrl}/images/${img.filename}`, // Changed from /uploads/ to /images/
+        thumbnailUrl: `${baseUrl}/thumbnails/${img.filename}`
+        // Add tag parsing/formatting here if needed later
+    };
+}
+
+// --- NEW: Global App Settings (Initialize with defaults) ---
+// TODO: Consider loading these from a config file or environment variables
+const globalAppSettings = {
+    slideshowSpeed: 3,      // Default speed in seconds
+    slideshowOrder: 'random' // Default order
+};

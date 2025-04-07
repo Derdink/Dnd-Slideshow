@@ -494,27 +494,31 @@ function filterPlaylistFilterView(searchTerm) {
 
 /** Displays playlists for selection in the settings tab. */
 export function displayPlaylistsForSelection() {
-    const container = dom.settingsPlaylistList; // The list container div
-    const controlsContainer = document.getElementById('settingsPlaylistSelectionBtns'); // Button container
+    const container = dom.settingsPlaylistList; 
+    const controlsContainer = document.getElementById('settingsPlaylistSelectionBtns');
     if (!container || !controlsContainer) {
         console.warn('Settings playlist list or controls container not found in DOM cache.');
         return;
     }
-    container.innerHTML = ''; // Clear list
-    controlsContainer.innerHTML = ''; // Clear buttons
-    settingsSelectedPlaylistIds.clear(); // Clear selection state
+    container.innerHTML = ''; 
+    controlsContainer.innerHTML = ''; 
+    // Initialize local set from global state
+    settingsSelectedPlaylistIds = new Set(state.management.selectedSettingPlaylistIds || []); 
 
     const allPlaylists = (state.playlists || [])
-        .filter(p => !p.hidden && p.imageIds && p.imageIds.length > 0); // Only show non-hidden AND non-empty playlists
+        .filter(p => !p.hidden && p.imageIds && p.imageIds.length > 0); 
 
     // --- Add Select/Deselect Buttons --- 
     const selectAllBtn = createSettingsPlaylistActionButton('Select All', true, () => {
+        settingsSelectedPlaylistIds.clear(); // Clear first
         container.querySelectorAll('.settings-playlist-item').forEach(item => {
-            if (item.style.display !== 'none') { // Only select visible items
+            if (item.style.display !== 'none') { 
                 item.classList.add('selected');
                 settingsSelectedPlaylistIds.add(parseInt(item.dataset.playlistId, 10));
             }
         });
+        // Update global state
+        updateState('management', { selectedSettingPlaylistIds: Array.from(settingsSelectedPlaylistIds) });
     });
     controlsContainer.appendChild(selectAllBtn);
 
@@ -523,6 +527,8 @@ export function displayPlaylistsForSelection() {
             item.classList.remove('selected');
         });
         settingsSelectedPlaylistIds.clear();
+        // Update global state
+        updateState('management', { selectedSettingPlaylistIds: [] });
     });
     controlsContainer.appendChild(deselectAllBtn);
     // --- ------------------------ --- 
@@ -532,16 +538,13 @@ export function displayPlaylistsForSelection() {
         return;
     }
 
-    // Sort playlists by name
     allPlaylists.sort((a, b) => a.name.localeCompare(b.name));
 
     allPlaylists.forEach(playlist => {
-        const item = document.createElement('div'); // Use div, style like list item
-        // Apply similar classes as the filter items for styling
+        const item = document.createElement('div');
         item.className = 'settings-playlist-item playlist-filter-item'; 
         item.setAttribute('data-playlist-id', playlist.id);
         
-        // Format count correctly
         const imageCountText = `(${playlist.imageIds.length} image${playlist.imageIds.length !== 1 ? 's' : ''})`;
         
         item.innerHTML = `
@@ -552,22 +555,41 @@ export function displayPlaylistsForSelection() {
             </div>
         `;
         
+        // Set initial selection state from global state
+        if (settingsSelectedPlaylistIds.has(playlist.id)) {
+            item.classList.add('selected');
+        }
+
         // Click listener for selection
         item.addEventListener('click', () => {
-            const isSelected = item.classList.toggle('selected');
-            const playlistId = parseInt(playlist.id, 10);
-            if (isSelected) {
-                settingsSelectedPlaylistIds.add(playlistId);
-            } else {
-                settingsSelectedPlaylistIds.delete(playlistId);
+            // Allow only single selection for now?
+            // Deselect all others first if clicking a new one
+            if (!item.classList.contains('selected')) {
+                 container.querySelectorAll('.settings-playlist-item.selected').forEach(other => other.classList.remove('selected'));
+                 settingsSelectedPlaylistIds.clear();
+                 item.classList.add('selected');
+                 settingsSelectedPlaylistIds.add(playlist.id);
+            } else { // Clicked the already selected one - deselect it
+                 item.classList.remove('selected');
+                 settingsSelectedPlaylistIds.delete(playlist.id);
             }
-            console.log('Settings selected playlist IDs:', settingsSelectedPlaylistIds);
+
+            // const isSelected = item.classList.toggle('selected');
+            // const playlistId = parseInt(playlist.id, 10);
+            // if (isSelected) {
+            //     settingsSelectedPlaylistIds.add(playlistId);
+            // } else {
+            //     settingsSelectedPlaylistIds.delete(playlistId);
+            // }
+            
+            // Update global state
+            updateState('management', { selectedSettingPlaylistIds: Array.from(settingsSelectedPlaylistIds) });
+            console.log('Updated global state - selectedSettingPlaylistIds:', state.management.selectedSettingPlaylistIds);
         });
         
         container.appendChild(item);
     });
 
-    // Initial filter based on search input value
     const searchInput = document.getElementById('settingsPlaylistSearch');
     if (searchInput) {
         filterSettingsPlaylistsView(searchInput.value);
@@ -688,13 +710,20 @@ async function handleTogglePlaylistHidden(playlistId) {
  * @param {number} playlistId - The ID of the playlist to play.
  */
 async function handlePlayPlaylistClick(playlistId) {
-    // You might want to add UI feedback (e.g., disable button)
-    console.log(`Attempting to play playlist ID: ${playlistId}`);
+    // Directly call the API to play this specific playlist
+    console.log(`Playlist Manager: Playing playlist ID ${playlistId} directly.`);
     try {
         await playSelectedPlaylist(parseInt(playlistId, 10));
-        // Add success feedback if needed
+        console.log(`Play request sent for playlist ID ${playlistId}`);
+        // Optional: Add visual feedback (e.g., button temporarily disabled)
     } catch (error) {
-        handleError(error, ErrorTypes.SERVER);
+        // Use the imported error handler if available, otherwise basic alert
+        if (typeof handleError === 'function') {
+             handleError(error, ErrorTypes.SERVER, `Failed to start slideshow for playlist: ${error.message}`);
+        } else {
+             console.error(`Error playing playlist ID ${playlistId}:`, error);
+             alert(`Failed to start slideshow for playlist: ${error.message}`);
+        }
     }
 }
 

@@ -23,6 +23,9 @@ import {
     fetchTags,
     fetchPlaylists,
     navigateSlideshow,
+    playSelectedPlaylist,
+    playSelectedTags,
+    playSelectedImagesAPI
     // API functions used directly by modules are imported within those modules
     // e.g., savePlaylists, updateImage, updateTag, deleteImageById etc.
 } from '../api.js';
@@ -164,11 +167,11 @@ function cacheDOMElements() {
     // Carbon Tabs
     dom.settingsTabs = document.querySelector('#settings-details .bx--tabs');
 
-    // Header Slideshow Controls (Assuming these IDs exist in manage.html)
-    dom.slideshowPrevBtn = document.getElementById('slideshowPrevBtn');
-    dom.slideshowPlayPauseBtn = document.getElementById('slideshowPlayPauseBtn');
-    dom.slideshowResetBtn = document.getElementById('slideshowResetBtn');
-    dom.slideshowNextBtn = document.getElementById('slideshowNextBtn');
+    // Header Slideshow Controls (Corrected IDs based on manage.html)
+    dom.headerPrevBtn = document.getElementById('headerPrevBtn'); 
+    dom.headerPlayBtn = document.getElementById('headerPlayBtn'); // Play/Pause
+    dom.headerResetBtn = document.getElementById('headerResetBtn');
+    dom.headerNextBtn = document.getElementById('headerNextBtn');
 
     console.log("DOM elements cached:", dom);
 }
@@ -178,7 +181,7 @@ function cacheDOMElements() {
  * Sets up all required components based on user stories
  */
 export async function initManage() {
-    console.log('Initializing Management Page...');
+    console.log('>>> initManage: START <<<'); // ADD START LOG
     // REMOVED document.readyState check - rely on DOMContentLoaded listener in HTML
     
     cacheDOMElements(); // Cache elements first
@@ -210,6 +213,7 @@ export async function initManage() {
     // Initial data fetch
     await refreshManageData();
 
+    console.log('>>> initManage: END <<<'); // ADD END LOG
     console.log('Management Page Initialized.');
 }
 
@@ -435,11 +439,59 @@ async function handleSlideshowControlClick(event) {
     if (!button) return;
 
     let action = null;
+    let apiCallPromise = null; // To store the promise for the API call
+
+    // Determine action based on button ID
     switch (button.id) {
-        case 'slideshowPrevBtn': action = 'prev'; break;
-        case 'slideshowPlayPauseBtn': action = 'togglePause'; break;
-        case 'slideshowResetBtn': action = 'reset'; break;
-        case 'slideshowNextBtn': action = 'next'; break;
+        case 'headerPrevBtn': 
+            action = 'prev'; 
+            apiCallPromise = navigateSlideshow(action); // Control existing slideshow
+            break;
+        case 'headerPlayBtn': 
+            action = 'togglePause'; 
+            apiCallPromise = navigateSlideshow(action); // Control existing slideshow
+            break;
+        case 'headerNextBtn': 
+            action = 'next'; 
+            apiCallPromise = navigateSlideshow(action); // Control existing slideshow
+            break;
+        case 'headerResetBtn': // This is now the main "Play" button
+            action = 'playSource'; // Logical action name
+            console.log('Header Control: Play Source button clicked.');
+
+            // --- Determine source based on UI selections ---
+            const selectedImageIds = state.management.selectedImageIds || new Set();
+            const selectedSettingPlaylistIds = state.management.selectedSettingPlaylistIds || []; // Read from global state
+            const selectedTags = state.management.selectedSettingTags || []; 
+            const playlistIdToPlay = selectedSettingPlaylistIds.length > 0 ? selectedSettingPlaylistIds[0] : null;
+
+            // *** PRIORITY 1: Play selected images ***
+            if (selectedImageIds.size > 0) {
+                console.log(`  - Initiating slideshow from ${selectedImageIds.size} SELECTED IMAGE(S).`);
+                const idsToPlay = Array.from(selectedImageIds);
+                apiCallPromise = playSelectedImagesById(idsToPlay); // Call helper function
+                // Clear other selections when playing specific images
+                updateState('management', { selectedSettingPlaylistIds: [], selectedSettingTags: [] });
+            }
+            // *** PRIORITY 2: Play selected playlist ***
+            else if (playlistIdToPlay !== null) { 
+                console.log(`  - Initiating slideshow from PLAYLIST ID: ${playlistIdToPlay}`);
+                apiCallPromise = playSelectedPlaylist(playlistIdToPlay); 
+                 updateState('management', { selectedSettingTags: [] }); 
+            }
+            // *** PRIORITY 3: Play selected tags *** 
+            else if (selectedTags.length > 0) {
+                console.log(`  - Initiating slideshow from TAGS: ${selectedTags.join(', ')}`);
+                console.log('[handleSlideshowControlClick] Calling playSelectedTags with tags:', selectedTags);
+                apiCallPromise = playSelectedTags(selectedTags);
+                 updateState('management', { selectedSettingPlaylistIds: [] }); 
+            }
+            // *** PRIORITY 4: Play all *** 
+            else {
+                console.log('  - Initiating slideshow with ALL images.');
+                apiCallPromise = playSelectedTags([]); // Assumes playSelectedTags([]) triggers 'all'
+            }
+            break; // End of 'headerResetBtn' case
     }
 
     if (!action) {
@@ -452,19 +504,20 @@ async function handleSlideshowControlClick(event) {
     button.setAttribute('disabled', true);
 
     try {
-        await navigateSlideshow(action);
-        // Optional: Update button appearance based on response (e.g., play/pause icon)
-        // This might be better handled via socket events indicating slideshow state change.
+        if (apiCallPromise) {
+            await apiCallPromise; // Execute the determined API call
+        } else {
+            console.warn(`No API call defined for action: ${action}`);
+        }
     } catch (error) {
         console.error(`Error performing slideshow action '${action}':`, error);
-        // Provide user feedback if necessary (e.g., Carbon notification)
         alert(`Failed to perform action: ${action}. Check console.`);
     } finally {
-        // Re-enable button after a short delay to prevent rapid clicks
+        // Re-enable button after a short delay
         setTimeout(() => {
             button.classList.remove('bx--btn--disabled');
             button.removeAttribute('disabled');
-        }, 250); // 250ms delay
+        }, 250); 
     }
 }
 
@@ -503,10 +556,10 @@ function attachMainEventListeners() {
     // --- End Centralized Header Toggles ---
 
     // Attach listeners for header slideshow controls
-    if (dom.slideshowPrevBtn) dom.slideshowPrevBtn.addEventListener('click', handleSlideshowControlClick);
-    if (dom.slideshowPlayPauseBtn) dom.slideshowPlayPauseBtn.addEventListener('click', handleSlideshowControlClick);
-    if (dom.slideshowResetBtn) dom.slideshowResetBtn.addEventListener('click', handleSlideshowControlClick);
-    if (dom.slideshowNextBtn) dom.slideshowNextBtn.addEventListener('click', handleSlideshowControlClick);
+    if (dom.headerPrevBtn) dom.headerPrevBtn.addEventListener('click', handleSlideshowControlClick);
+    if (dom.headerPlayBtn) dom.headerPlayBtn.addEventListener('click', handleSlideshowControlClick);
+    if (dom.headerResetBtn) dom.headerResetBtn.addEventListener('click', handleSlideshowControlClick);
+    if (dom.headerNextBtn) dom.headerNextBtn.addEventListener('click', handleSlideshowControlClick);
 
     // Listener for the main settings toggle
      if (dom.settingsToggle && dom.settingsDetails) {
@@ -546,4 +599,51 @@ function closeOtherHeaderSections(activeButton) {
             console.log(`Accordion: Closing section for button:`, item.button.id);
         }
     });
-} 
+}
+
+// *** NEW HELPER FUNCTION ***
+/**
+ * Fetches details for selected image IDs and starts the slideshow.
+ * @param {number[]} ids - Array of image IDs to play.
+ */
+async function playSelectedImagesById(ids) {
+    console.log(`[playSelectedImagesById] Fetching details for ${ids.length} images...`);
+    if (!ids || ids.length === 0) return Promise.resolve(); // Should not happen based on caller check
+
+    try {
+        // Fetch full image details using the existing fetchImages API function
+        // We assume fetchImages can handle the 'ids' filter and the server returns tags correctly.
+        // We fetch all selected IDs without pagination (limit -1 or a large number).
+        const imageData = await fetchImages({ 
+            limit: -1, // Fetch all matching IDs
+            filters: { 
+                ids: ids, 
+                includeHidden: false // Usually don't play hidden even if selected? User expectation?
+            } 
+        });
+        
+        const imagesToPlay = imageData.images || [];
+
+        if (imagesToPlay.length === 0) {
+            console.warn('[playSelectedImagesById] No playable images found for the selected IDs (check if hidden).');
+            alert('No playable images found for the selection.');
+            return Promise.resolve(); // Resolve gracefully
+        }
+
+        console.log(`[playSelectedImagesById] Fetched ${imagesToPlay.length} images. Initiating play...`);
+
+        // Get current slideshow settings from state
+        const speed = state.slideshow.transitionTime ?? 3;
+        const order = state.slideshow.order ?? 'random'; 
+
+        // Use the existing playSelectedImagesAPI which calls POST /api/updateSlideshow
+        // This ensures the server emits the 'playSelect' event correctly
+        return playSelectedImagesAPI(imagesToPlay, speed, order);
+
+    } catch (error) {
+        console.error('[playSelectedImagesById] Error fetching or playing selected images:', error);
+        alert(`Error starting slideshow for selected images: ${error.message}`);
+        return Promise.reject(error); // Propagate error if needed
+    }
+}
+// *** END NEW HELPER FUNCTION *** 

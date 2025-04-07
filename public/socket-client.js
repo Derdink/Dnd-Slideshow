@@ -123,37 +123,12 @@
         console.error('❌ General socket error:', error);
     });
 
-    // --- Server-Sent Event Handlers (Placeholders/Wrappers) ---
-    // These listeners receive events from the server.
-    // The actual logic to handle these events (e.g., update UI)
-    // should be called from within these handlers, possibly by invoking
-    // functions defined in main.js or specific page scripts.
-
-    /**
-     * Listener for server-sent settings updates.
-     * Calls the appropriate handler if available.
-     * @param {object} data - Data containing new settings (e.g., { speed, order }).
-     */
-    // REMOVED Redundant Listener - Handled by specific modules (slideshow.js, settings.js)
+    // --- Server-Sent Event Handlers (REMOVED - Moved to specific modules) ---
+    // Listeners like socket.on('playImage', ...) are now handled within
+    // the modules that consume them (e.g., slideshow.js, settings.js)
     /*
-    socket.on('settingsUpdate', (data) => {
-        console.log("⚙️ Received 'settingsUpdate':", data);
-        // Call the actual handler function (example)
-        if (typeof window.handleSettingsUpdate === 'function') {
-            window.handleSettingsUpdate(data);
-        } else {
-            console.warn("No handler found for 'settingsUpdate'");
-        }
-    });
-    */
-
-    /**
-     * Handles request to play a specific image.
-     * @param {object} data - Data containing image details (e.g., { imageUrl, title, description }).
-     */
     socket.on('playImage', (data) => {
         console.log("▶️ Received 'playImage':", data);
-        // Call the actual handler function (example)
         if (typeof window.handlePlayImage === 'function') {
             window.handlePlayImage(data);
         } else {
@@ -161,13 +136,8 @@
         }
     });
 
-    /**
-     * Handles request to play a selection of images.
-     * @param {object} data - Data containing image list and settings (e.g., { images, speed, order }).
-     */
     socket.on('playSelect', (data) => {
         console.log("⏯️ Received 'playSelect':", { imagesCount: data?.images?.length, speed: data?.speed, order: data?.order });
-        // Call the actual handler function (example)
         if (typeof window.handlePlaySelect === 'function') {
             window.handlePlaySelect(data);
         } else {
@@ -175,19 +145,15 @@
         }
     });
 
-    /**
-     * Handles slideshow navigation actions (next/prev).
-     * @param {object} data - Data containing the action (e.g., { action: 'next' }).
-     */
     socket.on('slideAction', (data) => {
         console.log("⏭️ Received 'slideAction':", data);
-        // Call the actual handler function (example)
         if (typeof window.handleSlideAction === 'function') {
             window.handleSlideAction(data);
         } else {
             console.warn("No handler found for 'slideAction'");
         }
     });
+    */
 
     // --- Expose socket instance globally (if needed) ---
     // This makes it accessible from other scripts like main.js

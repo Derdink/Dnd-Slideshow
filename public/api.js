@@ -15,7 +15,7 @@
  * @returns {Promise<{images: Array, pagination: object}>} A promise that resolves with an object containing the images array and pagination metadata.
  * @throws {Error} If the fetch request fails or the response is not ok.
  */
-export async function fetchImages({ 
+async function fetchImages({ 
   page = 1, 
   limit = 100, 
   sortKey = 'dateAdded',
@@ -192,9 +192,9 @@ async function updateSlideshowSettings(transitionTime, order, showTextOverlay) {
  * @throws {Error} If the fetch request fails or the response is not ok.
  */
 async function playSelectedTags(tags) {
-    console.log(`API: Requesting slideshow play for tags: ${tags.join(', ')}`);
+    console.log(`API: Sending request to play tags:`, tags); // Log the tags array
     try {
-        const response = await fetch('/api/playTags', { // Endpoint needs implementation
+        const response = await fetch('/api/playTags', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tags }),
@@ -348,34 +348,43 @@ async function updateImage(id, data) {
 }
 
 /**
- * Tells the server to play a specific image.
- * @param {object} image - The image object (must contain url, title, description).
- * @returns {Promise<object>} A promise that resolves with the server response.
- * @throws {Error} If the fetch request fails or the response is not ok.
+ * Plays a single image via the API, triggering a socket event.
+ * @param {object} image - The image object to play (must include id, url, title).
  */
 async function playImageAPI(image) {
-    console.log(`API: Requesting play for single image: ${image.title}`);
-    try {
-        const response = await fetch('/api/updateSlideshow', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'play',
-                imageUrl: image.url,
-                title: image.title,
-                description: image.description || '',
-            }),
-        });
-        if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        const result = await response.json();
-        console.log('✅ API: Play image request successful.', result);
-        return result;
-    } catch (error) {
-        console.error('❌ API: Error playing image:', error);
-        throw error;
+    console.log(`[API] Sending play request for image ID: ${image?.id}`);
+
+    if (!image || typeof image.id !== 'number' || typeof image.url !== 'string' || typeof image.title !== 'string') {
+        console.error('[API] Invalid image object passed to playImageAPI:', image);
+        throw new Error('Invalid image data for play request.');
     }
+
+    // Construct payload including id
+    const payload = {
+        action: 'play',
+        id: image.id,
+        imageUrl: image.url,
+        title: image.title,
+        description: image.description || '' // Include description if available
+    };
+
+    const response = await fetch('/api/updateSlideshow', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
+        console.error(`[API] Error sending play request: ${response.status} - ${errorData.message}`);
+        throw new Error(`Failed to play image: ${errorData.message || response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log('[API] Play request successful:', result.message);
+    return result;
 }
 
 /**
@@ -634,6 +643,28 @@ async function createPlaylistAPI(name, color, hidden = false) {
 }
 
 // Export the API functions
-export { fetchTags, fetchPlaylists, updateSlideshowSettings, playSelectedTags, playSelectedPlaylist, navigateSlideshow, deleteImageById, bulkDeleteImages, updateImage, playImageAPI, playSelectedImagesAPI, createTag, updateTag, deleteTag, updatePlaylist, deletePlaylist, addImagesToPlaylist, removeImageFromPlaylist, uploadFile, createPlaylistAPI };
+export {
+    fetchImages,
+    fetchTags,
+    fetchPlaylists,
+    updateSlideshowSettings,
+    playSelectedTags, // <<< ONLY ONCE HERE
+    playSelectedPlaylist,
+    navigateSlideshow,
+    deleteImageById,
+    bulkDeleteImages,
+    updateImage,
+    playImageAPI,
+    playSelectedImagesAPI,
+    createTag,
+    updateTag,
+    deleteTag,
+    updatePlaylist,
+    deletePlaylist,
+    addImagesToPlaylist,
+    removeImageFromPlaylist,
+    uploadFile,
+    createPlaylistAPI
+};
 
-console.log('api.js loaded'); // Placeholder
+console.log('api.js loaded'); 

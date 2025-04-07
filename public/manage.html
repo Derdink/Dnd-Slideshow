@@ -411,7 +411,10 @@
     <!-- NEW: Initialize the management page -->
     <script type="module">
         import { initManage } from './manage.js';
-        document.addEventListener('DOMContentLoaded', initManage);
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('>>> DOMContentLoaded event fired <<<');
+            initManage();
+        });
     </script>
 
    

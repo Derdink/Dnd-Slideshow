@@ -186,7 +186,8 @@ export function displayTagsForSelection() {
         return;
     }
     dom.tagSelectionContainer.innerHTML = ''; // Clear existing
-    settingSelectedTagNames.clear(); // Clear selection state on redraw
+    // Initialize local set from global state if available
+    settingSelectedTagNames = new Set(state.management.selectedSettingTags || []); 
     const allTags = state.tags || [];
 
     if (allTags.length === 0) {
@@ -195,19 +196,24 @@ export function displayTagsForSelection() {
     }
 
     // --- Add Select/Deselect All Buttons --- 
-    const selectAllBtn = createSettingsActionButton('Select All', true, () => { // True for primary
+    const selectAllBtn = createSettingsActionButton('Select All', true, () => { 
+        settingSelectedTagNames.clear(); // Clear first
         dom.tagSelectionContainer.querySelectorAll('.settings-tag-pill').forEach(pill => {
             pill.classList.add('selected');
             settingSelectedTagNames.add(pill.dataset.tagName);
         });
+        // Update global state
+        updateState('management', { selectedSettingTags: Array.from(settingSelectedTagNames) });
     });
     dom.tagSelectionContainer.appendChild(selectAllBtn);
 
-    const deselectAllBtn = createSettingsActionButton('Deselect All', false, () => { // False for secondary
+    const deselectAllBtn = createSettingsActionButton('Deselect All', false, () => { 
         dom.tagSelectionContainer.querySelectorAll('.settings-tag-pill.selected').forEach(pill => {
             pill.classList.remove('selected');
         });
         settingSelectedTagNames.clear();
+        // Update global state
+        updateState('management', { selectedSettingTags: [] });
     });
     dom.tagSelectionContainer.appendChild(deselectAllBtn);
 
@@ -225,15 +231,20 @@ export function displayTagsForSelection() {
         const contrastColor = getContentColorForBackground(tagColor);
 
         const pill = document.createElement('div');
-        pill.className = 'bx--tag bx--tag--filter settings-tag-pill'; // Use filter style tag
+        pill.className = 'bx--tag bx--tag--filter settings-tag-pill'; 
         pill.style.backgroundColor = tagColor;
         pill.style.color = contrastColor;
         pill.style.cursor = 'pointer';
-        pill.dataset.tagName = tagName; // Store name for retrieval
+        pill.dataset.tagName = tagName; 
 
         const tagNameElem = document.createElement('span');
         tagNameElem.textContent = tagName;
         pill.appendChild(tagNameElem);
+        
+        // Set initial selected state based on the (now initialized) local set
+        if (settingSelectedTagNames.has(tagName)) {
+            pill.classList.add('selected');
+        }
 
         // Click listener to toggle selection
         pill.addEventListener('click', () => {
@@ -243,6 +254,8 @@ export function displayTagsForSelection() {
             } else {
                 settingSelectedTagNames.delete(tagName);
             }
+            // Update global state whenever selection changes
+            updateState('management', { selectedSettingTags: Array.from(settingSelectedTagNames) });
         });
 
         dom.tagSelectionContainer.appendChild(pill);
@@ -268,6 +281,7 @@ function createSettingsActionButton(text, isPrimary, onClick) {
 
 /**
  * Handles play tags button click - Reads selection from pills.
+ * NOTE: This function no longer starts playback directly.
  */
 async function handlePlayTagsClick() {
     if (!dom.tagSelectionContainer || !dom.playTagsBtn) return;
@@ -276,23 +290,12 @@ async function handlePlayTagsClick() {
     const selectedTagNames = Array.from(settingSelectedTagNames);
 
     if (selectedTagNames.length === 0) {
-        alert('Please select at least one tag to play.');
+        alert('Please select at least one tag.'); // Changed message
         return;
     }
-
-    console.log(`Settings: Playing tags: ${selectedTagNames.join(', ')}`);
-    dom.playTagsBtn.classList.add('bx--btn--disabled');
-    dom.playTagsBtn.setAttribute('disabled', true);
-    try {
-        await playSelectedTags(selectedTagNames); // API call
-        console.log(`Request sent to play tags: ${selectedTagNames.join(', ')}`);
-    } catch (error) {
-        console.error('Error starting slideshow with selected tags:', error);
-        alert('Failed to start slideshow with selected tags. Check console.');
-    } finally {
-        dom.playTagsBtn.classList.remove('bx--btn--disabled');
-        dom.playTagsBtn.removeAttribute('disabled');
-    }
+    // Update global state (redundant if pill clicks update, but safe)
+    updateState('management', { selectedSettingTags: selectedTagNames });
+    console.log(`Settings: Tag selection confirmed: ${selectedTagNames.join(', ')}. Use Reset/Play button in header to start.`);
 }
 
 /**

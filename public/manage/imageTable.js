@@ -391,7 +391,9 @@ export function attachImageTableEventListeners() {
 
     // --- Sort Listener --- 
     dom.imageTableHead.addEventListener('click', (event) => {
+        console.log('>>> imageTableHead click listener FIRED <<<', event.target);
         const header = event.target.closest('th[data-sort-key]');
+        console.log('>>> imageTableHead click listener - Found header:', header);
         if (header) {
             const sortKey = header.dataset.sortKey;
             console.log(`[ImageTable] Header clicked, setting sort key: ${sortKey}`);
