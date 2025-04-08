@@ -1411,7 +1411,8 @@ apiRouter.post('/playlists', async (req, res, next) => {
         return res.status(400).json({ message: 'Playlist name is required and must be a non-empty string.' });
     }
     const trimmedName = name.trim();
-    const finalColor = color || DEFAULT_PLAYLIST_COLOR || '#8a3ffc'; 
+    // *** FIX: Use the defined DEFAULT_COLOR constant ***
+    const finalColor = color || DEFAULT_COLOR || '#8a3ffc'; 
     const finalIsHidden = is_hidden === true ? 1 : 0;
     const createdAt = new Date().toISOString();
 

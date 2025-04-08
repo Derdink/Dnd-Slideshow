@@ -8,7 +8,7 @@ import { showPlaylistEditModal } from './modals.js';
 import { handleError, ErrorTypes, withErrorHandling } from './errorHandler.js';
 import { refreshManageData } from '../manage.js';
 import { getContentColorForBackground } from './utils.js';
-import { BACKGROUND_COLORS } from '../config.js'; // <-- Import BACKGROUND_COLORS
+import { BACKGROUND_COLORS, DEFAULTS } from '../config.js'; // <-- Import BACKGROUND_COLORS
 import { createFilterActionPill } from './filters.js'; // Import the helper function
 
 // DOM elements cached by parent manage.js module
@@ -654,7 +654,16 @@ async function handleAddNewPlaylist(event) {
     }
     
     try {
-        const newPlaylist = await createPlaylistAPI({ name: playlistName });
+        // *** ADD Color Cycling Logic ***
+        let colorIndex = parseInt(localStorage.getItem('nextPlaylistColorIndex') || '0', 10);
+        const playlistColor = BACKGROUND_COLORS[colorIndex % BACKGROUND_COLORS.length] || DEFAULTS.TAG_COLOR; // Fallback to default tag color
+        const nextIndex = (colorIndex + 1) % BACKGROUND_COLORS.length;
+        localStorage.setItem('nextPlaylistColorIndex', nextIndex.toString());
+        // *** END Color Cycling Logic ***
+
+        // *** FIX: Pass name string directly, and determined color ***
+        const newPlaylist = await createPlaylistAPI(playlistName, playlistColor); // Pass name and color
+        dom.newPlaylistNameInput.value = ''; // Clear input on success
         await refreshManageData();
         console.log('New playlist created:', newPlaylist);
     } catch (error) {

@@ -46,9 +46,10 @@ export function updatePaginationControls(paginationData) {
     // Updated Carbon v11 SVGs
     const svgPrev = '<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-label="Previous page" width="16" height="16" viewBox="0 0 16 16" role="img"><path d="M10 11.8L5.2 7.9 10 4 10.7 4.7 6.7 7.9 10.7 11.1z"></path></svg>';
     const svgNext = '<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-label="Next page" width="16" height="16" viewBox="0 0 16 16" role="img"><path d="M6 4.7L10.8 7.9 6 11.1 5.3 10.4 9.3 7.9 5.3 5.4z"></path></svg>';
-    // RE-ADDED: Use Prev/Next SVGs for First/Last for simplicity
-    const svgFirst = svgPrev; 
-    const svgLast = svgNext;
+    // *** NEW: Use Skip-to-Start and Skip-to-End icons ***
+    const svgFirst = '<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-label="First page" width="16" height="16" viewBox="0 0 32 32" role="img"><path d="M24,24a1,1,0,0,1-.71-.29l-10-10a1,1,0,0,1,0-1.41l10-10a1,1,0,1,1,1.41,1.41L15.41,13l9.3,9.29a1,1,0,0,1,0,1.41A1,1,0,0,1,24,24Z"></path><path d="M10 24H8V8h2V24z"></path></svg>'; // Skip to Start icon
+    const svgLast = '<svg focusable="false" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-label="Last page" width="16" height="16" viewBox="0 0 32 32" role="img"><path d="M8,24a1,1,0,0,1-.71-.29a1,1,0,0,1,0-1.41L16.59,13l-9.3-9.29a1,1,0,1,1,1.41-1.41l10,10a1,1,0,0,1,0,1.41l-10,10A1,1,0,0,1,8,24Z"></path><path d="M24 24h-2V8h2V24z"></path></svg>'; // Skip to End icon
+    // RE-ADDED: Use Prev/Next SVGs for First/Last for simplicity - REMOVED
 
     // Buttons - Re-enabled First/Last
     const firstBtn = createButton('First', 'First Page', svgFirst, () => goToPage(1), currentPage === 1);

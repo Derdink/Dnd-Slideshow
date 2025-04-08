@@ -704,14 +704,14 @@ padding: 0rem 0.5rem;
 
 /* --- Filter Tabs Wrapper --- */
 #filterTabsWrapper {
-    display: none; /* Hidden by default, JS toggles to grid */
-    display: grid; 
+    display: grid; /* Use grid for desktop */
     grid-template-columns: 3fr 1fr; /* Define 2 columns (e.g., 75% / 25% split) */
     gap: var(--cds-spacing-06); /* Use grid gap */   
     padding: var(--cds-spacing-05, 1.5rem);
-    background-color: var(--cds-ui-02, #ffffff);
-    border: 1px solid var(--cds-border-subtle-01, #e0e0e0);
     margin-bottom: 1rem;
+    /* Hide by default, JS toggles display */
+    max-width: 100%;
+    display: none; 
 }
 
 /* Remove the Carbon grid class overrides and flex properties */
@@ -719,31 +719,21 @@ padding: 0rem 0.5rem;
 
 /* Style the direct children (sections) as grid items */
 #filterTabsWrapper > div { /* Target .tags-section and .playlists-section */
-    /* REMOVE flex properties */
-    /* flex: 1 1 45%; */
-    /* min-width: 300px; */ 
-    /* Keep padding and box-sizing */
-    border: 1px solid var(--cds-border-subtle-01);
-    border-radius: var(--cds-radius-md);
+    /* No specific width needed, grid handles it */
     padding: var(--cds-spacing-05);
-    box-sizing: border-box;
+    border: 1px solid var(--cds-border-subtle-01);
 }
 
-/* REMOVE margin-left rule */
-/* #filterTabsWrapper .bx--col-lg-3 { margin-left: var(--cds-spacing-06); } */
-
+/* Add header styles */
 #filterTabsWrapper h3 {
-    font-size: var(--cds-heading-01); 
+    margin-bottom: var(--cds-spacing-05);
+    font-size: var(--cds-heading-compact-01);
     font-weight: 600;
-    line-height: var(--cds-heading-compact-01);
-    margin-bottom: var(--cds-spacing-04); 
-    padding-bottom: var(--cds-spacing-03);
-    color: var(--cds-text-primary);
 }
 
 /* Style tag filter container */
 #tagFilterDropdown {
-    display: flex;
+    display: flex; /* Use flex for wrapping on desktop too */
     flex-wrap: wrap;
     gap: var(--cds-spacing-02);
     /* Styles for individual filter-tag-pill should apply */
@@ -883,11 +873,13 @@ padding: 0rem 0.5rem;
 
 #imageTableContainer {
     background-color: var(--cds-layer-01); /* ADDED: White background */
-   
+    margin-top: var(--cds-spacing-05);
 }
 
 #imageTable {
     width: 100%;
+    /* Ensure default layout allows natural column sizing */
+    /* table-layout: auto; */ /* This is usually the default */
 }
 
 /* Checkbox */
@@ -1123,6 +1115,200 @@ padding-left: 1.5em;
     opacity: 0;
     visibility: hidden;
     pointer-events: none; /* Prevent interaction when hidden */
+}
+
+/* ==========================================================================
+   Mobile Styles (for manage.html)
+   ========================================================================== */
+@media (max-width: 768px) { /* Adjust breakpoint as needed */
+
+    /* --- Header / Filter Area --- */
+    #filterContainer #bulkDelete,
+    #filterContainer #tagManagerToggle,
+    #filterContainer #playlistManagerToggle {
+        display: none;
+    }
+
+    /* --- Image Table Simplification --- */
+
+    #imageTable {
+        table-layout: fixed; /* Apply fixed layout ONLY for mobile */
+        width: 100%; 
+         font-size: var(--cds-type-scale-02); 
+    }
+
+    /* Constrain Checkbox column */
+    #imageTable .bx--table-header:nth-child(1),
+    #imageTable .bx--table-cell:nth-child(1) {
+        width: 40px; /* Fixed width for checkbox */
+        max-width: 40px;
+        padding-left: var(--cds-spacing-03); /* Adjust padding */
+        padding-right: var(--cds-spacing-02);
+    }
+
+    /* Constrain Thumbnail column */
+    #imageTable .bx--table-header:nth-child(2),
+    #imageTable .bx--table-cell:nth-child(2) {
+        width: 56px; /* Slightly larger than thumbnail (40px + padding) */
+        max-width: 56px;
+        padding-left: var(--cds-spacing-02);
+        padding-right: var(--cds-spacing-02);
+    }
+
+    /* Hide Tags and Date columns (header and body) */
+    #imageTable .bx--table-header:nth-child(4), /* Tags header */
+    #imageTable .bx--table-cell:nth-child(4),   /* Tags cell */
+    #imageTable .bx--table-header:nth-child(5), /* Date header */
+    #imageTable .bx--table-cell:nth-child(5) {  /* Date cell */
+        display: none;
+    }
+
+    /* Hide Actions column header TEXT, keep cell */
+    #imageTable .bx--table-header:nth-child(6) { /* Actions header */
+        /* display: none; */ /* Keep the cell for layout */
+        font-size: 0; /* Hide the text content */
+        /* Optionally adjust padding if needed */
+        /* padding: 0; */ 
+    }
+
+    /* Hide specific action buttons (Edit, Delete) */
+    #imageTable .actions-cell .image-edit-btn,
+    #imageTable .actions-cell .image-delete-btn {
+        display: none;
+    }
+
+    /* Ensure Play button is still visible */
+    #imageTable .actions-cell .image-play-btn {
+        display: inline-flex; /* Or block, depending on desired layout */
+    }
+    
+    /* Adjust actions cell padding if needed after hiding buttons */
+    #imageTable .actions-cell {
+        padding-left: var(--cds-spacing-03);
+        padding-right: var(--cds-spacing-03);
+    }
+
+    /* Adjust thumbnail size? Optional. */
+    #imageTable .image-thumbnail {
+        width: 40px;
+        height: 40px;
+    }
+
+    /* Constrain Title column width and allow wrapping */
+    #imageTable .bx--table-header:nth-child(3), /* Title header */
+    #imageTable .bx--table-cell:nth-child(3) {  /* Title cell */
+        max-width: 120px; /* Adjust as needed */
+        min-width: 80px;  /* Prevent collapsing too much */
+        white-space: normal; /* Allow wrapping */
+        word-break: break-word; /* Break long words if necessary */
+    }
+
+    /* --- Pagination Simplification --- */
+
+    .bx--pagination__left .bx--pagination__text, /* Hide "x-y of z items" */
+    .bx--pagination__left .bx--pagination__select { /* Hide "Items per page" select */
+        display: none;
+    }
+
+    /* Optional: Adjust spacing or layout of remaining pagination controls */
+    .bx--pagination__right {
+        /* Ensure it takes full width or adjust as needed */
+         width: 100%;
+         justify-content: center; /* Center the remaining controls */
+    }
+
+    /* --- Header / Filter Simplification (Optional) --- */
+    
+    /* Example: Stack header controls vertically */
+    /* 
+    #manageHeader {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    #manageHeader .header-controls {
+        margin-top: var(--cds-spacing-03);
+    }
+    */
+
+    /* Example: Simplify filter container */
+    /* 
+    #filterContainer {
+        flex-wrap: wrap;
+    }
+    #filterContainer .search-wrapper {
+        width: 100%;
+        margin-bottom: var(--cds-spacing-03);
+    }
+    */
+
+    /* --- Filter Menu Stacking --- */
+
+    #filterTabsWrapper {
+        display: none; /* Keep hidden by default, JS toggles to block */
+        margin-top: var(--cds-spacing-05); /* Add some space below filter button */
+        /* Remove grid properties */
+        grid-template-columns: none;
+        gap: 0;
+        border: none; /* Simplify border/padding for stacked mobile view */
+        padding: 0;
+        background-color: transparent;
+    }
+
+    #filterTabsWrapper > .tags-section,
+    #filterTabsWrapper > .playlists-section {
+        display: block; /* Ensure sections stack */
+        width: 100%; /* Make sections full width */
+        margin-bottom: var(--cds-spacing-05); /* Space between sections */
+        padding: var(--cds-spacing-03); /* Add some padding back */
+        border: 1px solid var(--cds-border-subtle-01);
+    
+    }
+
+    /* Ensure filter pills/items can wrap */
+    #tagFilterDropdown,
+    #playlistFilterContainer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--cds-spacing-03);
+    }
+
+    /* Style the direct children (sections) as grid items */
+    #filterTabsWrapper > div { /* Target .tags-section and .playlists-section */
+        /* No specific width needed, grid handles it */
+        padding: var(--cds-spacing-05);
+        
+        border: 1px solid var(--cds-border-subtle-01);
+    }
+
+    /* Add header styles */
+    #filterTabsWrapper h3 {
+        margin-bottom: var(--cds-spacing-05);
+        font-size: var(--cds-heading-compact-01);
+        font-weight: 600;
+    }
+
+    /* Style tag filter container */
+    #tagFilterDropdown {
+        display: flex; /* Use flex for wrapping on desktop too */
+        flex-wrap: wrap;
+        gap: var(--cds-spacing-02);
+        /* Styles for individual filter-tag-pill should apply */
+    }
+
+    .filter-tag-pill {
+        /* Basic styles for filter tags */
+        margin: var(--cds-spacing-01);
+        transition: opacity 0.2s ease-in-out, filter 0.2s ease-in-out;
+    }
+
+    .filter-tag-pill.unavailable {
+        /* Styles for tags not present in the current view */
+        /* Opacity is set by JS (e.g., 0.3) */
+        /* pointer-events: none; is set by JS */
+        filter: grayscale(100%); /* Add grayscale effect */
+        cursor: not-allowed;
+    }
+
 }
 
 
