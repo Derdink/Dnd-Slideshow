@@ -40,29 +40,38 @@ function preloadImage(url) {
 }
 
 /**
- * Updates the title overlay with new text
- * Implements Slideshow User Story 1:
- * - Display title over image at bottom
- * - Display description as subtitle
- * - Subtle gradient behind text
+ * Updates the text content of the title and subtitle overlays with a crossfade effect.
+ * @param {string} title - The main title text.
+ * @param {string} [subtitle=''] - The subtitle text (optional).
  */
 function updateTitleOverlay(title, subtitle = '') {
-    if (!dom.titleOverlay1 || !dom.titleOverlay2 || !dom.subtitleOverlay1 || !dom.subtitleOverlay2) return;
+    // Ensure DOM elements are cached
+    if (!dom.titleOverlay1 || !dom.titleOverlay2 || !dom.subtitleOverlay1 || !dom.subtitleOverlay2) {
+        console.warn('[Slideshow] Title/Subtitle overlay elements not cached.');
+        return;
+    }
 
-    const activeTitleOverlay = activeSlideIndex === 1 ? dom.titleOverlay1 : dom.titleOverlay2;
-    const inactiveTitleOverlay = activeSlideIndex === 1 ? dom.titleOverlay2 : dom.titleOverlay1;
-    const activeSubtitleOverlay = activeSlideIndex === 1 ? dom.subtitleOverlay1 : dom.subtitleOverlay2;
-    const inactiveSubtitleOverlay = activeSlideIndex === 1 ? dom.subtitleOverlay2 : dom.subtitleOverlay1;
+    // Determine which set of overlays is currently active
+    const isSet1Active = dom.titleOverlay1.classList.contains('active');
 
-    // Set text on the *inactive* overlay first
-    inactiveTitleOverlay.textContent = title || '';
-    inactiveSubtitleOverlay.textContent = subtitle || '';
+    // Identify the next (currently inactive) and current (currently active) overlays
+    const nextTitleOverlay = isSet1Active ? dom.titleOverlay2 : dom.titleOverlay1;
+    const currentTitleOverlay = isSet1Active ? dom.titleOverlay1 : dom.titleOverlay2;
+    const nextSubtitleOverlay = isSet1Active ? dom.subtitleOverlay2 : dom.subtitleOverlay1;
+    const currentSubtitleOverlay = isSet1Active ? dom.subtitleOverlay1 : dom.subtitleOverlay2;
 
-    // Fade out active, fade in inactive
-    activeTitleOverlay.classList.remove('active');
-    activeSubtitleOverlay.classList.remove('active');
-    inactiveTitleOverlay.classList.add('active');
-    inactiveSubtitleOverlay.classList.add('active');
+    // Update the text content of the *next* overlays
+    nextTitleOverlay.textContent = title;
+    nextSubtitleOverlay.textContent = subtitle;
+
+    // Toggle the active class to start the crossfade
+    currentTitleOverlay.classList.remove('active');
+    currentSubtitleOverlay.classList.remove('active');
+    nextTitleOverlay.classList.add('active');
+    nextSubtitleOverlay.classList.add('active');
+
+    // Debugging log
+    // console.log(`[Slideshow] Updated title: "${title}", subtitle: "${subtitle}". Activated set ${isSet1Active ? 2 : 1}`);
 }
 
 /**
