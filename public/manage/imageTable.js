@@ -159,6 +159,7 @@ function createImageRow(image) {
     row.appendChild(cellTags);
 
     // 5. Date Added Cell
+    console.log(`[ImageTable createImageRow] Value passed to formatDateAdded for ID ${image.id}:`, image.dateAdded, typeof image.dateAdded);
     const cellDate = createCell('bx--table-cell', formatDateAdded(image.dateAdded));
     row.appendChild(cellDate);
 

@@ -139,7 +139,7 @@ async function initializeSchema(databaseConnection) {
                         filename TEXT UNIQUE NOT NULL,
                         title TEXT NOT NULL,
         description TEXT,  
-                        dateAdded TEXT NOT NULL
+                        dateAdded INTEGER NOT NULL
                     )
                 `);
                 console.log('  - `images` table checked/created.');
@@ -479,40 +479,49 @@ app.post('/upload', upload.single('file'), async(req, res, next) => {
     const originalPath = req.file.path;
     const thumbPath = path.join(THUMBNAIL_DIR, sanitizedFilename);
     const originalName = req.file.originalname;
-    const title = path.basename(originalName, path.extname(originalName));
-    const dateAdded = Date.now().toString();
+    // *** MOVED: Get original base name BEFORE sanitization for Title/Desc split ***
+    const originalBaseName = path.basename(originalName, path.extname(originalName)); 
+    // *** REVERTED: Store Date.now() (number) instead of ISO string ***
+    const dateAdded = Date.now(); // Store as milliseconds since epoch
 
     console.log(`➡️ POST /upload request received for file: ${originalName} (Sanitized: ${sanitizedFilename})`, { overwrite });
 
     try {
-        // *** NEW: Check for duplicate based on ORIGINAL filename first ***
-        const existingByOriginal = await dbGet('SELECT id, filename FROM images WHERE title = ? AND filename != ?', 
-            [title, sanitizedFilename] // Check if title exists with a DIFFERENT sanitized name
+        // *** MODIFIED: Split based on originalBaseName ***
+        let title = originalBaseName; // Default title is original base name
+        let description = null;      // Default description
+        const separatorIndex = originalBaseName.indexOf(' - ');
+
+        if (separatorIndex !== -1) {
+            title = originalBaseName.substring(0, separatorIndex).trim();
+            description = originalBaseName.substring(separatorIndex + 3).trim(); // +3 to skip ' - '
+            console.log(`  - Split original name: Title="${title}", Description="${description}"`);
+        } else {
+             // If no separator, the title remains originalBaseName, desc remains null
+             // Use the already sanitized filename's base as title if original had issues?
+             // For now, let's stick to using the original base name directly as title if no separator.
+             title = title.trim(); // Ensure title has no leading/trailing spaces
+        }
+        // *** END MODIFICATION ***
+
+        // *** MODIFIED: Check for duplicate based on SANITIZED FILENAME ***
+        const existingByFilename = await dbGet('SELECT id FROM images WHERE filename = ?', 
+            [sanitizedFilename]
         );
-        // If an entry exists with the same title but different sanitized name, and we are NOT overwriting,
-        // it implies a logical duplicate (e.g., "My Pic.jpg" vs "My_Pic.jpg") that we might want to prevent.
-        // NOTE: This logic assumes `title` is reliably derived from `originalName`'s base.
-        if (existingByOriginal && !overwrite) {
-            console.log(`  - Logical duplicate detected: Title "${title}" already exists (ID: ${existingByOriginal.id}, Filename: ${existingByOriginal.filename}). Overwrite not requested.`);
+        
+        if (existingByFilename && !overwrite) {
+            console.log(`  - Duplicate filename detected: Sanitized filename "${sanitizedFilename}" already exists (ID: ${existingByFilename.id}). Overwrite not requested.`);
             // Clean up the newly uploaded file
             try { await fs.unlink(originalPath); } catch (e) { /* ignore */ }
-            // Send a specific error message
-            return res.status(409).json({ message: `An image with a similar name ('${title}') already exists. Upload rejected to prevent potential duplicate.` });
-        }
-        // *** END NEW Check ***
-
-        // Check if an entry with the exact sanitized filename already exists
-        const existingBySanitized = await dbGet('SELECT id FROM images WHERE filename = ?', [sanitizedFilename]);
-
-        if (existingBySanitized && !overwrite) {
-             // Existing logic for exact filename match, prompt user
-            console.log(`  - File "${sanitizedFilename}" exists, overwrite not requested. Prompting client.`);
-            try { await fs.unlink(originalPath); } catch (unlinkErr) { /* ... */ }
-            return res.json({ overwritePrompt: true, message: `File '${sanitizedFilename}' already exists.` });
+            // Send the specific 409 conflict status and indicate overwrite possibility
+            return res.status(409).json({ 
+                message: `File '${sanitizedFilename}' already exists.`,
+                overwritePrompt: true // Signal to the client that overwrite is an option
+            }); 
         }
 
-        // Proceed with insert or update
-        if (existingBySanitized && overwrite) {
+        // --- Overwrite or Insert ---
+        if (existingByFilename && overwrite) {
             // --- Overwrite existing entry ---
             console.log(`  - File "${sanitizedFilename}" exists, overwriting.`);
             const result = await dbRun(
@@ -520,7 +529,7 @@ app.post('/upload', upload.single('file'), async(req, res, next) => {
                 ' WHERE filename = ?', 
                 [title, dateAdded, sanitizedFilename]
             );
-            console.log(`    ✅ Record updated for ID: ${existingBySanitized.id}, Rows affected: ${result.changes}`);
+            console.log(`    ✅ Record updated for ID: ${existingByFilename.id}, Rows affected: ${result.changes}`);
 
             await generateThumbnail(originalPath, thumbPath, sanitizedFilename);
             console.log(`✅ POST /upload - File "${sanitizedFilename}" overwritten successfully.`);
@@ -529,9 +538,10 @@ app.post('/upload', upload.single('file'), async(req, res, next) => {
             } else {
             // --- Insert new entry ---
             console.log(`  - Inserting new record for "${sanitizedFilename}".`);
+            // *** MODIFIED: Use derived title and description in INSERT ***
             const result = await dbRun(
-                'INSERT INTO images (filename, title, dateAdded, description) VALUES (?, ?, ?, NULL)',
-                [sanitizedFilename, title, dateAdded]
+                'INSERT INTO images (filename, title, dateAdded, description) VALUES (?, ?, ?, ?)',
+                [sanitizedFilename, title, dateAdded, description] // Pass description here
             );
             const newImageId = result.lastID; // Get the ID for tag association
             console.log(`    ✅ New record inserted with ID: ${newImageId}`);

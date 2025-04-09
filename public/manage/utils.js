@@ -26,8 +26,27 @@ export function getContentColorForBackground(bgColor) {
  */
 export function formatDateAdded(timestamp) {
     if (!timestamp) return '-';
+
+    // Explicitly parse the timestamp string to a number
+    const numericTimestamp = parseFloat(timestamp);
+
+    // Check if parsing resulted in a valid number
+    if (isNaN(numericTimestamp)) {
+        console.warn("[formatDateAdded] Failed to parse timestamp string to number:", timestamp);
+        return 'Invalid Date';
+    }
+
+    // Use the parsed numeric timestamp
+    const date = new Date(numericTimestamp);
+
+    // Check if the date object itself is valid (redundant after parseFloat check, but safe)
+    if (isNaN(date.getTime())) {
+        console.warn("[formatDateAdded] Invalid timestamp received:", timestamp);
+        return 'Invalid Date';
+    }
+
     const now = Date.now();
-    const diff = now - Number(timestamp);
+    const diff = now - date.getTime();
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     if (hours < 24) {
@@ -35,7 +54,6 @@ export function formatDateAdded(timestamp) {
     } else if (days < 3) {
         return `${days} ${days === 1 ? 'Day' : 'Days'} ago`;
     } else {
-        const date = new Date(Number(timestamp));
         const day = date.getDate().toString().padStart(2, '0');
         const month = (date.getMonth() + 1).toString().padStart(2, '0');
         const year = date.getFullYear().toString().slice(-2);
