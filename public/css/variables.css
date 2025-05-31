@@ -1,0 +1,79 @@
+@import 'carbon-variables.css';
+
+:root {
+    /* Colors - Using Carbon Design System tokens */
+    --color-primary: var(--cds-interactive-01);
+    --color-primary-hover: var(--cds-interactive-02);
+    --color-secondary: var(--cds-interactive-03);
+    --color-success: var(--cds-support-success);
+    --color-danger: var(--cds-support-error);
+    --color-warning: var(--cds-support-warning);
+    --color-info: var(--cds-support-info);
+    --color-light: var(--cds-ui-01);
+    --color-dark: var(--cds-ui-05);
+    
+    /* Background Colors */
+    --bg-primary: var(--cds-ui-01);
+    --bg-secondary: var(--cds-ui-02);
+    --bg-tertiary: var(--cds-ui-03);
+    --bg-dark: var(--cds-ui-05);
+    
+    /* Text Colors */
+    --text-primary: var(--cds-text-01);
+    --text-secondary: var(--cds-text-02);
+    --text-light: var(--cds-text-04);
+    --text-muted: var(--cds-text-03);
+    
+    /* Border Colors */
+    --border-color: var(--cds-ui-03);
+    --border-color-dark: var(--cds-ui-04);
+    
+    /* Shadow - Using Carbon Design System tokens */
+    --shadow-sm: var(--cds-shadow-sm);
+    --shadow-md: var(--cds-shadow-md);
+    --shadow-lg: var(--cds-shadow-lg);
+    
+    /* Spacing - Using Carbon Design System tokens */
+    --spacing-xs: var(--cds-spacing-02);
+    --spacing-sm: var(--cds-spacing-03);
+    --spacing-md: var(--cds-spacing-04);
+    --spacing-lg: var(--cds-spacing-05);
+    --spacing-xl: var(--cds-spacing-06);
+    
+    /* Border Radius - Using Carbon Design System tokens */
+    --border-radius-sm: var(--cds-radius-sm);
+    --border-radius-md: var(--cds-radius-md);
+    --border-radius-lg: var(--cds-radius-lg);
+    
+    /* Transitions - Using Carbon Design System tokens */
+    --transition-fast: var(--cds-motion-fast-01);
+    --transition-normal: var(--cds-motion-normal-01);
+    --transition-slow: var(--cds-motion-slow-01);
+    
+    /* Z-index - Using Carbon Design System tokens */
+    --z-index-dropdown: var(--cds-z-index-dropdown);
+    --z-index-sticky: var(--cds-z-index-sticky);
+    --z-index-fixed: var(--cds-z-index-fixed);
+    --z-index-modal-backdrop: var(--cds-z-index-modal-backdrop);
+    --z-index-modal: var(--cds-z-index-modal);
+    --z-index-popover: var(--cds-z-index-popover);
+    --z-index-tooltip: var(--cds-z-index-tooltip);
+    
+    /* Font Sizes - Using Carbon Design System tokens */
+    --font-size-xs: var(--cds-type-scale-01);
+    --font-size-sm: var(--cds-type-scale-02);
+    --font-size-base: var(--cds-type-scale-03);
+    --font-size-lg: var(--cds-type-scale-04);
+    --font-size-xl: var(--cds-type-scale-05);
+    
+    /* Line Heights - Using Carbon Design System tokens */
+    --line-height-tight: var(--cds-line-height-01);
+    --line-height-normal: var(--cds-line-height-02);
+    --line-height-relaxed: var(--cds-line-height-03);
+    
+    /* Container Widths - Using Carbon Design System tokens */
+    --container-sm: var(--cds-container-sm);
+    --container-md: var(--cds-container-md);
+    --container-lg: var(--cds-container-lg);
+    --container-xl: var(--cds-container-xl);
+} 
