@@ -127,3 +127,16 @@
     fill: currentColor; /* Use the color set on .nav-button */
     filter: drop-shadow(1px 1px 3px rgba(0, 0, 0, 0.5)); /* Add shadow to SVG */
 }
+
+@media (min-width: 3000px) {
+    .title-overlay {
+        font-size: 6rem;
+        bottom: 5rem;
+    }
+    .subtitle-overlay {
+        font-size: 4rem;
+    }
+    .title-container{
+        height: 15%;
+    }
+}

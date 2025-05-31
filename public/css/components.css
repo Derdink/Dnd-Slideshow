@@ -1194,6 +1194,10 @@ padding-left: 1.5em;
         height: 40px;
     }
 
+    #imageTable .bx--table-cell:nth-child(6) {
+        width: 20%;
+    }
+
     /* Constrain Title column width and allow wrapping */
     #imageTable .bx--table-header:nth-child(3), /* Title header */
     #imageTable .bx--table-cell:nth-child(3) {  /* Title cell */

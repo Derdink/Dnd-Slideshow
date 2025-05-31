@@ -31,6 +31,17 @@
     }
 }
 
+@media (min-width: 3000px) {
+    .title-overlay {
+        font-size: 6rem;
+        bottom: 5rem;
+    }
+    .subtitle-overlay {
+        font-size: 4rem;
+    }
+}
+
+
 /* Grid */
 .grid {
     display: grid;
